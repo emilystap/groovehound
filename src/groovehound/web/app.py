@@ -205,22 +205,27 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/cover/{mbid}")
     def cover(mbid: str, store: StoreDep, user: UserDep) -> Response:
-        """A cover thumbnail from the cover cache (one request to the Cover Art Archive the first
-        time, or when due for a refresh). Only for release groups on your wishlist, by artists
-        you follow, in your ListenBrainz fresh releases (the home page) or in the playlists it
-        created for you (Discover), so this isn't a way to make the server fetch anything
+        """A cover thumbnail from the cover cache (made from your library's files if they have
+        art, else one request to the Cover Art Archive the first time, or when due for a
+        refresh). Only for release groups on your wishlist, by artists you follow, in your
+        ListenBrainz fresh releases (the home page), in the playlists it created for you
+        (Discover) or in your library, so this isn't a way to make the server fetch anything
         else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
             store.wishlisted(user.id, [mbid])
             or store.followed_release_group(user.id, mbid)
+            or store.in_library(user.id, [mbid])
             or personal.listed(store, _listenbrainz_user(user), mbid)
             or playlists.listed(store, _listenbrainz_user(user), mbid)
         ):
-            raise HTTPException(404, "not on your wishlist, home page or Discover")
+            raise HTTPException(404, "not on your wishlist, home page, Discover or in your library")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
+        library_root = settings.library_path if user.id == OWNER_ID else None
         try:
-            found = covers.cover(store, client, coverart.PAUSE, mbid)
+            found = covers.cover(
+                store, client, coverart.PAUSE, mbid, library_root=library_root, user_id=user.id
+            )
         except ServiceError:
             return Response(status_code=503, headers={"Cache-Control": "no-store"})
         if found.image is None:

@@ -188,6 +188,14 @@ MIGRATIONS: list[str] = [
         error        TEXT NOT NULL DEFAULT ''
     );
     """,
+    # 10: covers from the library (roadmap 5i). source: the file a cover was made from, relative
+    # to the owner's library folder (an image beside the music, or an audio file with the art
+    # embedded); '' = the Cover Art Archive. source_mtime_ns: that file's mtime then, so a
+    # changed or removed file makes the cover again.
+    """
+    ALTER TABLE covers ADD COLUMN source TEXT NOT NULL DEFAULT '';
+    ALTER TABLE covers ADD COLUMN source_mtime_ns INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 
@@ -338,6 +346,8 @@ class CachedCover:
     content_type: str
     fetched_at: str
     refresh_after: str
+    source: str = ""  # the library file it was made from; "" = the Cover Art Archive
+    source_mtime_ns: int = 0
 
 
 class Store:
@@ -768,20 +778,24 @@ class Store:
             "ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE, release_mbid",
             (user_id,),
         )
-        return [
-            LibraryRelease(
-                release_mbid=r["release_mbid"],
-                release_group_mbid=r["release_group_mbid"],
-                album_artist_mbids=tuple(json.loads(r["album_artist_mbids"])),
-                title=r["title"],
-                artist=r["artist"],
-                folder=r["folder"],
-                files=r["files"],
-                added_at=r["added_at"],
-                last_seen=r["last_seen"],
-            )
-            for r in rows
-        ]
+        return [_library_release(r) for r in rows]
+
+    def library_editions(self, user_id: int, release_group_mbid: str) -> list[LibraryRelease]:
+        """The releases of this release group in the user's library, most files first."""
+        rows = self.conn.execute(
+            "SELECT * FROM library WHERE user_id = ? AND release_group_mbid = ? "
+            "ORDER BY files DESC, release_mbid",
+            (user_id, release_group_mbid),
+        )
+        return [_library_release(r) for r in rows]
+
+    def library_paths(self, user_id: int, release_mbid: str) -> list[str]:
+        """The files of a release in the user's library, by path."""
+        rows = self.conn.execute(
+            "SELECT path FROM library_files WHERE user_id = ? AND release_mbid = ? ORDER BY path",
+            (user_id, release_mbid),
+        )
+        return [r[0] for r in rows]
 
     def in_library(self, user_id: int, mbids: Iterable[str]) -> dict[str, str]:
         """Which of these release groups or releases (an MBID is never both) are in this user's
@@ -904,26 +918,43 @@ class Store:
         refresh_after: str,
         *,
         fetched_at: str | None = None,
+        source: str = "",
+        source_mtime_ns: int = 0,
     ) -> None:
         with self.conn:
             self.conn.execute(
                 "INSERT INTO covers (release_group_mbid, image, content_type, fetched_at, "
-                "refresh_after) VALUES (?, ?, ?, ?, ?) ON CONFLICT (release_group_mbid) DO "
-                "UPDATE SET image = excluded.image, content_type = excluded.content_type, "
-                "fetched_at = excluded.fetched_at, refresh_after = excluded.refresh_after",
-                (release_group_mbid, image, content_type, fetched_at or utcnow(), refresh_after),
+                "refresh_after, source, source_mtime_ns) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (release_group_mbid) DO UPDATE SET image = excluded.image, "
+                "content_type = excluded.content_type, fetched_at = excluded.fetched_at, "
+                "refresh_after = excluded.refresh_after, source = excluded.source, "
+                "source_mtime_ns = excluded.source_mtime_ns",
+                (
+                    release_group_mbid,
+                    image,
+                    content_type,
+                    fetched_at or utcnow(),
+                    refresh_after,
+                    source,
+                    source_mtime_ns,
+                ),
             )
 
     def cover(self, release_group_mbid: str) -> CachedCover | None:
         row = self.conn.execute(
-            "SELECT image, content_type, fetched_at, refresh_after FROM covers "
-            "WHERE release_group_mbid = ?",
+            "SELECT image, content_type, fetched_at, refresh_after, source, source_mtime_ns "
+            "FROM covers WHERE release_group_mbid = ?",
             (release_group_mbid,),
         ).fetchone()
         if row is None:
             return None
         return CachedCover(
-            row["image"], row["content_type"], row["fetched_at"], row["refresh_after"]
+            row["image"],
+            row["content_type"],
+            row["fetched_at"],
+            row["refresh_after"],
+            row["source"],
+            row["source_mtime_ns"],
         )
 
     def drop_cached_before(self, service: str, kind: str, before: str) -> None:
@@ -952,6 +983,20 @@ def _wishlist_item(row: sqlite3.Row) -> WishlistItem:
         notes=row["notes"],
         heard=row["heard"],
         bought_at=row["bought_at"],
+    )
+
+
+def _library_release(row: sqlite3.Row) -> LibraryRelease:
+    return LibraryRelease(
+        release_mbid=row["release_mbid"],
+        release_group_mbid=row["release_group_mbid"],
+        album_artist_mbids=tuple(json.loads(row["album_artist_mbids"])),
+        title=row["title"],
+        artist=row["artist"],
+        folder=row["folder"],
+        files=row["files"],
+        added_at=row["added_at"],
+        last_seen=row["last_seen"],
     )
 
 

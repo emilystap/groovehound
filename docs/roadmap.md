@@ -81,8 +81,8 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
   Tags, genres, ratings and annotations are **CC BY-NC-SA 3.0**: fine for personal,
   non-commercial use, but the UI credits MusicBrainz wherever they're shown. ListenBrainz data
   is CC0. The footer always credits both, with links.
-- Cover art comes from the Cover Art Archive (`coverartarchive.org`) only (until 5i takes
-  covers of albums in the library from the files), as 250 px
+- Cover art comes from the Cover Art Archive (`coverartarchive.org`), except for albums in the
+  library, whose covers come from the files when they have art (5i), as 250 px
   thumbnails, loaded lazily. Wishlist covers go through the server's cover cache
   (`covers.py`, `/cover/<mbid>`): fetched through `brainz/http.py` like any other request,
   once per release group when first shown, refreshed (again only when shown) after a
@@ -451,14 +451,23 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     In the check, the 59 unheard songs were on 45 albums by 30 artists, all with a release
     group, and mostly well-known pop (Sabrina Carpenter, Chappell Roan, Dua Lipa, ABBA): watch
     whether that's useful once the library filter is in.
-- 5i **Covers from the library** (needs 5a/5b; before 5f, whose page is all library albums):
+- 5i ✅ **Covers from the library** (needs 5a/5b; before 5f, whose page is all library albums):
   for a release group in the library, the cover cache (`covers.py`) takes the cover from its
-  folder first (`cover.jpg`, `folder.jpg`, `front.*` and the like), then the art embedded in
-  its files (FLAC pictures, ID3 `APIC`, MP4 `covr`; the front cover if marked), and asks the
-  Cover Art Archive only if neither has one. Made lazily, when first shown, resized to 250 px
-  (Pillow) and cached in `covers` with where it came from, so a rescan that sees the folder or
-  file change can drop it; `/cover/<mbid>` also allows release groups in the library. Fewer
-  requests, and covers for releases the archive doesn't have.
+  folder first (`cover.*`, `folder.*`, `front.*`, `albumart.*`, `album.*` as JPEG, PNG, WebP or
+  GIF, in the edition's folder, then its files' own, e.g. a disc's), then the art embedded in
+  its files (FLAC pictures, Vorbis `METADATA_BLOCK_PICTURE`, ID3 `APIC`, MP4 `covr`, APEv2
+  *Cover Art (Front)*; the front cover if marked; the first two files of each edition), and
+  asks the Cover Art Archive only if neither has one (`library.cover_art`). Made lazily, when
+  first shown, resized to at most 250 px as a JPEG (Pillow) and cached in `covers` with the
+  file it came from and that file's mtime (`source`, migration 10).
+  - **Changes:** each view of a library cover checks its file (one `stat`) instead of waiting
+    for a rescan: changed, it's made again; gone, the library is looked at again, then the
+    archive. Art added to the library replaces a cover from the archive on its next view. A
+    better file added beside one already used (a `cover.jpg` where the embedded art was taken)
+    shows after the randomized 30–60 day refresh.
+  - `/cover/<mbid>` also allows release groups in the library, and search results and other
+    artists' pages use it for those, so they need no contact and no request. Library covers
+    work without a contact configured.
 - 5j **Library artists** (needs 5a/5b): every album artist in the library, followed or not, so
   any of them can be opened to see what you're missing. *Artists* gets two tabs: *Following*
   (today's `/artists`) and *In your library* (`/artists/library`), built from the `library`
