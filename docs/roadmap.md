@@ -9,6 +9,27 @@ Groovehound is a self-hosted companion to a personal music library. It does thre
 
 Single user today; the schema and code are ready for more (see "Users").
 
+## Non-goals
+
+All three answer one question: *what should I listen to, or go and get, next?* A feature
+belongs only if it serves that, uses data already at hand (or a few bounded requests), and
+leaves jobs that other tools already do well to those tools. So Groovehound does **not**:
+
+- **Play music.** Navidrome, Symfonium and the rest do that; Groovehound links out to them.
+- **Write to your library or to other services.** The music folder is mounted read-only and
+  Navidrome is only ever read. The one possible exception, keeping the wishlist in a
+  MusicBrainz collection, would be opt-in and only run when you ask.
+- **Manage files.** No tagging, renaming, moving or deleting: that's Picard (or beets).
+- **Fetch music automatically.** No downloaders or Lidarr-style automation. Groovehound shows
+  where to buy something; buying it is up to you.
+- **Scrape stores.** Purchase links are built locally or come from MusicBrainz; no price or
+  availability checks.
+- **Record listens or be social.** ListenBrainz records and shares listens; Groovehound only
+  reads them.
+
+Ideas turned down for these reasons are listed under "Decided against", with the reason, so
+they don't come back every few months.
+
 ## Ground rules: being a good MetaBrainz citizen
 
 These are project rules, not tuning knobs. MusicBrainz and ListenBrainz are run by a small
@@ -165,8 +186,9 @@ The core loop: hear something → find it → save it → buy it later.
 ### 5. Library awareness
 
 Know what's already in your music library, so Groovehound can say "you have this" instead of
-suggesting it again. Everything here is local: **no MusicBrainz requests**. 5a and 5b need only
-phase 1 and could move earlier; 5d needs phase 2.
+suggesting it again, and point you at what you own but haven't played. **No MusicBrainz
+requests**; ListenBrainz only for listening stats (5e). 5a and 5b need only phase 1 and could
+move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
 - 5a **Library scan.** Mount the music folder into the container read-only (e.g.
   `/music:ro`, `library.path` in config) and read the MusicBrainz tags Picard writes (via
@@ -194,6 +216,25 @@ phase 1 and could move earlier; 5d needs phase 2.
   that you don't follow, ranked by how many you own, with *Follow* and *dismiss* (stays
   dismissed). Following one also seeds the "already out" list from the library, so albums you
   own are never reported as new. Later, combine with ListenBrainz listen counts (phase 4).
+- 5e **Unplayed.** With a ListenBrainz username: your all-time stats per release group and per
+  artist (`/1/stats/user/<name>/release-groups` and `/artists`, `range=all_time`, paged with
+  `count`; public, no token), fetched at most once a day. Library minus played = unplayed: a
+  *never played* badge on library items and an unplayed count per artist. Listens are matched by
+  the MBIDs ListenBrainz mapped them to, so a listen it couldn't map counts as unplayed; say so
+  in the UI. **Check first** whether the stats lists stop at a top N: if they do, records
+  played only once or twice drop off, and a one-off ListenBrainz export (not paging `/listens`)
+  fills the gap.
+- 5f **Rediscover.** One page of unplayed releases from the library, picked at random in fixed
+  proportions: some by artists you play most, some by artists you rarely play, plus new releases
+  (phases 2–3) by your most-played artists that you haven't played yet. *Shuffle* draws again
+  (locally, no requests); *dismiss* stays dismissed. Fixed proportions on purpose: no tunable
+  weights or saved mixes.
+- 5g **Open in your player.** *Open in Navidrome* on library items, linking to the album in
+  Navidrome's web UI. That needs Navidrome's own album id, so it uses 5c's read-only connection
+  to list albums with their MBIDs (your own server, no MetaBrainz requests), even when the file
+  scan is the library source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
+  has no links a web page can open (deep links are an open feature request on its forum, and
+  its broadcast-intent API is for other Android apps). Revisit if it adds them.
 
 ### 6. Notifications and polish
 
@@ -203,6 +244,14 @@ phase 1 and could move earlier; 5d needs phase 2.
 - Later: ntfy / webhooks, an RSS/Atom feed of new releases, export/import of follows and the
   wishlist (JSON / CSV), MusicBrainz collections sync (needs OAuth; would let the wishlist live
   in a MusicBrainz collection too).
+
+## Decided against
+
+See "Non-goals". Each entry gives the date and the reason.
+
+- **Creating playlists in Navidrome** from Rediscover (2026-11-02): needs write access to
+  Navidrome and keeping the playlist in sync, which is a player's job. Link to the album instead
+  (5g).
 
 ## Open questions
 
