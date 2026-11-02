@@ -6,8 +6,8 @@ Rate limiting, the User-Agent and backoff live in `http.py`. What's specific to 
   (one request per *Search* press, never as-you-type);
 - browses ask for `BROWSE_LIMIT` (100, the maximum) per page and stop after `MAX_BROWSE_PAGES`,
   so an artist with a huge discography stays cheap;
-- `inc=` asks for everything a feature will need in the same request (e.g. `url-rels` for the
-  wishlist's purchase links), so nothing has to be refetched later;
+- `inc=` asks for everything a feature will need in the same request (e.g. `media labels url-rels`
+  for the wishlist's editions and purchase links), so nothing has to be refetched later;
 - `client_for` can point at a mirror of your own (`api_root`), which may use a shorter
   `interval`; musicbrainz.org itself never gets less than `MIN_INTERVAL`.
 
@@ -169,13 +169,17 @@ class MusicBrainzClient(JsonClient):
         return {"release-group-count": max(count, len(groups)), "release-groups": groups}
 
     def release_group_releases(self, mbid: str) -> dict:
-        """The release group's releases (editions) with their URL relationships, purchase and
-        streaming links among them (the wishlist's *Where to buy*): `{"release-count": N,
+        """The release group's releases (editions) with their media (formats, track counts),
+        labels and catalogue numbers, and URL relationships, purchase and streaming links among
+        them: the wishlist's *Choose edition* and *Where to buy*. `{"release-count": N,
         "releases": [...]}`. One request: the first `BROWSE_LIMIT` editions (fewer for big box
-        sets, since MusicBrainz caps a page at 500 tracks) are plenty for buying links. Raises
-        NotFound, or ServiceError."""
+        sets, since MusicBrainz caps a page at 500 tracks) are plenty. Raises NotFound, or
+        ServiceError."""
         return self._get(
-            "/release", **{"release-group": _mbid(mbid)}, inc="url-rels", limit=BROWSE_LIMIT
+            "/release",
+            **{"release-group": _mbid(mbid)},
+            inc="media labels url-rels",
+            limit=BROWSE_LIMIT,
         )
 
     # --- Search (only when someone presses *Search*) -----------------------------------------

@@ -7,13 +7,22 @@
     <div>{{ item.artist_credit }}</div>
     <div class="muted small">
       {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
-      {% if item.release_mbid %} · a specific edition{% endif %}
+      {% if item.release_mbid and not editions[item.id].chosen %} · a specific edition{% endif %}
     </div>
+    {% if editions[item.id].chosen %}<div class="muted small">Edition: {{ editions[item.id].chosen.details }}</div>{% endif %}
     <div class="muted small">
       Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
     </div>
     {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
     {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
+
+    {% with choice = editions[item.id] %}
+    <details class="edit editions"{% if choice.due %} hx-get="/wishlist/{{ item.id }}/editions?next={{ here | urlencode }}"
+             hx-trigger="toggle once" hx-target="find .edition-list" hx-swap="outerHTML"{% endif %}>
+      <summary>{% if item.release_mbid %}Change edition{% else %}Choose edition{% endif %}</summary>
+      {% include "_editions.html" %}
+    </details>
+    {% endwith %}
 
     {% with where = where_to_buy[item.id] %}
     <details class="edit buy"{% if where.due %} hx-get="/wishlist/{{ item.id }}/links"

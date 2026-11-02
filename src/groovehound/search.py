@@ -6,21 +6,22 @@ for `SEARCH_TTL`, so reloading the results page, going back to it, or pressing *
 the same words doesn't ask again. A failed search starts `musicbrainz.PAUSE`, and while it runs only
 cached results are shown.
 
-Results are release groups (the album, whatever the edition), with the editions seen where the
-response lists them, so *Add to wishlist* can save one. Tags and ratings are CC BY-NC-SA and not
-used here.
+Results are release groups (the album, whatever the edition). A song search's response says
+enough about each edition (date, country, formats) for *Add to wishlist* to offer them; an album
+search's lists only id, title and status, so its editions are chosen later on the wishlist item
+(`releases.py`). Tags and ratings are CC BY-NC-SA and not used here.
 """
 
 from __future__ import annotations
 
 import math
-from collections import Counter
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
 from .brainz.http import ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
 from .db import Store
+from .releases import formats_text
 
 KINDS = {"album": "release-group", "song": "recording"}  # what's searched -> MusicBrainz entity
 SEARCH_TTL = timedelta(days=1)  # a repeated search within this reuses the cached response
@@ -47,7 +48,7 @@ class Hit:
     primary_type: str = ""
     secondary_types: tuple[str, ...] = ()
     first_release_date: str = ""
-    editions: tuple[Edition, ...] = ()
+    editions: tuple[Edition, ...] = ()  # song searches only
     songs: tuple[str, ...] = ()  # song searches: the matching recordings on it
 
     @property
@@ -149,11 +150,6 @@ def release_group_hits(data: dict) -> list[Hit]:
                 primary_type=group.get("primary-type") or "",
                 secondary_types=tuple(group.get("secondary-types") or ()),
                 first_release_date=group.get("first-release-date") or "",
-                editions=tuple(
-                    Edition(r["id"], _edition_label(r, group.get("title") or ""))
-                    for r in group.get("releases") or []
-                    if r.get("id")
-                ),
             )
         )
     return hits
@@ -219,11 +215,10 @@ def _by_date(dated: tuple[str, Edition]) -> tuple[bool, str, str]:
 def _edition_label(release: dict, group_title: str) -> str:
     """What tells editions apart: the title when it differs from the group's (e.g. a deluxe
     edition), date, country and formats ("2×CD", as MusicBrainz writes it)."""  # noqa: RUF002
-    formats = Counter(m.get("format") or "" for m in release.get("media") or [])
     parts = [
         release.get("title") if release.get("title") != group_title else "",
         release.get("date") or "",
         release.get("country") or "",
-        " + ".join(f"{n}×{f}" if n > 1 else f for f, n in formats.items() if f),  # noqa: RUF001
+        formats_text(release.get("media")),
     ]
     return " · ".join(p for p in parts if p) or release.get("title") or release["id"]

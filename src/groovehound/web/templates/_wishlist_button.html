@@ -19,6 +19,8 @@
   <input type="hidden" name="first_release_date" value="{{ hit.first_release_date }}">
   <input type="hidden" name="next" value="{{ here }}">
   {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
+  {# Song searches only: an album search's response doesn't say what tells editions apart, so
+     they're chosen on the wishlist item instead (Choose edition). #}
   {% if hit.editions | length > 1 %}
   <select name="release" aria-label="Edition of {{ hit.title }}">
     <option value="">Any edition</option>
