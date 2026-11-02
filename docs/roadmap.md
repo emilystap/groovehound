@@ -185,6 +185,11 @@ phase 1 and could move earlier; 5d needs phase 2.
   2026-…"), not silently changed.
 - 5c **Navidrome instead of a folder** (optional): the same table filled from Navidrome's
   Subsonic API (read-only; it exposes MusicBrainz ids), for when Groovehound can't see the files.
+  **Check first** that it gives the *release group* MBID: the Subsonic API reliably has the
+  release (album) and artist MBIDs, and Navidrome stores the release group's, but it may be in
+  its internal API only, which can change without notice. With release MBIDs alone, matching
+  would need a MusicBrainz lookup per album, which the ground rules rule out; then match
+  wishlist editions only, or skip 5c.
 - 5d **Suggest follows** (needs phase 2): album artists with N+ release groups in the library
   that you don't follow, ranked by how many you own, with *Follow* and *dismiss* (stays
   dismissed). Following one also seeds the "already out" list from the library, so albums you
