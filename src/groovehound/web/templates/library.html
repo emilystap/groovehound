@@ -18,8 +18,9 @@
     never played{% if unplayed_artists %}, by {{ unplayed_artists | length }} artist{{ "" if unplayed_artists | length == 1 else "s" }}{% endif %}.</p>
   <p class="muted small">From your all-time
     <a href="https://listenbrainz.org/user/{{ listenbrainz_user | urlencode }}/stats/?range=all_time" rel="noopener" target="_blank">ListenBrainz stats</a>{% if stats.last_updated %}
-    as of {{ stats.last_updated | local_time }}{% endif %}, matched by MusicBrainz id: listens
-    ListenBrainz couldn't link to MusicBrainz{% if stats.unlinked %} ({{ stats.unlinked }}
+    as of {{ stats.last_updated | local_time }}{% endif %}{% if history %} and your listen
+    history{% endif %}, matched by MusicBrainz id: listens ListenBrainz couldn't link to
+    MusicBrainz{% if stats.unlinked %} ({{ stats.unlinked }}
     album{{ "" if stats.unlinked == 1 else "s" }} in your stats){% endif %}, or linked to the
     song on another album (a compilation, a single), don't count, so a few of these may be
     albums you have played.</p>
