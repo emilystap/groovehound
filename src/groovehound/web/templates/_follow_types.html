@@ -1,0 +1,28 @@
+{# Which release group types a follow is for (roadmap 2b), on the artist pages; empty when not
+   following. Sent out of band (`oob`) after following or unfollowing there, so it shows up or
+   goes away with the button. Without JavaScript the form posts normally and comes back. #}
+<div class="follow-types" id="follow-types-{{ mbid }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if follow %}
+  <details class="edit"{% if error or saved %} open{% endif %}>
+    <summary>For {{ types_label(follow.types) }}</summary>
+    <form method="post" action="/artists/{{ mbid }}/types" hx-post="/artists/{{ mbid }}/types"
+          hx-target="closest .follow-types" hx-swap="outerHTML">
+      <fieldset>
+        <legend class="muted small">Release types</legend>
+        {% for key, label in primary_types.items() %}
+        <label><input type="checkbox" name="type" value="{{ key }}" {% if key in follow.types %}checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </fieldset>
+      <fieldset>
+        <legend class="muted small">Also</legend>
+        {% for key, label in secondary_types.items() %}
+        <label><input type="checkbox" name="type" value="{{ key }}" {% if key in follow.types %}checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </fieldset>
+      <input type="hidden" name="next" value="{{ here }}">
+      <button type="submit">Save</button>
+      {% if error %}<span class="follow-error small">{{ error }}</span>{% elif saved %}<span class="muted small">Saved.</span>{% endif %}
+    </form>
+  </details>
+  {% endif %}
+</div>

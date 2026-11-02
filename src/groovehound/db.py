@@ -123,6 +123,14 @@ MIGRATIONS: list[str] = [
     );
     ALTER TABLE wishlist ADD COLUMN artist_names TEXT NOT NULL DEFAULT '[]';
     """,
+    # 7: release group types per follow (roadmap 2b). types is a JSON list of primary types
+    # (album, ep, single) and the secondary ones also wanted (live, compilation, ...; see
+    # follows.TYPES). singles_since: when singles were last turned on (NULL = off), since
+    # singles are browsed only from then: older ones were already out, not new.
+    """
+    ALTER TABLE follows ADD COLUMN types TEXT NOT NULL DEFAULT '["album", "ep"]';
+    ALTER TABLE follows ADD COLUMN singles_since TEXT;
+    """,
 ]
 
 
@@ -187,6 +195,8 @@ class Follow:
     sort_name: str = ""
     disambiguation: str = ""  # e.g. "UK singer", to tell artists with one name apart
     followed_at: str = ""
+    types: tuple[str, ...] = ("album", "ep")  # release group types followed (follows.TYPES)
+    singles_since: str | None = None  # when singles were turned on; None = off
 
 
 @dataclass(frozen=True)
@@ -365,6 +375,18 @@ class Store:
                     follow.disambiguation,
                     follow.followed_at or utcnow(),
                 ),
+            )
+        return cursor.rowcount == 1
+
+    def set_follow_types(
+        self, user_id: int, artist_mbid: str, types: Iterable[str], singles_since: str | None
+    ) -> bool:
+        """Change which release group types a follow is for; False if not following."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE follows SET types = ?, singles_since = ? "
+                "WHERE user_id = ? AND artist_mbid = ?",
+                (json.dumps(list(types)), singles_since, user_id, artist_mbid),
             )
         return cursor.rowcount == 1
 
@@ -588,4 +610,6 @@ def _follow(row: sqlite3.Row) -> Follow:
         sort_name=row["sort_name"],
         disambiguation=row["disambiguation"],
         followed_at=row["followed_at"],
+        types=tuple(json.loads(row["types"])),
+        singles_since=row["singles_since"],
     )

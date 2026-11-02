@@ -21,3 +21,4 @@
   {% endif %}
   {% if error %}<span class="follow-error small">{{ error }}</span>{% endif %}
 </span>
+{% if oob and with_types %}{% with mbid = artist.mbid, error = none %}{% include "_follow_types.html" %}{% endwith %}{% endif %}
