@@ -156,9 +156,10 @@ The core loop: hear something → find it → save it → buy it later.
   artist field matches part of a credit ("Gwen Stefani" finds "Gwen Stefani feat. Eve").
   A share that doesn't parse lands in quick capture (1d) as free text, filled in but not saved
   until you press *Save*. (`/share`, a GET `share_target`; parsing in `share.py`.)
-  Also here: `viewport-fit=cover`, so where Chrome draws edge-to-edge the installed app's
-  gesture bar shows the page's background instead of white in dark mode. Chrome documents no
-  way to set that bar's colour for an installed app; this one needs checking on a phone.
+  Also here: the installed app's gesture bar takes the manifest's `theme_color` (checked on a
+  Pixel, Chrome 156; `viewport-fit=cover` made no difference), and a manifest has one colour,
+  so it's the dark top bar's. The page's `theme-color` still follows the theme for the status
+  bar, and `user_preferences` asks for white in light mode where Chrome supports it.
 - 1g **Choose the edition on the wishlist item.** An album search's response lists each release
   group's editions with only id, title and status (a search can't ask for more), so the
   *edition* select shows a row of identical titles: 15 × "BITE ME" for Reneé Rapp's album.
