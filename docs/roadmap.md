@@ -122,10 +122,14 @@ The core loop: hear something → find it → save it → buy it later.
   thumbnail. *Add to wishlist* saves the release group (and optionally a specific release).
 - 1b ✅ **Wishlist page.** Sorted by date added; notes; "where I heard it" (free text); mark as
   *bought* (kept, hidden by default) or remove. Mobile-friendly: this is used from a phone.
-- 1c **Where to buy.** Per item: search links built locally, no requests (Bandcamp, Qobuz
-  store search with artist + title), plus links MusicBrainz already has. One release lookup
-  with `inc=url-rels` (fetched when the item is added, cached) gives "purchase for download" and
-  "streaming" URLs, often pointing straight at the Bandcamp or Qobuz page.
+- 1c ✅ **Where to buy.** Per item: search links built locally, no requests (Bandcamp, Qobuz
+  store search with artist + title; the Qobuz store is `[stores] qobuz`), plus links MusicBrainz
+  already has. One browse of the release group's releases with `inc=url-rels` gives
+  "purchase for download", "purchase for mail-order" and "streaming" URLs for every edition,
+  often pointing straight at the Bandcamp or Qobuz page (the saved edition's first, one per
+  store). It's made only when *Where to buy* is opened, not when the item is added, so items
+  nobody looks at cost nothing and older items need no backfill; cached, and refreshed (again
+  only when opened) after a randomized 30–60 days.
 - 1d **Quick capture.** A minimal form that saves free text ("song with the saxophone at the
   café, 2026-11-01") when you can't search right now; turn it into a real wishlist item later.
 - 1e **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,

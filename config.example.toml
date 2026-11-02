@@ -19,3 +19,8 @@ contact = "you@example.com"
 # For personal fresh releases and recommendations.
 # user = "your-listenbrainz-name"
 # token = "..."  # https://listenbrainz.org/settings/ (optional; keep this file private)
+
+[stores]
+# The Qobuz store the wishlist's "Where to buy" search links open: the country-language part of
+# its address, as in https://www.qobuz.com/gb-en/ (us-en, gb-en, fr-fr, de-de, ...).
+# qobuz = "us-en"

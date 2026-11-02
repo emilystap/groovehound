@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__
+from .. import __version__, buy
 from ..brainz import listenbrainz, musicbrainz
 from ..brainz.http import ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
@@ -55,6 +55,7 @@ def create_app(settings: Settings) -> FastAPI:
     interval below the limit for musicbrainz.org)."""
     if settings.contact:
         musicbrainz.client_for(settings)  # validates contact, api_root and interval at startup
+    buy.check_qobuz_store(settings.qobuz_store)
 
     app = FastAPI(title="Groovehound", version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = settings
@@ -150,13 +151,15 @@ def create_app(settings: Settings) -> FastAPI:
     ) -> HTMLResponse:
         """Everything still to buy, newest first; `?show=bought` lists the bought items."""
         bought = show == "bought"
+        items = store.wishlist(user.id, bought=bought)
         return templates.TemplateResponse(
             request,
             "wishlist.html",
             {
                 "page": "wishlist",
                 "bought": bought,
-                "items": store.wishlist(user.id, bought=bought),
+                "items": items,
+                "where_to_buy": where_to_buy(store, items),
                 **_wishlist_counts(store, user),
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
@@ -173,12 +176,47 @@ def create_app(settings: Settings) -> FastAPI:
         if not store.annotate_wishlist_item(user.id, item_id, notes, clean(form.get("heard", ""))):
             raise HTTPException(404, "not on your wishlist")
         if request.headers.get("HX-Request"):
+            item = store.wishlist_item(user.id, item_id)
             return templates.TemplateResponse(
                 request,
                 "_wishlist_item.html",
-                {"item": store.wishlist_item(user.id, item_id), "here": form.get("next", "")},
+                {
+                    "item": item,
+                    "where_to_buy": where_to_buy(store, [item]),
+                    "here": form.get("next", ""),
+                },
             )
         return RedirectResponse(_local_path(form.get("next", "/wishlist")), status_code=303)
+
+    @app.get("/wishlist/{item_id}/links")
+    def wishlist_item_links(
+        request: Request, item_id: int, store: StoreDep, user: UserDep, next: str = ""
+    ) -> Response:
+        """MusicBrainz's purchase and streaming links for an item, asked for when its *Where to
+        buy* is opened: one request unless they're cached. HTMX gets them in place; without
+        JavaScript, back to the item on the list."""
+        item = store.wishlist_item(user.id, item_id)
+        if item is None:
+            raise HTTPException(404, "not on your wishlist")
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                buy.fetch_links(store, musicbrainz.client_for(settings), musicbrainz.PAUSE, item)
+            except ServiceError as exc:
+                error = str(exc)
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "_buy_links.html",
+                {
+                    "item": item,
+                    "where": where_to_buy(store, [item])[item.id],
+                    "error": error,
+                    "here": next,
+                },
+            )
+        back = _local_path(next or "/wishlist")
+        return RedirectResponse(f"{back}#wish-{item.id}", status_code=303)
 
     @app.post("/wishlist/{item_id}/bought")
     async def mark_bought(
@@ -199,6 +237,9 @@ def create_app(settings: Settings) -> FastAPI:
         if not store.remove_from_wishlist(user.id, item_id):
             raise HTTPException(404, "not on your wishlist")
         return gone_or_back(request, store, user, form)
+
+    def where_to_buy(store: Store, items: list[WishlistItem]) -> dict[int, buy.WhereToBuy]:
+        return {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items}
 
     def gone_or_back(request: Request, store: Store, user: User, form: dict[str, str]) -> Response:
         """After an item left the list it was on: HTMX gets an empty swap (removing it from

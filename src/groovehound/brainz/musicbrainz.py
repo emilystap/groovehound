@@ -130,7 +130,7 @@ class MusicBrainzClient(JsonClient):
 
     def release(self, mbid: str) -> dict:
         """A release with its artist credit, release group and URL relationships (purchase and
-        streaming links: the wishlist's *Where to buy*). Raises NotFound, or ServiceError."""
+        streaming links). Raises NotFound, or ServiceError."""
         return self._get(f"/release/{_mbid(mbid)}", inc="artist-credits release-groups url-rels")
 
     def artist(self, mbid: str) -> dict:
@@ -167,6 +167,16 @@ class MusicBrainzClient(JsonClient):
             if not page or len(groups) >= count:
                 break
         return {"release-group-count": max(count, len(groups)), "release-groups": groups}
+
+    def release_group_releases(self, mbid: str) -> dict:
+        """The release group's releases (editions) with their URL relationships, purchase and
+        streaming links among them (the wishlist's *Where to buy*): `{"release-count": N,
+        "releases": [...]}`. One request: the first `BROWSE_LIMIT` editions (fewer for big box
+        sets, since MusicBrainz caps a page at 500 tracks) are plenty for buying links. Raises
+        NotFound, or ServiceError."""
+        return self._get(
+            "/release", **{"release-group": _mbid(mbid)}, inc="url-rels", limit=BROWSE_LIMIT
+        )
 
     # --- Search (only when someone presses *Search*) -----------------------------------------
 
