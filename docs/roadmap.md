@@ -391,9 +391,11 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   A wishlist item that appears in the library is offered as *bought* ("Found in your library on
   2026-…", *Mark bought*), never changed for you; an item for one edition, with another in the
   library, says "Another edition" (`library.found`).
-- 5c **Navidrome instead of a folder** (optional): the same table filled from Navidrome's
-  Subsonic API (read-only; it exposes MusicBrainz ids), for when Groovehound can't see the files.
-  **Check first** that it gives the *release group* MBID: the Subsonic API reliably has the
+- 5c **Navidrome instead of a folder** (optional; deferred 2026-11-02 until a deployment needs
+  it): the same table filled from Navidrome's Subsonic API (read-only; it exposes MusicBrainz
+  ids), for when Groovehound can't see the files. With the folder mounted it adds nothing: the
+  tags already give the release group, the one id Subsonic may not. Its connection is built with
+  5g instead; this would only add filling the `library` table from it. **Check first** that it gives the *release group* MBID: the Subsonic API reliably has the
   release (album) and artist MBIDs, and Navidrome stores the release group's, but it may be in
   its internal API only, which can change without notice. With release MBIDs alone, matching
   would need a MusicBrainz lookup per album, which the ground rules rule out; then match
@@ -420,9 +422,12 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     recommended recordings, though, and 5e's stats may be the better source. Decide when 5f is
     built, maybe as its own item.
 - 5g **Open in your player.** *Open in Navidrome* on library items, linking to the album in
-  Navidrome's web UI. That needs Navidrome's own album id, so it uses 5c's read-only connection
-  to list albums with their MBIDs (your own server, no MetaBrainz requests), even when the file
-  scan is the library source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
+  Navidrome's web UI. That needs Navidrome's own album id, so 5g brings the read-only Subsonic
+  connection (URL, user and token or API key in config, the secret hidden by `groovehound
+  config`): it lists albums with their MBIDs (your own server, no MetaBrainz requests) and maps
+  each Navidrome album id to a `library` row by release MBID, which the tags already give, so
+  the release-group question that holds up 5c doesn't arise. The file scan stays the library
+  source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
   has no links a web page can open (deep links are an open feature request on its forum, and
   its broadcast-intent API is for other Android apps). Revisit if it adds them.
 - 5h **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
