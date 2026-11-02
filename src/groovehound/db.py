@@ -196,6 +196,16 @@ MIGRATIONS: list[str] = [
     ALTER TABLE covers ADD COLUMN source TEXT NOT NULL DEFAULT '';
     ALTER TABLE covers ADD COLUMN source_mtime_ns INTEGER NOT NULL DEFAULT 0;
     """,
+    # 11: what the user has played, from their ListenBrainz all-time stats (roadmap 5e): listens
+    # per release group, replaced whole after each fetch. The raw stats stay in api_cache.
+    """
+    CREATE TABLE listened (
+        user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        release_group_mbid  TEXT NOT NULL,
+        listens             INTEGER NOT NULL,
+        PRIMARY KEY (user_id, release_group_mbid)
+    );
+    """,
 ]
 
 
@@ -865,6 +875,31 @@ class Store:
             row["left_over"],
             row["error"],
         )
+
+    # --- Listening stats ------------------------------------------------------------------
+
+    def replace_listened(self, user_id: int, listens: Mapping[str, int]) -> None:
+        """Replace what this user has played: listens per release group."""
+        with self.conn:
+            self.conn.execute("DELETE FROM listened WHERE user_id = ?", (user_id,))
+            self.conn.executemany(
+                "INSERT INTO listened (user_id, release_group_mbid, listens) VALUES (?, ?, ?)",
+                ((user_id, mbid, count) for mbid, count in listens.items()),
+            )
+
+    def listened(self, user_id: int, release_group_mbids: Iterable[str]) -> dict[str, int]:
+        """Which of these release groups this user has played, with how many listens."""
+        mbids = list(set(release_group_mbids))
+        found: dict[str, int] = {}
+        for start in range(0, len(mbids), 500):  # well under SQLite's variable limit
+            chunk = mbids[start : start + 500]
+            rows = self.conn.execute(
+                "SELECT release_group_mbid, listens FROM listened WHERE user_id = ? "
+                f"AND release_group_mbid IN ({', '.join('?' * len(chunk))})",
+                (user_id, *chunk),
+            )
+            found.update((r[0], r[1]) for r in rows)
+        return found
 
     # --- API cache ------------------------------------------------------------------------
 

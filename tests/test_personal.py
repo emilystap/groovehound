@@ -137,7 +137,7 @@ def test_the_home_page_shows_them_with_follow(tmp_path: Path):
 
 
 def test_the_worker_fetches_them_with_the_sitewide_feed(tmp_path: Path, monkeypatch):
-    lb_opener = FakeOpener({"payload": {"releases": []}}, FEED, {"playlists": []})
+    lb_opener = FakeOpener({"payload": {"releases": []}}, FEED, {"playlists": []}, b"")
     monkeypatch.setattr(listenbrainz, "client_for", lambda settings: lb_client(lb_opener))
     monkeypatch.setattr(musicbrainz, "client_for", lambda settings: mb_client(FakeOpener()))
     with store_at(tmp_path) as store:
@@ -150,4 +150,5 @@ def test_the_worker_fetches_them_with_the_sitewide_feed(tmp_path: Path, monkeypa
         "https://api.listenbrainz.org/1/explore/fresh-releases/",
         "https://api.listenbrainz.org/1/user/Rob/fresh_releases",
         "https://api.listenbrainz.org/1/user/Rob/playlists/createdfor",  # and its playlists
+        "https://api.listenbrainz.org/1/stats/user/Rob/release-groups",  # listens.py (a 204)
     ]

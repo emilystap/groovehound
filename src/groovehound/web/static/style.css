@@ -161,6 +161,9 @@ button.chip.on { background: transparent; color: var(--muted); border-color: var
 .plain li { padding: 4px 0; overflow-wrap: anywhere; }
 .warning { color: var(--warning); }
 .owned { color: var(--owned); margin-top: 4px; }
+.owned .unplayed { color: var(--muted); }
+.unplayed-artists summary { cursor: pointer; }
+.unplayed-artists ul { margin: 4px 0 4px 1.2em; padding: 0; }
 form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 0; }
 #library-status form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .similar-artist { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }

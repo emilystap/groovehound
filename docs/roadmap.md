@@ -428,14 +428,22 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   that you don't follow, ranked by how many you own, with *Follow* and *dismiss* (stays
   dismissed). Following one also seeds the "already out" list from the library, so albums you
   own are never reported as new. Later, combine with ListenBrainz listen counts (phase 4).
-- 5e **Unplayed.** With a ListenBrainz username: your all-time stats per release group and per
-  artist (`/1/stats/user/<name>/release-groups` and `/artists`, `range=all_time`, paged with
-  `count`; public, no token), fetched at most once a day. Library minus played = unplayed: a
-  *never played* badge on library items and an unplayed count per artist. Listens are matched by
-  the MBIDs ListenBrainz mapped them to, so a listen it couldn't map counts as unplayed; say so
-  in the UI. **Check first** whether the stats lists stop at a top N: if they do, records
-  played only once or twice drop off, and a one-off ListenBrainz export (not paging `/listens`)
-  fills the gap.
+- 5e ✅ **Unplayed.** With a ListenBrainz username: your all-time listen counts per release
+  group (`/1/stats/user/<name>/release-groups`, `range=all_time`; public, no token), kept in a
+  per-user `listened` table (`listens.py`). Library minus played = unplayed: *never played* next
+  to *In your library* wherever an album shows, and on the Library page how many albums were
+  never played, by album artist (most first, each folding out its titles).
+  - **Requests:** fetched by 2c's trickle after 4a, cached raw for a randomized 22–26 hours; a
+    page holds 1,000 release groups (`count=1000`), longer lists are paged with `offset`, up to
+    10 pages. So one request a day for most libraries, none to MusicBrainz. A 204 (not
+    calculated yet) keeps what's known and marks nothing new; a 404 is cached like a response.
+    The artist stats aren't fetched: what's played per artist follows from these (5f too).
+  - **Checked 2026-11-02:** the lists aren't cut to a top N. All 238 release groups of a real
+    user came back in one request, down to those played once, so no export is needed. 6 of the
+    238 had no release group (listens ListenBrainz couldn't link), and the Library page says
+    those, and songs linked to another album (a compilation, a single), don't count.
+  - Matched by release group MBID only: library releases without one get no badge, and
+    nothing is marked before the first stats arrive.
 - 5f **Rediscover.** One page of unplayed releases from the library, picked at random in fixed
   proportions: some by artists you play most, some by artists you rarely play, plus new releases
   (phases 2–3) by your most-played artists that you haven't played yet. *Shuffle* draws again
