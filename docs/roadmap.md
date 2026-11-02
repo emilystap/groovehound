@@ -82,7 +82,11 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
   non-commercial use, but the UI credits MusicBrainz wherever they're shown. ListenBrainz data
   is CC0. The footer always credits both, with links.
 - Cover art comes from the Cover Art Archive (`coverartarchive.org`) only, as 250 px
-  thumbnails, loaded lazily.
+  thumbnails, loaded lazily. Wishlist covers go through the server's cover cache
+  (`covers.py`, `/cover/<mbid>`): fetched through `brainz/http.py` like any other request,
+  once per release group when first shown, refreshed (again only when shown) after a
+  randomized 30–60 days. Search results link the archive directly: they're seen once, and
+  would otherwise queue behind the limiter.
 - MetaBrainz asks for financial support from commercial users. This project is for personal
   use; if that ever changes, revisit this.
 
@@ -294,4 +298,7 @@ See "Non-goals". Each entry gives the date and the reason.
   (edition, format). In use, picking the edition from search results doesn't work for albums;
   1g moves the choice to the wishlist item.
 - Thumbnails: link CAA directly from the browser (no server work, but every view hits CAA),
-  or proxy and cache under the data dir. Start direct; revisit if it feels slow.
+  or proxy and cache under the data dir. Started direct; decided (2026-11-02): **cache
+  wishlist covers** in the database. Direct links redirect twice (to archive.org, then a
+  mirror), neither redirect is cacheable, and the mirror varies, so every page load took
+  1–3 s per cover; cached, a reload costs nothing. Search results stay direct.

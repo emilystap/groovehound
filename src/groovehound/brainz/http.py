@@ -171,7 +171,8 @@ _urlopen: Opener = urllib.request.urlopen
 
 
 class JsonClient:
-    """GETs JSON from one service through its shared limiter. Subclasses add the calls."""
+    """GETs JSON (or, with `get_bytes`, an image) from one service through its shared limiter.
+    Subclasses add the calls."""
 
     service = "service"  # for messages and the cache's `service` column
 
@@ -198,13 +199,27 @@ class JsonClient:
     def get_json(self, path: str, params: Mapping[str, object] | None = None) -> dict:
         """GET `api_root + path` with query `params` (None values dropped). Raises NotFound
         for a 404, ServiceError when the caller should stop."""
+        body, _ = self._request(path, params, "application/json")
+        try:
+            return json.loads(body)
+        except ValueError as exc:
+            raise ServiceError(f"Unexpected reply from {self.service}: {exc}") from exc
+
+    def get_bytes(self, path: str, accept: str) -> tuple[bytes, str]:
+        """GET `api_root + path` as raw bytes, with its Content-Type. Redirects are followed
+        (as for every request); errors as for `get_json`."""
+        return self._request(path, None, accept)
+
+    def _request(
+        self, path: str, params: Mapping[str, object] | None, accept: str
+    ) -> tuple[bytes, str]:
         query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v is not None})
         url = self.api_root + path + (f"?{query}" if query else "")
         request = urllib.request.Request(
             url,
             headers={
                 "User-Agent": self.user_agent,
-                "Accept": "application/json",
+                "Accept": accept,
                 "Accept-Encoding": "gzip",
                 **self._headers,
             },
@@ -222,7 +237,7 @@ class JsonClient:
                 self._respect_window(headers)
                 if headers.get("Content-Encoding") == "gzip":
                     body = gzip.decompress(body)
-                return json.loads(body)
+                return body, headers.get("Content-Type") or ""
             except urllib.error.HTTPError as exc:
                 if exc.code == 404:
                     raise NotFound(path) from exc
@@ -246,7 +261,7 @@ class JsonClient:
             except (urllib.error.URLError, OSError) as exc:
                 reason = getattr(exc, "reason", exc)
                 raise ServiceError(f"Couldn't reach {self.service}: {reason}") from exc
-            except ValueError as exc:
+            except (ValueError, EOFError) as exc:  # e.g. a broken gzip body
                 raise ServiceError(f"Unexpected reply from {self.service}: {exc}") from exc
         raise AssertionError("unreachable")
 

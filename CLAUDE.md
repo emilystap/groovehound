@@ -8,14 +8,15 @@ details, if present, are in the git-ignored `CLAUDE.local.md`.
 
 ## Firm rule: respect the MetaBrainz APIs
 
-MusicBrainz and ListenBrainz are run by a small non-profit. Every request goes through
-`brainz/http.py` (`JsonClient`): one shared `RateLimiter` per service, ≥1.5 s from each
-response to the next request, a User-Agent with the operator's contact (required), backoff on
-503/429 honouring `Retry-After` / `X-RateLimit-Reset-In`. Never add a request path that bypasses
-it, never lower `MIN_INTERVAL` for the public servers, and never schedule background work at a
-fixed time of day (randomized trickles only). Prefer lookups/browses to search; search only
-on an explicit user action. Cache raw responses (`api_cache`) and ask for everything a feature
-needs in one `inc=`. When in doubt, make fewer requests. See the roadmap's Ground rules.
+MusicBrainz and ListenBrainz are run by a small non-profit. Every request (the Cover Art
+Archive's too) goes through `brainz/http.py` (`JsonClient`): one shared `RateLimiter` per
+service, ≥1.5 s from each response to the next request, a User-Agent with the operator's contact
+(required), backoff on 503/429 honouring `Retry-After` / `X-RateLimit-Reset-In`. Never add a
+request path that bypasses it, never lower `MIN_INTERVAL` for the public servers, and never
+schedule background work at a fixed time of day (randomized trickles only). Prefer
+lookups/browses to search; search only on an explicit user action. Cache raw responses
+(`api_cache`) and ask for everything a feature needs in one `inc=`. When in doubt, make fewer
+requests. See the roadmap's Ground rules.
 
 ## Architecture decisions
 

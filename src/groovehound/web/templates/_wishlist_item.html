@@ -1,7 +1,7 @@
 {# One item on the wishlist page. With HTMX, its forms replace (or remove) just this item; without
    JavaScript they post normally and come back to the list (`next`). #}
 <li class="hit wish" id="wish-{{ item.id }}">
-  {% with mbid = item.release_group_mbid %}{% include "_cover.html" %}{% endwith %}
+  {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
     <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
     <div>{{ item.artist_credit }}</div>

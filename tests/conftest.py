@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from groovehound.brainz import http, listenbrainz, musicbrainz
+from groovehound.brainz import coverart, http, listenbrainz, musicbrainz
 from groovehound.config import Settings
 
 CONTACT = "tests@example.com"
@@ -27,9 +27,10 @@ def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_pauses() -> None:
-    """Each test starts with neither service paused after an error."""
+    """Each test starts with no service paused after an error."""
     musicbrainz.PAUSE.clear()
     listenbrainz.PAUSE.clear()
+    coverart.PAUSE.clear()
 
 
 def settings_for(tmp_path: Path, **overrides: object) -> Settings:
@@ -77,7 +78,8 @@ def _headers(values: dict[str, str]) -> Message:
 
 class FakeOpener:
     """Answers queued responses in order and records each request. Queue a dict (JSON body),
-    an int (HTTP error status) or (status, headers)."""
+    bytes (a raw body), an int (HTTP error status), or any of those with headers as
+    (answer, headers)."""
 
     def __init__(self, *answers: object, gzipped: bool = False) -> None:
         self.answers = list(answers)
@@ -94,6 +96,8 @@ class FakeOpener:
             raise urllib.error.HTTPError(
                 request.full_url, answer, "error", _headers(headers), io.BytesIO(b"")
             )
+        if isinstance(answer, bytes):
+            return FakeResponse(answer, headers)
         body = json.dumps(answer).encode()
         if self.gzipped:
             body = gzip.compress(body)
