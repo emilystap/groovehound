@@ -318,8 +318,18 @@ The core loop: hear something → find it → save it → buy it later.
     artists of those songs. The metadata has no type or release group date, so neither is
     shown. Weekly Exploration (new to you) comes first and open; the others are folded.
     Recordings without a known release group, and dismissed albums, are counted, not shown.
-- 4b Similar artists for an artist you follow, via LB Radio's artist endpoint
-  (`/1/lb-radio/artist/<mbid>`), only on request, cached for weeks.
+- 4b ✅ Similar artists on an artist's page, via LB Radio's artist endpoint
+  (`/1/lb-radio/artist/<mbid>`), only on request, cached for weeks (`similar.py`).
+  - **Requests:** one per artist, only when you press *Find similar artists*, with the closest
+    artists only (`mode=easy`), 20 of them and one recording each (the fewest it allows: only
+    the names are used). Cached raw (shared) for a randomized 28–42 days; pressing again asks
+    nothing until then, after which the cached list still shows with *Ask again*. A 404 is
+    cached like a response; any other error pauses ListenBrainz. None to MusicBrainz.
+  - **What shows:** the similar artists, without the one asked about, each with *Follow* and
+    *Dismiss* (per user, `dismissed` kind `artist`: not suggested as similar to anyone again).
+    The response is keyed by MBID and not ranked (checked 2026-11-02), so they're listed by
+    name, a leading "The" aside. Offered on every artist page, followed or not: it's one
+    request on an explicit click, like a search.
 - 4c CF recording recommendations (experimental endpoint), if they turn out useful.
 - Dismissed suggestions stay dismissed (per user).
 

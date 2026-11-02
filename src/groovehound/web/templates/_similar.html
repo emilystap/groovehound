@@ -1,0 +1,42 @@
+{# The artist page's *Similar artists* card (roadmap 4b): from the cache only; ListenBrainz is
+   asked when you press the button (one request, then cached for weeks). Each artist gets
+   *Follow* and *Dismiss*. Without JavaScript the forms post normally and come back. Expects
+   `similar` (None until asked), `similar_error`, `followed`, `mbid`, `name` and `here`. #}
+{% macro ask(label) %}
+<form method="post" action="/artists/{{ mbid }}/similar" hx-post="/artists/{{ mbid }}/similar"
+      hx-target="#similar" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <input type="hidden" name="name" value="{{ name }}">
+  <button type="submit"{% if label != "Find similar artists" %} class="secondary"{% endif %}>{{ label }}</button>
+</form>
+{% endmacro %}
+<section class="card" id="similar">
+  <h2>Similar artists{% if similar and similar.artists %} <span class="muted">({{ similar.artists | length }})</span>{% endif %}</h2>
+  {% if similar_error %}<p class="follow-error">{{ similar_error }}</p>{% endif %}
+  {% if similar is none %}
+  <p class="muted">ListenBrainz can suggest artists like {{ name or "this one" }}: one request, then
+    remembered for a few weeks.</p>
+  {% if not contact_problem %}{{ ask("Find similar artists") }}{% endif %}
+  {% else %}
+  {% if similar.artists %}
+  <ul class="artists">
+    {% for artist in similar.artists %}
+    <li class="similar-artist" id="similar-{{ artist.mbid }}">
+      {% with following = artist.mbid in followed, error = none %}{% include "_follow_button.html" %}{% endwith %}
+      <form method="post" action="/artists/{{ artist.mbid }}/dismiss" hx-post="/artists/{{ artist.mbid }}/dismiss"
+            hx-target="#similar-{{ artist.mbid }}" hx-swap="outerHTML">
+        <input type="hidden" name="next" value="{{ here }}#similar">
+        <button type="submit" class="chip secondary" aria-label="Dismiss {{ artist.name }}">Dismiss</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif not similar.hidden %}
+  <p class="muted">ListenBrainz doesn't know any artists like {{ name or "this one" }} yet.</p>
+  {% endif %}
+  <p class="muted small">
+    From <a href="{{ listenbrainz_web }}" rel="noopener" target="_blank">ListenBrainz</a>, as of {{ similar.fetched_at | local_date }}.
+    {% if similar.hidden %}{{ similar.hidden }} dismissed.{% endif %}
+  </p>
+  {% if similar.due and not contact_problem %}{{ ask("Ask again") }}{% endif %}
+  {% endif %}
+</section>

@@ -22,7 +22,17 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers, follows, new_releases, personal, playlists, releases
+from .. import (
+    __version__,
+    buy,
+    covers,
+    follows,
+    new_releases,
+    personal,
+    playlists,
+    releases,
+    similar,
+)
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
@@ -495,9 +505,64 @@ def create_app(settings: Settings) -> FastAPI:
                 "error": error,
                 "contact_problem": contact_problem,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                **similar_context(store, user, mbid),
                 "here": f"/artists/{mbid}",
             },
         )
+
+    def similar_context(
+        store: Store, user: User, mbid: str, error: str | None = None
+    ) -> dict[str, object]:
+        """What the artist page's *Similar artists* card shows (no requests)."""
+        found = similar.cached(store, user.id, mbid)
+        return {
+            "similar": found,
+            "similar_error": error,
+            "followed": store.followed(user.id, (a.mbid for a in (found.artists if found else ()))),
+        }
+
+    @app.post("/artists/{mbid}/similar")
+    async def similar_artists(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Ask ListenBrainz for artists like this one: one request, unless the cached answer is
+        still fresh. HTMX gets the *Similar artists* card; a plain form post goes back to the
+        artist page."""
+        mbid = _artist_mbid(mbid)
+        form = await _form(request)
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                similar.fetch(store, listenbrainz.client_for(settings), listenbrainz.PAUSE, mbid)
+            except ServiceError as exc:
+                error = str(exc)
+        if not request.headers.get("HX-Request"):
+            return RedirectResponse(f"/artists/{mbid}#similar", status_code=303)
+        follow = store.follow_of(user.id, mbid)
+        return templates.TemplateResponse(
+            request,
+            "_similar.html",
+            {
+                "mbid": mbid,
+                "name": follow.name if follow else clean(form.get("name", "")),
+                "contact_problem": _contact_problem(settings),
+                **similar_context(store, user, mbid, error),
+                "here": f"/artists/{mbid}",
+            },
+        )
+
+    @app.post("/artists/{mbid}/dismiss")
+    async def dismiss_artist(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Stop suggesting an artist as similar to others. HTMX gets an empty swap, removing it
+        from the page; a plain form post goes back to `next`."""
+        mbid = _artist_mbid(mbid)
+        form = await _form(request)
+        store.dismiss(user.id, similar.DISMISSED_KIND, mbid)
+        if request.headers.get("HX-Request"):
+            return HTMLResponse("")
+        return RedirectResponse(_local_path(form.get("next", "/artists")), status_code=303)
 
     @app.post("/artists/{mbid}/follow")
     async def follow_artist(
