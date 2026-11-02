@@ -262,7 +262,26 @@ The core loop: hear something → find it → save it → buy it later.
   - **Dismiss** stays dismissed, per user (`dismissed`, migration 8, with a `kind` so phase 4's
     suggestions can share it). *Add to wishlist* keeps the release listed, marked as saved.
   - **Covers** go through the cover cache (`/cover`), now also for release groups by artists
-    you follow: the home page is seen often, so direct links would be slow every time.
+    you follow: the home page is seen often, so direct links would be slow every time. The
+    artist page does the same for an artist you follow; for anyone else it links the Cover Art
+    Archive directly, since you may look only once.
+- 2e **Covers ahead of time.** Cached covers make a page fast from the second view on, but the
+  first view of a followed artist's page waits on the Cover Art Archive's limiter, one cover per
+  1.5 s or more (40 albums: about a minute). Fetch them in the background instead, so the
+  cover-heavy UI planned later never waits.
+  - **What:** covers of the release groups a follow is for (`follows.wanted`, the cached
+    browses), newest first, that aren't cached or whose `COVER_TTL` has passed; the same
+    `covers.cover`, cache and Cover Art Archive limiter as `/cover`, so a page view in between
+    counts. Release groups of types the follow isn't for are left to the page view.
+  - **Requests:** its own trickle, like 2c's: a random 20–60 min asleep, then at most ~10
+    covers, at least 1.5 s apart. With 100 follows (~3,000 covers) that's the backlog in a few
+    days, then about one request per new release group plus refreshes every 30–60 days (~50–100
+    a day). Nothing while the archive is paused after an error; nothing without a contact.
+    5i's covers from the library come first for release groups in the library (no request).
+  - **Size:** 250 px (~40 KB each; ~120 MB for 3,000). A bigger UI may want 500 px (CAA's
+    `front-500`, ~100–150 KB): change the size then, and the 30–60 day refresh replaces the old
+    ones without a migration. Past a few hundred MB, keep covers as files under the data
+    folder rather than blobs in SQLite, so the database stays small to back up.
 
 ### 3. Fresh releases from ListenBrainz
 

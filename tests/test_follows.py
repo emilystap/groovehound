@@ -215,6 +215,18 @@ def test_artist_page_then_follow_costs_one_browse(tmp_path: Path, monkeypatch):
     assert "don't follow anyone" in client.get("/artists").text
 
 
+def test_artist_page_covers_are_cached_once_followed(tmp_path: Path, monkeypatch):
+    search_app(tmp_path, monkeypatch, BROWSE)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get(f"/artists/{ARTIST}").text
+    assert f"https://coverartarchive.org/release-group/{RG}/front-250" in page
+    assert f'src="/cover/{RG}"' not in page  # not followed: /cover wouldn't serve it
+    client.post(f"/artists/{ARTIST}/follow")
+    page = client.get(f"/artists/{ARTIST}").text
+    assert f'src="/cover/{RG}"' in page and f'src="/cover/{RG_COMP}"' in page
+    assert "coverartarchive.org/release-group" not in page
+
+
 def test_follow_without_javascript_goes_back(tmp_path: Path, monkeypatch):
     search_app(tmp_path, monkeypatch, BROWSE)
     client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)

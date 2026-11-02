@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ name or "Artist" }} · Groovehound{% endblock %}
+{# Covers come from the server's cover cache for an artist you follow (/cover serves their
+   release groups); otherwise straight from the Cover Art Archive, as you may look only once. #}
 {% macro release_groups(hits) %}
 <ul class="hits">
   {% for hit in hits %}
   <li class="hit">
-    {% with mbid = hit.mbid %}{% include "_cover.html" %}{% endwith %}
+    {% with mbid = hit.mbid, cached = following %}{% include "_cover.html" %}{% endwith %}
     <div class="hit-body">
       <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
       {% if hit.artist_mbids | length > 1 %}<div>{{ hit.artist_credit }}</div>{% endif %}
