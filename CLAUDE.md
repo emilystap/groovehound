@@ -69,6 +69,10 @@ uv run groovehound serve          # web UI on http://127.0.0.1:8080
 
 ## Conventions
 
-- Ruff, line length 100. `.gitattributes` forces LF line endings.
+- Ruff, line length 100. `.gitattributes` forces LF line endings (and `.editorconfig` tells
+  editors). On Windows, write files with the Edit/Write tools, or in Python with
+  `newline="\n"` (`write_text` and `open(..., "w")` otherwise write CRLF); not with
+  PowerShell's `Set-Content` / `Out-File`. Git's "CRLF will be replaced by LF" warning means
+  something did.
 - Tests never call the real APIs (`tests/conftest.py` blocks `http._urlopen`); pass
   `FakeOpener` to clients. Record real responses as fixtures under `tests/fixtures/` sparingly.
