@@ -152,6 +152,24 @@ The core loop: hear something → find it → save it → buy it later.
   first. The share names only the main artist, not featured artists, which is fine: the
   artist field matches part of a credit ("Gwen Stefani" finds "Gwen Stefani feat. Eve").
   A share that doesn't parse lands in quick capture (1d) as free text.
+- 1g **Choose the edition on the wishlist item.** An album search's response lists each release
+  group's editions with only id, title and status (a search can't ask for more), so the
+  *edition* select shows a row of identical titles: 15 × "BITE ME" for Reneé Rapp's album.
+  Instead, *Add to wishlist* saves the album (any edition), and the item gets *Choose edition*:
+  every edition with what tells them apart, as on its MusicBrainz page: release date, country,
+  status, formats and discs ("2×CD", "Digital Media"), track count, label and catalogue number,
+  barcode, packaging, and the disambiguation ("explicit", "deluxe"). All CC0.
+  - **Requests:** the browse 1c already makes when *Where to buy* opens, asking for
+    `inc=media labels url-rels` instead of `url-rels`: one request, one cache entry, feeding
+    both. Responses cached before the change lack media and labels, so they're refetched when
+    next opened (a new cache kind, or a check for the missing fields).
+  - **UI:** a list, not a `<select>` (an option is one line of plain text). One row per
+    edition, two short lines each: date · country · formats · tracks over label · catalogue
+    number · disambiguation; picked with a radio button, plus *Any edition* to go
+    back. Editions identical in everything shown share a row ("×3"); official ones first,
+    then oldest first. Choosing one also puts its links first under *Where to buy*.
+  - The search page's select goes for album searches, which have nothing to show in it. Song
+    searches keep it: their results already carry date, country and format.
 
 ### 2. Follow artists
 
@@ -265,6 +283,7 @@ See "Non-goals". Each entry gives the date and the reason.
   is duplicated (login/CSRF, Gotify notifications, the MusicBrainz cache). Candidates then:
   `brainz/http.py` (the limiter and `JsonClient`), tagdrifter's `web/auth.py`, `notify.py`.
 - Wishlist granularity: release group (the album) by default, with an optional specific release
-  (edition, format). Confirm once 1a is in use.
+  (edition, format). In use, picking the edition from search results doesn't work for albums;
+  1g moves the choice to the wishlist item.
 - Thumbnails: link CAA directly from the browser (no server work, but every view hits CAA),
   or proxy and cache under the data dir. Start direct; revisit if it feels slow.
