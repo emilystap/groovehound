@@ -153,8 +153,13 @@ class Reconciler:
             log.info("Fetched your ListenBrainz listen history, %d new listen(s)", heard)
 
     def _loop(self) -> None:
-        while not self._stop.wait(random.uniform(*self.interval)):
+        # said once, at startup: after a deploy, when the first fetch will come
+        wait = random.uniform(*self.interval)
+        low, high = (round(s / 60) for s in self.interval)
+        log.info("Background checks start in %d min, then every %d-%d min", wait / 60, low, high)
+        while not self._stop.wait(wait):
             try:
                 self.run_once()
             except Exception:  # keep the trickle alive whatever happens
                 log.exception("Background re-browse of followed artists failed")
+            wait = random.uniform(*self.interval)

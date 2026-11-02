@@ -164,3 +164,12 @@ def test_a_listenbrainz_error_doesnt_stop_the_musicbrainz_batch(tmp_path: Path, 
     result = reconcile.Reconciler(settings_for(tmp_path)).run_once()
     assert result == reconcile.Result(browsed=1, new=1)
     assert listenbrainz.PAUSE.remaining() and not musicbrainz.PAUSE.remaining()
+
+
+def test_the_first_wake_up_is_logged_at_startup(tmp_path: Path, monkeypatch, caplog):
+    monkeypatch.setattr(reconcile.random, "uniform", lambda low, high: 37 * 60.0)
+    worker = reconcile.Reconciler(settings_for(tmp_path))
+    with caplog.at_level("INFO", logger="groovehound.reconcile"):
+        worker.start()
+        worker.shutdown()  # wakes it at once: nothing is asked
+    assert "Background checks start in 37 min, then every 20-60 min" in caplog.messages
