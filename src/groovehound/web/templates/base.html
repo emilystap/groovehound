@@ -7,6 +7,14 @@
   {# Root-relative, not url_for(): behind a TLS-terminating proxy the app sees plain http, and
      absolute http:// asset URLs on an https page are blocked as mixed content. #}
   <link rel="stylesheet" href="/static/style.css">
+  {# Installable as an app (Chrome's *Install app*, over HTTPS): no service worker, since
+     there's no offline mode and Chrome no longer asks for one. #}
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  {# The status bar above the app's window: the top bar's colour in each theme #}
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c2027" media="(prefers-color-scheme: dark)">
   <script src="/static/htmx.min.js" defer></script>
 </head>
 <body>

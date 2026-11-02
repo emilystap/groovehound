@@ -1,3 +1,4 @@
+import struct
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,28 @@ def test_home_and_healthz(tmp_path: Path):
     page = client.get("/").text
     assert "MusicBrainz" in page and "ListenBrainz" in page  # attribution footer
     assert "Not connected" not in page
+
+
+def test_installable_as_an_app(tmp_path: Path):
+    """What Chrome needs before it offers *Install app*: a linked manifest, served as one, with
+    a name, start URL in scope, standalone display and 192 / 512 px PNG icons (maskable too)."""
+    client = TestClient(create_app(settings_for(tmp_path)))
+    assert '<link rel="manifest" href="/static/manifest.webmanifest">' in client.get("/").text
+    response = client.get("/static/manifest.webmanifest")
+    assert response.headers["content-type"].startswith("application/manifest+json")
+    manifest = response.json()
+    assert manifest["name"] and manifest["display"] == "standalone"
+    assert manifest["start_url"].startswith(manifest["scope"]) and manifest["scope"] == "/"
+    found = set()
+    for icon in manifest["icons"]:
+        assert icon["src"].startswith("/")  # root-relative, for the reverse proxy
+        png = client.get(icon["src"])
+        assert png.headers["content-type"] == "image/png"
+        assert png.content.startswith(b"\x89PNG\r\n\x1a\n")
+        width, height = struct.unpack(">II", png.content[16:24])  # IHDR
+        assert icon["sizes"] == f"{width}x{height}"
+        found.add((icon["purpose"], width))
+    assert {("any", 192), ("any", 512), ("maskable", 512)} <= found
 
 
 def test_home_explains_a_missing_contact(tmp_path: Path):
