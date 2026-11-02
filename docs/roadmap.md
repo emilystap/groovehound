@@ -386,7 +386,7 @@ Know what's already in your music library, so Groovehound can say "you have this
 suggesting it again, and point you at what you own but haven't played. **No MusicBrainz
 requests** (except the artist page browses 5j's links open, as today, and 5k's track lists, on
 request); ListenBrainz only for
-listening stats (5e) and recommendations (5h). 5a and 5b need
+listening stats (5e), your listen history (5f) and recommendations (5h). 5a and 5b need
 only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
 - 5a ✅ **Library scan.** Mount the music folder into the container read-only (e.g.
@@ -444,15 +444,27 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     those, and songs linked to another album (a compilation, a single), don't count.
   - Matched by release group MBID only: library releases without one get no badge, and
     nothing is marked before the first stats arrive.
-- 5f **Rediscover.** One page of unplayed releases from the library, picked at random in fixed
-  proportions: some by artists you play most, some by artists you rarely play, plus new releases
-  (phases 2–3) by your most-played artists that you haven't played yet. *Shuffle* draws again
-  (locally, no requests); *dismiss* stays dismissed. Fixed proportions on purpose: no tunable
-  weights or saved mixes.
-  - *Open question:* the CF recommendations (5h) carry `latest_listened_at` for each recording,
-    so they could add "recommended for you, last played months ago" picks. They only cover
-    recommended recordings, though, and 5e's stats may be the better source. Decide when 5f is
-    built, maybe as its own item.
+- 5f **Rediscover.** One page of library albums to put on next, picked at random in fixed
+  proportions: unplayed ones by artists you play most, unplayed ones by artists you rarely play,
+  albums you played but not lately, plus new releases (phases 2–3) by your most-played artists
+  that you haven't played yet. *Shuffle* draws again (locally, no requests); *dismiss* stays
+  dismissed. Fixed proportions on purpose: no tunable weights or saved mixes.
+  - **Listen history, not just stats:** 5e's all-time counts have no dates, so they can't tell
+    "played two years ago" from "played yesterday". 5f keeps your listens
+    (`/1/user/<name>/listens`, public, no token): raw pages in `api_cache`, and a per-user table
+    of recording → last played and play count, with the release group from each listen's
+    `mbid_mapping`. Listens ListenBrainz couldn't link have no MBIDs and don't count, as in 5e.
+    The history is an input to Rediscover only: no stats page (see "Decided against").
+  - **Requests:** up to 1,000 listens per request (`count=1000`), paged back with `max_ts`: the
+    first fill is listens ÷ 1,000 requests (3 for 2.2k listens, checked 2026-11-02), spread over
+    the trickle's wake-ups if it ever needs more than a few. After that, one a day with `min_ts`
+    from 2c's trickle. Listens imported late or deleted change history before `min_ts`, so the
+    whole history is fetched again every randomized 30–60 days. None to MusicBrainz.
+  - **Tracks** (after 5k's scan, its own PR): songs you played before but not lately, on albums
+    in the library, matched by recording, so a song owned on a compilation counts too. Each
+    links to its album (5g is per album).
+  - The CF recommendations' `latest_listened_at` (5h) only covers recommended recordings, so the
+    history is the source; decided 2026-11-02.
 - 5g **Open in your player.** *Open in Navidrome* on library items, linking to the album in
   Navidrome's web UI. That needs Navidrome's own album id, so 5g brings the read-only Subsonic
   connection (URL, user and token or API key in config, the secret hidden by `groovehound
@@ -535,7 +547,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   - **Scan:** also read *MusicBrainz Release Track Id* and *MusicBrainz Track Id* (the
     recording) into `library_files`; a migration, and every file read once more after it (local
     only, no requests). Matching by recording means a song you own on a compilation or a single
-    counts as owned anywhere else it appears, which 4d needs.
+    counts as owned anywhere else it appears, which 4d and 5f's tracks need.
   - **Partial albums, no requests:** the library row's file count against the edition's track
     count from 1g's cached browse (`inc=media`) gives *8 of 12 tracks* on library items and the
     artist page. Only when that browse is cached; never fetched to fill the badge.
@@ -573,6 +585,9 @@ See "Non-goals". Each entry gives the date and the reason.
 - **YouTube and YouTube Music playlists** (2026-11-02): YouTube Music has no official API (the
   usual library is unofficial, close to scraping), and YouTube video titles ("Artist - Song
   (Official Video) [4K]") would need guessing. 4d's pasted track list covers the odd case.
+- **Listening statistics** (top artists, listens over time, a year in review) from 5f's listen
+  history (2026-11-02): ListenBrainz's own stats pages do that, with more data and its own
+  matching. The history only feeds what to play next (Rediscover).
 
 ## Open questions
 
