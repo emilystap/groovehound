@@ -45,7 +45,8 @@ needs in one `inc=`. When in doubt, make fewer requests. See the roadmap's Groun
 ## Status
 
 Phases 0 (scaffolding), 1a (search and save to the wishlist), 1b (the wishlist page), 1c
-(where to buy) and 1d (quick capture) done. Next: phase 1e (installable on Android).
+(where to buy), 1d (quick capture) and 1e (installable on Android) done. Next: phase 1f (share
+to search).
 
 ## Commands
 

@@ -7,6 +7,7 @@ the logged-in user from the session.
 
 from __future__ import annotations
 
+import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated
@@ -30,6 +31,9 @@ MAX_NOTES = 2000  # characters of a wishlist item's notes
 MAX_CAPTURE = 500  # characters of a quick capture
 
 HERE = Path(__file__).parent
+
+# Not in every system's MIME table: make sure the manifest is served as the type Chrome expects
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
 def get_store(request: Request) -> Iterator[Store]:

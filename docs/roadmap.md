@@ -134,11 +134,12 @@ The core loop: hear something → find it → save it → buy it later.
   with the saxophone at the café") with the date, when you can't search right now. *Look it up*
   opens the search page with the text shown above the form; saving a result moves the text
   (and its date) into that item's notes and the capture is gone. No requests of its own.
-- 1e **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,
+- 1e ✅ **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,
   theme colour, `display: standalone`) so Chrome's *Install app* puts Groovehound on the home
   screen and opens it in its own window, without the browser bar. Chrome only offers this
   over HTTPS (or `localhost`), so it needs the reverse proxy. No offline mode: everything
-  lives on the server.
+  lives on the server, so no service worker either (Chrome no longer requires one). Icons
+  are drawn by `scripts/make_icons.py` (stdlib only).
 - 1f **Share to search** (needs 1e): a `share_target` in the manifest, so Groovehound shows up
   in Android's share sheet, aimed at Pixel's Now Playing (*Share* on a song in its history;
   the live recognition screen has no share). Its share is two lines, recorded in

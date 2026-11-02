@@ -28,6 +28,14 @@ uv run groovehound serve                    # http://127.0.0.1:8080
 
 Or with Docker: see `compose.yaml`.
 
+### On your phone
+
+Served over HTTPS (behind a reverse proxy, with root-relative URLs throughout), Groovehound can
+be installed as an app: in Chrome on Android, open it and choose *Install app* (or *Add to
+Home screen*) from the menu. It then opens in its own window, without the browser bar. Chrome
+only offers this over HTTPS or on `localhost`, and there is no offline mode: it needs the
+server.
+
 ## Development
 
 ```powershell
