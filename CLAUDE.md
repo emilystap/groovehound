@@ -54,8 +54,8 @@ and 3b (personal fresh releases, `personal.py`) done; phase 4a ("Created for you
 the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the artist page,
 `similar.py`) done; phase 5a (the library scan, `library.py`), 5b ("In your library"
 badges), 5e (unplayed, `listens.py`), 5f (rediscover: the listen history, `history.py`, and the
-page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) done.
-The CF recommendations, once 4c, are now 5h. Links to other sites open in a new tab (`target="_blank"`).
+page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) and 5h (recommended albums,
+the CF recommendations once 4c, `recommended.py`) done. Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 
@@ -69,6 +69,10 @@ uv run groovehound serve          # web UI on http://127.0.0.1:8080
 
 ## Conventions
 
-- Ruff, line length 100. `.gitattributes` forces LF line endings.
+- Ruff, line length 100. `.gitattributes` forces LF line endings (and `.editorconfig` tells
+  editors). On Windows, write files with the Edit/Write tools, or in Python with
+  `newline="\n"` (`write_text` and `open(..., "w")` otherwise write CRLF); not with
+  PowerShell's `Set-Content` / `Out-File`. Git's "CRLF will be replaced by LF" warning means
+  something did.
 - Tests never call the real APIs (`tests/conftest.py` blocks `http._urlopen`); pass
   `FakeOpener` to clients. Record real responses as fixtures under `tests/fixtures/` sparingly.

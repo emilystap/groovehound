@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Container
 from datetime import UTC, datetime, timedelta
 
 from .brainz.http import NotFound, ServiceError, ServicePause
@@ -90,11 +90,12 @@ def fetch_into_cache(
     now: datetime,
     rng: random.Random | None = None,
     refresh_after: str = "",
+    no_pause: Container[int] = (),
 ) -> dict | None:
     """Make one ListenBrainz request (`call`) unless paused, and cache its response for a
     randomized `TTL` (or until `refresh_after`, if given). A 404 is cached as None (nothing for
-    this key; no pause). Raises ServiceError if ListenBrainz failed (starting the pause) or is
-    paused."""
+    this key; no pause). Raises ServiceError if ListenBrainz failed (starting the pause, unless
+    it answered with a status in `no_pause`) or is paused."""
     waiting = pause.remaining()
     if waiting:
         raise ServiceError(
@@ -105,13 +106,18 @@ def fetch_into_cache(
     except NotFound:
         data = None
     except ServiceError as exc:
-        pause.start(exc.retry_after)
+        if exc.status not in no_pause:
+            pause.start(exc.retry_after)
         raise
-    if not refresh_after:
-        low, high = TTL
-        refresh_after = _iso(now + low + (high - low) * (rng or random).random())
+    refresh_after = refresh_after or next_refresh(now, rng)
     store.save_cached(SERVICE, kind, key, data, refresh_after, fetched_at=_iso(now))
     return data
+
+
+def next_refresh(now: datetime, rng: random.Random | None = None) -> str:
+    """When a response fetched `now` is due again: a random `TTL` later (about a day)."""
+    low, high = TTL
+    return _iso(now + low + (high - low) * (rng or random).random())
 
 
 def cached_hits(store: Store, follow: Follow) -> list[Hit]:

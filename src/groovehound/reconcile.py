@@ -17,7 +17,9 @@ about once a day: since the worker wakes at random, the fetch drifts around the 
 errors pause ListenBrainz only, and don't stop the MusicBrainz batch. With a ListenBrainz
 username configured, they fetch that user's own fresh releases the same way (`personal.py`,
 roadmap 3b), the playlists ListenBrainz created for them (`playlists.py`, roadmap 4a), their
-listening stats (`listens.py`, roadmap 5e) and their listen history (`history.py`, roadmap 5f).
+listening stats (`listens.py`, roadmap 5e), their listen history (`history.py`, roadmap 5f) and
+their recommendations (`recommended.py`, roadmap 5h). The recommendations come last, on their
+own: the endpoint is experimental, so its failures don't hold up the rest.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from . import follows, fresh, history, listens, personal, playlists
+from . import follows, fresh, history, listens, personal, playlists, recommended
 from .brainz import listenbrainz, musicbrainz
 from .brainz.http import ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
@@ -113,6 +115,7 @@ class Reconciler:
     def run_once(self) -> Result:
         with Store(self.settings.database_path) as store:
             self._fetch_fresh(store)
+            self._fetch_recommended(store)
             result = reconcile_once(
                 store,
                 musicbrainz.client_for(self.settings),
@@ -151,6 +154,18 @@ class Reconciler:
             log.info("Fetched your ListenBrainz stats, %d album(s) played", played)
         if heard is not None:
             log.info("Fetched your ListenBrainz listen history, %d new listen(s)", heard)
+
+    def _fetch_recommended(self, store: Store) -> None:
+        client = listenbrainz.client_for(self.settings)
+        try:
+            asked = recommended.fetch(
+                store, client, listenbrainz.PAUSE, self.settings.listenbrainz_user
+            )
+        except ServiceError as exc:
+            log.info("ListenBrainz recommendations not fetched: %s", exc)
+            return
+        if asked is not None:
+            log.info("Fetched your ListenBrainz recommendations (%d request(s))", asked)
 
     def _loop(self) -> None:
         # said once, at startup: after a deploy, when the first fetch will come

@@ -1,8 +1,8 @@
-{# One album on a ListenBrainz playlist (`hit`, with the playlist's recordings on it in `songs`;
-   `playlist`), on the Discover page. Its title opens it on MusicBrainz; each artist gets *Follow*.
+{# One album on the Discover page (`hit`, with the playlist's or the recommendations' recordings
+   on it in `songs`; `row_prefix`, unique per list). Its title opens it on MusicBrainz; each artist gets *Follow*.
    *Dismiss* removes it with HTMX (and keeps it off the home page too); without JavaScript the
    form posts normally and comes back (`next`). #}
-{% set row = "playlist-" ~ playlist.mbid[:8] ~ "-" ~ hit.mbid %}
+{% set row = row_prefix ~ "-" ~ hit.mbid %}
 <li class="hit" id="{{ row }}">
   {% with mbid = hit.mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">

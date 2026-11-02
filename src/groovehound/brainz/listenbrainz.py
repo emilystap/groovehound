@@ -27,6 +27,7 @@ MAX_FRESH_DAYS = 90  # the API's maximum window
 MAX_RECORDINGS = 100  # recordings per metadata request (a generated playlist has 50), URL length
 MAX_STATS = 1000  # entries per stats request, the API's maximum (MAX_ITEMS_PER_GET)
 MAX_LISTENS = 1000  # listens per request, the same maximum
+MAX_RECOMMENDATIONS = 1000  # recommendations kept per user by ListenBrainz
 
 # Shared by every client in the process.
 LIMITER = RateLimiter()
@@ -124,13 +125,24 @@ class ListenBrainzClient(JsonClient):
             {"count": MAX_LISTENS, "min_ts": min_ts, "max_ts": max_ts},
         )
 
-    def recording_metadata(self, mbids: list[str]) -> dict:
+    def recording_recommendations(self, user: str, *, count: int = 100) -> dict:
+        """The user's collaborative-filtering recording recommendations, best first (roadmap
+        5h): each with `recording_mbid`, `score` and `latest_listened_at` (null if never
+        played). Experimental. An empty dict (a 204) means there are none."""
+        return self.get_json(
+            f"/1/cf/recommendation/user/{_user(user)}/recording",
+            {"count": max(1, min(count, MAX_RECOMMENDATIONS))},
+        )
+
+    def recording_metadata(self, mbids: list[str], *, artists: bool = False) -> dict:
         """Each recording's release and release group (`inc=release`), keyed by recording MBID:
-        one request for a whole playlist, which names only the album (roadmap 4a)."""
+        one request for a whole playlist, which names only the album (roadmap 4a). With
+        `artists`, each one's artists too (`inc=artist release`), for recordings known by MBID
+        alone (5h)."""
         return self.get_json(
             "/1/metadata/recording/",
             {
                 "recording_mbids": ",".join(m.strip() for m in mbids[:MAX_RECORDINGS]),
-                "inc": "release",
+                "inc": "artist release" if artists else "release",
             },
         )
