@@ -238,8 +238,26 @@ The core loop: hear something → find it → save it → buy it later.
     artist page, so a page opened in between counts. Nothing due, or MusicBrainz paused after
     an error, asks nothing; an error stops the batch and starts the pause (`reconcile.py`).
   - Shown nowhere yet: what's new appears with 2d.
-- 2d **Home page.** New and upcoming releases from followed artists, newest first, with
-  *dismiss*, *wishlist*, and *open on MusicBrainz*.
+- 2d ✅ **Home page.** New and upcoming releases from followed artists, newest first, with
+  *dismiss*, *wishlist*, and *open on MusicBrainz* (the title links there, as everywhere).
+  - **Requests:** none. Read from the cached browses (albums and EPs; singles for artists
+    followed for them) and `release_groups_seen`, which 2c keeps fresh (`new_releases.py`).
+  - **What shows:** release groups of the follow's types that are *coming up* (released after
+    today, soonest first, even if announced before you followed) or *new* (newest first,
+    undated last): released in the last 90 days, whenever you followed, so following someone
+    shows what they put out lately; or first seen after you followed (`follows.is_new`), in the
+    last 90 days, which catches releases MusicBrainz got late. A year or month alone ("2026",
+    "2026-10") counts from the day the release group was first seen, kept within that year or
+    month: an album first seen by a refresh in February 2026 is new until May, not all year,
+    and one announced as "2027" is new from 1 January 2027. Already out when you followed, it
+    counts from then (it can't be told apart from one out in January: *dismiss* it). A refresh
+    that brings the full date makes that count instead. A release group dated more than a year
+    before it was first seen is a catalogue addition (an old record MusicBrainz only just got),
+    not a new release, and isn't shown.
+  - **Dismiss** stays dismissed, per user (`dismissed`, migration 8, with a `kind` so phase 4's
+    suggestions can share it). *Add to wishlist* keeps the release listed, marked as saved.
+  - **Covers** go through the cover cache (`/cover`), now also for release groups by artists
+    you follow: the home page is seen often, so direct links would be slow every time.
 
 ### 3. Fresh releases from ListenBrainz
 

@@ -131,6 +131,17 @@ MIGRATIONS: list[str] = [
     ALTER TABLE follows ADD COLUMN types TEXT NOT NULL DEFAULT '["album", "ep"]';
     ALTER TABLE follows ADD COLUMN singles_since TEXT;
     """,
+    # 8: dismissed (roadmap 2d): what the user doesn't want shown again. kind = what the mbid
+    # is: release-group (a new release on the home page); suggestions later (phase 4).
+    """
+    CREATE TABLE dismissed (
+        user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind          TEXT NOT NULL,
+        mbid          TEXT NOT NULL,
+        dismissed_at  TEXT NOT NULL,
+        PRIMARY KEY (user_id, kind, mbid)
+    );
+    """,
 ]
 
 
@@ -458,6 +469,33 @@ class Store:
             (artist_mbid,),
         )
         return {r[0]: r[1] for r in rows}
+
+    def followed_release_group(self, user_id: int, release_group_mbid: str) -> bool:
+        """Whether a browse of an artist this user follows has returned this release group."""
+        row = self.conn.execute(
+            "SELECT 1 FROM release_groups_seen s JOIN follows f ON f.artist_mbid = s.artist_mbid "
+            "WHERE f.user_id = ? AND s.release_group_mbid = ? LIMIT 1",
+            (user_id, release_group_mbid),
+        ).fetchone()
+        return row is not None
+
+    # --- Dismissed ------------------------------------------------------------------------
+
+    def dismiss(self, user_id: int, kind: str, mbid: str) -> bool:
+        """Don't show this again; False if it was already dismissed (keeping the date)."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "INSERT INTO dismissed (user_id, kind, mbid, dismissed_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT DO NOTHING",
+                (user_id, kind, mbid, utcnow()),
+            )
+        return cursor.rowcount == 1
+
+    def dismissed(self, user_id: int, kind: str) -> set[str]:
+        rows = self.conn.execute(
+            "SELECT mbid FROM dismissed WHERE user_id = ? AND kind = ?", (user_id, kind)
+        )
+        return {r[0] for r in rows}
 
     # --- Quick capture --------------------------------------------------------------------
 

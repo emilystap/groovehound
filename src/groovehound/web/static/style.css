@@ -40,6 +40,9 @@ a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font-family: var(--mono); font-size: 0.92em; }
 h2 { font-size: 1rem; margin: 0 0 12px; }
+.subhead { font-size: 0.9rem; color: var(--muted); margin: 16px 0 8px; }
+.new-group:first-of-type .subhead { margin-top: 0; }
+.new-group:not(:has(li)) { display: none; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 
@@ -120,6 +123,7 @@ select { max-width: 100%; }
 .annotate button { justify-self: start; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .actions form { margin: 0; }
+.actions .saved { margin-top: 0; align-self: center; }
 .capture { display: flex; flex-wrap: wrap; gap: 8px; max-width: 480px; }
 .capture input { flex: 1 1 16em; min-width: 0; }
 #captures h3 { font-weight: normal; margin: 12px 0 0; }

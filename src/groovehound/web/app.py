@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers, follows, releases
+from .. import __version__, buy, covers, follows, new_releases, releases
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
@@ -115,7 +115,9 @@ def create_app(settings: Settings) -> FastAPI:
         return home_page(request, store, user)
 
     def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
-        """The home page; with `draft`, the quick capture form is filled in with it."""
+        """The home page (no requests); with `draft`, the quick capture form is filled in."""
+        feed = new_releases.feed(store, user.id)
+        hits = [r.hit for r in (*feed.upcoming, *feed.new)]
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -127,19 +129,38 @@ def create_app(settings: Settings) -> FastAPI:
                 "wishlist_count": store.wishlist_count(user.id),
                 "captures": store.captures(user.id),
                 "follow_count": len(store.follows(user.id)),
+                "feed": feed,
+                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
                 "draft": draft,
                 "here": "/",
             },
         )
 
+    @app.post("/new/{mbid}/dismiss")
+    async def dismiss_new_release(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Stop showing a release group among the new releases. HTMX gets an empty swap,
+        removing it from the page; a plain form post goes back to `next`."""
+        if not is_mbid(mbid):
+            raise HTTPException(404, "not a release group MBID")
+        form = await _form(request)
+        store.dismiss(user.id, new_releases.DISMISSED_KIND, mbid.strip().lower())
+        if request.headers.get("HX-Request"):
+            return HTMLResponse("")
+        return RedirectResponse(_local_path(form.get("next", "/")), status_code=303)
+
     @app.get("/cover/{mbid}")
     def cover(mbid: str, store: StoreDep, user: UserDep) -> Response:
-        """A wishlist item's cover thumbnail, from the cover cache (one request to the Cover Art
-        Archive the first time, or when due for a refresh). Only for release groups on your
-        wishlist, so this isn't a way to make the server fetch anything else."""
+        """A cover thumbnail from the cover cache (one request to the Cover Art Archive the first
+        time, or when due for a refresh). Only for release groups on your wishlist or by artists
+        you follow (the home page's new releases), so this isn't a way to make the server fetch
+        anything else."""
         mbid = mbid.lower()
-        if not is_mbid(mbid) or not store.wishlisted(user.id, [mbid]):
-            raise HTTPException(404, "not on your wishlist")
+        if not is_mbid(mbid) or not (
+            store.wishlisted(user.id, [mbid]) or store.followed_release_group(user.id, mbid)
+        ):
+            raise HTTPException(404, "not on your wishlist or by an artist you follow")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
         try:
             found = covers.cover(store, client, coverart.PAUSE, mbid)

@@ -13,9 +13,26 @@
 
 <section class="card">
   <h2>New releases</h2>
+  {# a group whose last release is dismissed hides, heading and all (.new-group, CSS) #}
+  {% if feed.upcoming %}
+  <div class="new-group">
+    <h3 class="subhead">Coming up</h3>
+    <ul class="hits">
+      {% for release in feed.upcoming %}{% with upcoming = true %}{% include "_new_release.html" %}{% endwith %}{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% if feed.new %}
+  <div class="new-group">
+    {% if feed.upcoming %}<h3 class="subhead">Out now</h3>{% endif %}
+    <ul class="hits">
+      {% for release in feed.new %}{% with upcoming = false %}{% include "_new_release.html" %}{% endwith %}{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
   {% if follow_count %}
-  <p class="muted">You follow <a href="/artists">{{ follow_count }} artist{% if follow_count != 1 %}s{% endif %}</a>.
-    Their new releases will show here.</p>
+  <p class="muted small{% if feed %} more{% endif %}">{% if not feed %}Nothing new yet from the {% else %}From the {% endif %}<a href="/artists">{{ follow_count }}
+    artist{% if follow_count != 1 %}s{% endif %} you follow</a>. Each is checked on MusicBrainz every week or two.</p>
   {% else %}
   <p class="muted">Follow artists to see their new releases here.</p>
   {% endif %}

@@ -201,7 +201,8 @@ def test_artist_page_then_follow_costs_one_browse(tmp_path: Path, monkeypatch):
     assert len(opener.requests) == 1  # the page's browse was cached
 
     assert "Charli xcx" in client.get("/artists").text
-    assert "You follow" in client.get("/").text
+    page = " ".join(client.get("/").text.split())
+    assert 'Nothing new yet from the <a href="/artists">1 artist you follow</a>' in page
     page = client.get(f"/artists/{ARTIST}").text
     assert f'action="/artists/{ARTIST}/unfollow"' in page
 
