@@ -16,8 +16,8 @@ The same wake-ups fetch ListenBrainz's fresh releases (`fresh.py`, roadmap 3a) w
 about once a day: since the worker wakes at random, the fetch drifts around the clock. Its
 errors pause ListenBrainz only, and don't stop the MusicBrainz batch. With a ListenBrainz
 username configured, they fetch that user's own fresh releases the same way (`personal.py`,
-roadmap 3b), the playlists ListenBrainz created for them (`playlists.py`, roadmap 4a), and their
-listening stats (`listens.py`, roadmap 5e).
+roadmap 3b), the playlists ListenBrainz created for them (`playlists.py`, roadmap 4a), their
+listening stats (`listens.py`, roadmap 5e) and their listen history (`history.py`, roadmap 5f).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from . import follows, fresh, listens, personal, playlists
+from . import follows, fresh, history, listens, personal, playlists
 from .brainz import listenbrainz, musicbrainz
 from .brainz.http import ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
@@ -137,6 +137,7 @@ class Reconciler:
             listed = personal.fetch(store, client, listenbrainz.PAUSE, user_name)
             asked = playlists.fetch(store, client, listenbrainz.PAUSE, user_name)
             played = listens.fetch(store, client, listenbrainz.PAUSE, OWNER_ID, user_name)
+            heard = history.fetch(store, client, listenbrainz.PAUSE, OWNER_ID, user_name)
         except ServiceError as exc:
             log.info("ListenBrainz fresh releases not fetched: %s", exc)
             return
@@ -148,6 +149,8 @@ class Reconciler:
             log.info("Fetched your ListenBrainz playlists (%d request(s))", asked)
         if played is not None:
             log.info("Fetched your ListenBrainz stats, %d album(s) played", played)
+        if heard is not None:
+            log.info("Fetched your ListenBrainz listen history, %d new listen(s)", heard)
 
     def _loop(self) -> None:
         while not self._stop.wait(random.uniform(*self.interval)):

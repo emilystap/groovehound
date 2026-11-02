@@ -39,6 +39,14 @@
   </ul>
   {% endif %}
   {% endif %}
+  {% if history %}
+  <p class="muted small listen-history">{% if history.filling %}Fetching your listen history in
+    the background: {% else %}Listen history: {% endif %}{{ history.listens }}
+    listen{{ "" if history.listens == 1 else "s" }}{% if history.since %} since
+    {{ history.since | local_date }}{% endif %}, {{ history.with_album }} matched to an
+    album{% if history.capped %} (the newest 10,000: older ones are counted by the stats
+    above){% endif %}.</p>
+  {% endif %}
 </section>
 {% endif %}
 
