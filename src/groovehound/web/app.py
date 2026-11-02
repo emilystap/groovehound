@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import mimetypes
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs, urlsplit
@@ -80,6 +81,11 @@ def create_app(settings: Settings) -> FastAPI:
     )
     templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
     templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
+    templates.env.globals.update(  # a follow's release group types (_follow_types.html)
+        primary_types=follows.PRIMARY_TYPES,
+        secondary_types=follows.SECONDARY_TYPES,
+        types_label=follows.types_label,
+    )
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -383,21 +389,24 @@ def create_app(settings: Settings) -> FastAPI:
         following makes, so following from here asks nothing more)."""
         mbid = _artist_mbid(mbid)
         contact_problem = _contact_problem(settings)
+        follow = store.follow_of(user.id, mbid)
         found, error = None, None
         if contact_problem:
             found, _ = follows.cached_discography(store, mbid)
         else:
+            client = musicbrainz.client_for(settings)
             try:
-                found = follows.discography(
-                    store, musicbrainz.client_for(settings), musicbrainz.PAUSE, mbid
-                )
+                found = follows.discography(store, client, musicbrainz.PAUSE, mbid)
+                if follow and "single" in follow.types:  # followed for singles: keep them fresh
+                    found = replace(
+                        found, singles=follows.singles(store, client, musicbrainz.PAUSE, mbid)
+                    )
             except NotFound as exc:
                 raise HTTPException(404, "no such artist on MusicBrainz") from exc
             except ServiceError as exc:
                 found, _ = follows.cached_discography(store, mbid)
                 error = str(exc)
-        follow = store.follow_of(user.id, mbid)
-        hits = found.release_groups if found else ()
+        hits = (*found.release_groups, *(found.singles or ())) if found else ()
         return templates.TemplateResponse(
             request,
             "artist.html",
@@ -408,6 +417,7 @@ def create_app(settings: Settings) -> FastAPI:
                 # what to call them when MusicBrainz couldn't be asked: the name as followed
                 "name": found.artist.name if found else follow.name if follow else "",
                 "following": follow is not None,
+                "follow": follow,
                 "error": error,
                 "contact_problem": contact_problem,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
@@ -455,10 +465,12 @@ def create_app(settings: Settings) -> FastAPI:
         error: str | None = None,
     ) -> Response:
         """HTMX gets the artist's *Follow* button, out of band for every copy on the page (an
-        artist can be on several results); a plain form post goes back to `next`."""
+        artist can be on several results), and on the artist pages their types form too; a
+        plain form post goes back to `next`."""
         if request.headers.get("HX-Request"):
             follow = store.follow_of(user.id, mbid)
             name = follow.name if follow else clean(form.get("name", "")) or mbid
+            here = form.get("next", "")
             return templates.TemplateResponse(
                 request,
                 "_follow_button.html",
@@ -466,11 +478,61 @@ def create_app(settings: Settings) -> FastAPI:
                     "oob": True,
                     "artist": follows.Credited(mbid, name),
                     "following": follow is not None,
+                    "follow": follow,
+                    # only pages with a types form (else htmx reports a missing target)
+                    "with_types": here in ("/artists", f"/artists/{mbid}"),
+                    "link": here != f"/artists/{mbid}",  # not to the page it's on
                     "error": error,
-                    "here": form.get("next", ""),
+                    "here": here,
                 },
             )
         return RedirectResponse(_local_path(form.get("next", f"/artists/{mbid}")), status_code=303)
+
+    @app.post("/artists/{mbid}/types")
+    async def follow_types(request: Request, mbid: str, store: StoreDep, user: UserDep) -> Response:
+        """Change which release group types a follow is for (`type`, repeated). Turning singles
+        on browses them (one request unless cached), so the ones already out aren't new; on the
+        artist page, HTMX then reloads it to list them."""
+        mbid = _artist_mbid(mbid)
+        fields = await _form_lists(request)
+        here = (fields.get("next") or [""])[0]
+        follow = store.follow_of(user.id, mbid)
+        if follow is None:
+            raise HTTPException(404, "you don't follow this artist")
+        had_singles = "single" in follow.types
+        error = None
+        try:
+            types = follows.clean_types(fields.get("type", []))
+        except ValueError as exc:
+            error = str(exc)
+        if not error and "single" in types and not had_singles:
+            error = _contact_problem(settings)
+        if not error:
+            try:
+                follow = (
+                    follows.set_types(
+                        store,
+                        musicbrainz.client_for(settings),
+                        musicbrainz.PAUSE,
+                        user.id,
+                        mbid,
+                        types,
+                    )
+                    or follow
+                )
+            except ServiceError as exc:
+                error = str(exc)
+        if not request.headers.get("HX-Request"):
+            return RedirectResponse(_local_path(here or f"/artists/{mbid}"), status_code=303)
+        headers = {}
+        if not error and not had_singles and follow.singles_since and here == f"/artists/{mbid}":
+            headers["HX-Refresh"] = "true"  # singles just turned on: the page lists them
+        return templates.TemplateResponse(
+            request,
+            "_follow_types.html",
+            {"mbid": mbid, "follow": follow, "error": error, "saved": not error, "here": here},
+            headers=headers,
+        )
 
     @app.post("/captures")
     async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:
@@ -558,8 +620,12 @@ def _wishlist_counts(store: Store, user: User) -> dict[str, int]:
 async def _form(request: Request) -> dict[str, str]:
     """A urlencoded form's fields (first value each). Parsed by hand, as in tagdrifter, to
     avoid the python-multipart dependency for a few small forms."""
-    form = parse_qs((await request.body()).decode(errors="replace"))
-    return {k: v[0] for k, v in form.items()}
+    return {k: v[0] for k, v in (await _form_lists(request)).items()}
+
+
+async def _form_lists(request: Request) -> dict[str, list[str]]:
+    """A urlencoded form's fields with every value (checkboxes sharing a name)."""
+    return parse_qs((await request.body()).decode(errors="replace"))
 
 
 def _artist_mbid(mbid: str) -> str:

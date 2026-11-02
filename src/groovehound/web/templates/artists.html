@@ -11,6 +11,7 @@
       <div class="muted small">
         {% if follow.disambiguation %}{{ follow.disambiguation }} · {% endif %}since {{ follow.followed_at | local_date }}
       </div>
+      {% with mbid = follow.artist_mbid, oob = false, saved = false, error = none %}{% include "_follow_types.html" %}{% endwith %}
     </li>
     {% endfor %}
   </ul>

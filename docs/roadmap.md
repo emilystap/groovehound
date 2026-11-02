@@ -209,8 +209,24 @@ The core loop: hear something → find it → save it → buy it later.
     away), each with *Add to wishlist*. `/artists` lists who you follow (*Artists* in the top
     bar). Wishlist items now keep the credited artists' names; items saved before 2a fall back
     to the credit (one artist) or "artist 1, 2" (several).
-- 2b **Release group types.** Per follow (default: album + EP; singles optional; live,
+- 2b ✅ **Release group types.** Per follow (default: album + EP; singles optional; live,
   compilation, remix etc. off) since secondary types are noisy.
+  - **Choices:** albums, EPs, singles (at least one), and also live, compilations, remixes,
+    soundtracks, DJ mixes, mixtapes, demos, and "spoken word, interviews and the like" (the
+    rarer secondary types, and any MusicBrainz adds later). A release group counts if its
+    primary type is chosen and so is each of its secondary types. Set under *For Albums, EPs*
+    on the artist page and on `/artists` (`follows.types`, migration 7). Unfollowing and
+    following again starts over from the default.
+  - **Requests:** secondary types cost nothing: the album and EP browse returns them anyway.
+    Singles get a browse of their own (`type=single`, cached as `artist-singles` like the
+    other), made when someone turns singles on (unless cached) and kept fresh by the artist
+    page while they're on. Artists nobody follows for singles never have it made.
+  - **"Already out", for singles:** `follows.singles_since` is when singles were turned on,
+    after that browse. A single is new if first seen after it; albums and EPs keep comparing
+    with the follow date (`follows.is_new`). So turning singles on doesn't make every old
+    single new, and turning on live etc. later doesn't either (they were in the baseline).
+  - **UI:** once singles are browsed, the artist page lists them (folded, like live and
+    compilations); turning them on there reloads the page to show them.
 - 2c **Slow reconciliation.** The background trickle re-browses each followed artist every
   randomized 7–14 days (a few artists per wake-up), catching anything phase 3's feed missed.
   Release groups not seen before become *new* (with the date first seen).

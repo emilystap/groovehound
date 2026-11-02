@@ -37,9 +37,7 @@
     {% with artist = {"mbid": mbid, "name": name or "this artist"}, link = false %}{% include "_follow_button.html" %}{% endwith %}
     <a class="button secondary" href="{{ musicbrainz_web }}/artist/{{ mbid }}">Open on MusicBrainz</a>
   </div>
-  {% if following %}
-  <p class="muted small">Albums and EPs already out are known; new ones will be on your home page.</p>
-  {% endif %}
+  {% with oob = false, error = none %}{% include "_follow_types.html" %}{% endwith %}
 </section>
 
 {% if found %}
@@ -47,6 +45,13 @@
   <h2>Albums and EPs <span class="muted">({{ found.main | length }})</span></h2>
   {% if found.main %}{{ release_groups(found.main) }}{% else %}
   <p class="muted">MusicBrainz has no albums or EPs for {{ name }}.</p>
+  {% endif %}
+  {% if found.singles is not none %}
+  <details class="more-groups">
+    <summary>Singles ({{ found.singles | length }})</summary>
+    {% if found.singles %}{{ release_groups(found.singles) }}{% else %}
+    <p class="muted">MusicBrainz has no singles for {{ name }}.</p>{% endif %}
+  </details>
   {% endif %}
   {% if found.other %}
   <details class="more-groups">
