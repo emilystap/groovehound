@@ -355,13 +355,37 @@ The core loop: hear something → find it → save it → buy it later.
     name, a leading "The" aside. Offered on every artist page, followed or not: it's one
     request on an explicit click, like a search.
 - 4c CF recording recommendations: moved to 5h, after the library (checked 2026-11-02).
+- 4d **Playlists to the wishlist** (needs 5k's recording ids for "already in your library"):
+  paste a link to a public ListenBrainz playlist, pick the songs you want, and their albums go on
+  the wishlist. The same path as 4a's playlists, on request instead of daily.
+  - **Requests:** one for the playlist (`/1/playlist/<mbid>`) and one metadata request for its
+    recordings (`/1/metadata/recording/?inc=release artist`, at most 50 at a time, as in 5h),
+    only when you press *Load*. Cached raw (shared) for a randomized 1–3 days, so loading it
+    again to pick more songs asks nothing. None to MusicBrainz. Errors and 404s as in 3b.
+  - **Other services go through ListenBrainz.** ListenBrainz imports Spotify playlists (and, it
+    says, Apple Music and SoundCloud) into your account itself, matched to MusicBrainz ids: import
+    there, then paste the ListenBrainz link. Groovehound holds no Spotify credentials (see
+    "Decided against").
+  - **Pasted track lists** (later, optional): a box for "Artist - Title" lines copied from
+    anywhere, each matched by ListenBrainz's own matcher (`/1/metadata/lookup/`, the one it uses
+    for listens) rather than a MusicBrainz search per line. Unmatched lines are listed, not
+    guessed. **Check first:** whether the lookup takes a batch, and its limits; a line per request
+    is fine for a dozen songs, not for a hundred.
+  - **Wishlist items stay albums.** Each song picked adds the release group it's on (the one the
+    metadata names; a song is often on several, and 1g picks the edition), with the songs wanted
+    kept on the item ("for: *Song A*, *Song B*") and the playlist as its source. Several songs on
+    one album make one item; an album already on the wishlist gets the songs added.
+  - **UI:** a dialog listing the playlist's songs in order, each with its album, *In your library*
+    (by recording, so a song owned on another album counts: 5k) or *On your wishlist*, and a
+    checkbox; owned songs are unticked. The wishlist can be filtered by source playlist.
 - Dismissed suggestions stay dismissed (per user).
 
 ### 5. Library awareness
 
 Know what's already in your music library, so Groovehound can say "you have this" instead of
 suggesting it again, and point you at what you own but haven't played. **No MusicBrainz
-requests** (except the artist page browses 5j's links open, as today); ListenBrainz only for
+requests** (except the artist page browses 5j's links open, as today, and 5k's track lists, on
+request); ListenBrainz only for
 listening stats (5e) and recommendations (5h). 5a and 5b need
 only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
@@ -498,6 +522,25 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     otherwise), never fetched to fill the column.
   - **With 5d:** the suggested follows (library artists with N+ release groups you don't
     follow) can be a section at the top of this tab rather than a page of their own.
+- 5k **Tracks** (needs 5a/5b): see which songs of an album you have, mostly for albums you own
+  only part of.
+  - **Scan:** also read *MusicBrainz Release Track Id* and *MusicBrainz Track Id* (the
+    recording) into `library_files`; a migration, and every file read once more after it (local
+    only, no requests). Matching by recording means a song you own on a compilation or a single
+    counts as owned anywhere else it appears, which 4d needs.
+  - **Partial albums, no requests:** the library row's file count against the edition's track
+    count from 1g's cached browse (`inc=media`) gives *8 of 12 tracks* on library items and the
+    artist page. Only when that browse is cached; never fetched to fill the badge.
+  - **Track list:** *Tracks* on a library item, a wishlist item or an album on the artist page
+    opens the edition's track list, each track marked *In your library* (by recording) or not.
+    The edition is the one in the library, else the wishlist item's chosen one, else a default
+    from 1g's browse (the earliest official edition with the most common track count), named
+    above the list with a link to choose another.
+  - **Requests:** one release lookup (`/release/<mbid>?inc=recordings artist-credits`) per
+    edition, only when *Tracks* is opened; cached (shared) for a randomized 30–60 days, refreshed
+    only when opened again. **Check first** whether 1g's browse could ask for `inc=recordings`
+    for every edition at once: MusicBrainz limits browses that include recordings, so a lookup
+    per edition is the assumption.
 
 ### 6. Notifications and polish
 
@@ -515,6 +558,13 @@ See "Non-goals". Each entry gives the date and the reason.
 - **Creating playlists in Navidrome** from Rediscover (2026-11-02): needs write access to
   Navidrome and keeping the playlist in sync, which is a player's job. Link to the album instead
   (5g).
+- **Reading Spotify playlists directly** for 4d (2026-11-02): needs registered app credentials
+  (another secret), and Spotify keeps narrowing what new apps may read. Its ISRCs would cost a
+  MusicBrainz lookup per song (75 s+ for 50 songs behind the limiter), and many aren't in
+  MusicBrainz. ListenBrainz imports Spotify playlists itself, matched to MusicBrainz ids: use that.
+- **YouTube and YouTube Music playlists** (2026-11-02): YouTube Music has no official API (the
+  usual library is unofficial, close to scraping), and YouTube video titles ("Artist - Song
+  (Official Video) [4K]") would need guessing. 4d's pasted track list covers the odd case.
 
 ## Open questions
 
