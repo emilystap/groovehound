@@ -5,13 +5,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from groovehound import follows, reconcile
-from groovehound.brainz import musicbrainz
+from groovehound.brainz import listenbrainz, musicbrainz
 from groovehound.brainz.http import ServicePause
 from groovehound.db import OWNER_ID, Store
 from groovehound.web import create_app
 
 from .conftest import FakeOpener, settings_for
-from .test_brainz import mb_client, params
+from .test_brainz import lb_client, mb_client, params
 from .test_follow_types import SINGLE, SINGLES
 from .test_follows import ARTIST, BROWSE, NOW, group
 
@@ -147,5 +147,20 @@ def test_the_worker_uses_the_shared_client_and_pause(tmp_path: Path, monkeypatch
         follow(store, opener)
         store.save_cached("musicbrainz", follows.CACHE_KIND, ARTIST, BROWSE, NOW.isoformat())
     monkeypatch.setattr(musicbrainz, "client_for", lambda settings: mb_client(opener))
+    lb_opener = FakeOpener({"payload": {"releases": []}})
+    monkeypatch.setattr(listenbrainz, "client_for", lambda settings: lb_client(lb_opener))
     result = reconcile.Reconciler(settings_for(tmp_path)).run_once()
     assert result == reconcile.Result(browsed=1, new=1)
+    assert len(lb_opener.requests) == 1  # the fresh releases, due on the first run
+
+
+def test_a_listenbrainz_error_doesnt_stop_the_musicbrainz_batch(tmp_path: Path, monkeypatch):
+    opener = FakeOpener(BROWSE, NEWER)
+    with store_at(tmp_path) as store:
+        follow(store, opener)
+        store.save_cached("musicbrainz", follows.CACHE_KIND, ARTIST, BROWSE, NOW.isoformat())
+    monkeypatch.setattr(musicbrainz, "client_for", lambda settings: mb_client(opener))
+    monkeypatch.setattr(listenbrainz, "client_for", lambda settings: lb_client(FakeOpener(500)))
+    result = reconcile.Reconciler(settings_for(tmp_path)).run_once()
+    assert result == reconcile.Result(browsed=1, new=1)
+    assert listenbrainz.PAUSE.remaining() and not musicbrainz.PAUSE.remaining()

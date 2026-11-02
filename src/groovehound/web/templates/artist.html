@@ -6,7 +6,7 @@
   <li class="hit">
     {% with mbid = hit.mbid %}{% include "_cover.html" %}{% endwith %}
     <div class="hit-body">
-      <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}">{{ hit.title }}</a>
+      <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
       {% if hit.artist_mbids | length > 1 %}<div>{{ hit.artist_credit }}</div>{% endif %}
       <div class="muted small">
         {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
@@ -35,7 +35,7 @@
   {% endif %}
   <div class="actions">
     {% with artist = {"mbid": mbid, "name": name or "this artist"}, link = false %}{% include "_follow_button.html" %}{% endwith %}
-    <a class="button secondary" href="{{ musicbrainz_web }}/artist/{{ mbid }}">Open on MusicBrainz</a>
+    <a class="button secondary" href="{{ musicbrainz_web }}/artist/{{ mbid }}" rel="noopener" target="_blank">Open on MusicBrainz</a>
   </div>
   {% with oob = false, error = none %}{% include "_follow_types.html" %}{% endwith %}
 </section>
@@ -61,7 +61,7 @@
   {% endif %}
   <p class="muted small">
     {% if found.count > found.release_groups | length %}The first {{ found.release_groups | length }} of {{ found.count }};
-    the rest are <a href="{{ musicbrainz_web }}/artist/{{ mbid }}">on MusicBrainz</a>. {% endif %}
+    the rest are <a href="{{ musicbrainz_web }}/artist/{{ mbid }}" rel="noopener" target="_blank">on MusicBrainz</a>. {% endif %}
     Official releases only, as of {{ found.fetched_at | local_date }}.
   </p>
 </section>

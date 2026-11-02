@@ -1,9 +1,10 @@
 """New and upcoming releases from followed artists (roadmap 2d), for the home page.
 
-Read entirely from what's cached, so the home page asks MusicBrainz nothing: each followed
-artist's browse of albums and EPs (and of singles, for artists followed for them), and when
+Read entirely from what's cached, so the home page asks nothing: each followed artist's browse
+of albums and EPs (and of singles, for artists followed for them), ListenBrainz's fresh
+releases (`fresh.py`, roadmap 3a) for release groups those browses don't have yet, and when
 each release group was first seen (`release_groups_seen`). The background trickle
-(`reconcile.py`) keeps those browses fresh.
+(`reconcile.py`) keeps both fresh.
 
 A release group shows if the follow is for its types (`follows.wanted`) and it is either
 - **upcoming**: first released after today (whenever it was first seen, so an album announced
@@ -23,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from . import follows
+from . import follows, fresh
 from .db import Follow, Store, local_date
 from .search import Hit, release_group_hits
 
@@ -80,6 +81,9 @@ def feed(store: Store, user_id: int, *, now: datetime | None = None) -> Feed:
 
 
 def _cached_hits(store: Store, follow: Follow) -> list[Hit]:
+    """The artist's browses, then ListenBrainz's fresh releases for release groups the browses
+    don't have yet (a browse knows a release group's first release date and every type; the
+    feed only the releases near today)."""
     kinds = [follows.CACHE_KIND]
     if follow.singles_since:
         kinds.append(follows.SINGLES_KIND)
@@ -88,7 +92,8 @@ def _cached_hits(store: Store, follow: Follow) -> list[Hit]:
         entry = store.cached("musicbrainz", kind, follow.artist_mbid)
         if entry is not None:
             hits.extend(release_group_hits(entry.data or {}))
-    return hits
+    browsed = {h.mbid for h in hits}
+    return hits + [h for h in fresh.cached_hits(store, follow) if h.mbid not in browsed]
 
 
 def _is_new(follow: Follow, hit: Hit, first_seen: str, now: datetime) -> bool:

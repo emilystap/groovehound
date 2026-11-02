@@ -5,7 +5,7 @@
 <li class="hit" id="new-{{ hit.mbid }}">
   {% with mbid = hit.mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
-    <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}">{{ hit.title }}</a>
+    <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
     <div><a href="/artists/{{ release.artist.artist_mbid }}">{{ hit.artist_credit or release.artist.name }}</a></div>
     <div class="muted small">
       {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {% if upcoming %}out {% endif %}{{ hit.first_release_date }}{% endif %}

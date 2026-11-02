@@ -261,10 +261,24 @@ The core loop: hear something → find it → save it → buy it later.
 
 ### 3. Fresh releases from ListenBrainz
 
-- 3a ListenBrainz's sitewide fresh-releases feed (`/1/explore/fresh-releases/`) lists every
+- 3a ✅ ListenBrainz's sitewide fresh-releases feed (`/1/explore/fresh-releases/`) lists every
   release around a date in **one request**. Fetched once a day at a random time, filtered
   locally by followed artist MBIDs. This makes new releases show up within a day while
-  MusicBrainz sees only phase 2's slow per-artist browses.
+  MusicBrainz sees only phase 2's slow per-artist browses (`fresh.py`).
+  - **Requests:** one, `days=14` around today (a release often reaches MusicBrainz days after
+    its date, and the app may have been down), about 1,000 releases. Cached raw for a
+    randomized 22–26 hours and fetched by 2c's background trickle on the first wake-up after
+    that, so the time drifts around the clock. Nobody following anyone asks nothing. An error
+    pauses ListenBrainz only; the MusicBrainz batch goes on.
+  - **"Already out":** each fetch records the followed artists' release groups in
+    `release_groups_seen`, so one reported before the artist's next browse is new from the day
+    ListenBrainz reported it (`follows.is_new`), and keeps that date once a browse has it.
+  - **Home page:** the feed lists releases, not release groups, so a release group is dated by
+    its earliest release in the feed, and the feed has no artist names besides the credit's.
+    Whenever an artist's browse has the release group, the browse's view wins (first release
+    date, all types): a reissue in the feed of an album from 2024 isn't new. The feed only
+    fills the gap until the next browse. Its responses (checked 2026-11-02) carry no secondary
+    type, so a live album found this way shows as an album until the browse catches up.
 - 3b With a ListenBrainz username configured: the personal fresh-releases feed
   (`/1/user/<name>/fresh_releases`) as a "you might care about" section (artists you listen to
   but don't follow), with *Follow*.

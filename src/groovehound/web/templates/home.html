@@ -32,7 +32,8 @@
   {% endif %}
   {% if follow_count %}
   <p class="muted small{% if feed %} more{% endif %}">{% if not feed %}Nothing new yet from the {% else %}From the {% endif %}<a href="/artists">{{ follow_count }}
-    artist{% if follow_count != 1 %}s{% endif %} you follow</a>. Each is checked on MusicBrainz every week or two.</p>
+    artist{% if follow_count != 1 %}s{% endif %} you follow</a>. Each is checked on MusicBrainz every week or two, and
+    ListenBrainz's fresh releases every day.</p>
   {% else %}
   <p class="muted">Follow artists to see their new releases here.</p>
   {% endif %}
@@ -46,7 +47,7 @@
     <li class="hit">
       {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
       <div class="hit-body">
-        <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
+        <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}" rel="noopener" target="_blank">{{ item.title }}</a>
         <div>{{ item.artist_credit }}</div>
         <div class="muted small">
           {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}

@@ -12,12 +12,12 @@
   {% elif where.links %}
     {% for label, links in (("Buy", where.buy), ("Stream", where.stream)) if links %}
     <p class="links"><span class="muted">{{ label }}:</span>
-      {% for link in links %}<a href="{{ link.url }}" rel="noreferrer">{{ link.site }}</a>{% if link.note %} <span class="muted small">({{ link.note }})</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+      {% for link in links %}<a href="{{ link.url }}" rel="noreferrer" target="_blank">{{ link.site }}</a>{% if link.note %} <span class="muted small">({{ link.note }})</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
     </p>
     {% endfor %}
-    <p class="muted small">Links from <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}">MusicBrainz</a>.</p>
+    <p class="muted small">Links from <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}" rel="noopener" target="_blank">MusicBrainz</a>.</p>
   {% else %}
     <p class="muted small">MusicBrainz has no purchase or streaming links for it yet; you can
-      <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}">add them to a release</a>.</p>
+      <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}" rel="noopener" target="_blank">add them to a release</a>.</p>
   {% endif %}
 </div>

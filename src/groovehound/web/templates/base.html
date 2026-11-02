@@ -33,13 +33,14 @@
     {% block content %}{% endblock %}
   </main>
 
+  {# Links to other sites open in a new tab (target="_blank"), so the app stays where it was. #}
   {# MusicBrainz's tags, genres and ratings are CC BY-NC-SA and need credit; the rest of its data
      and ListenBrainz's are CC0. Credit both on every page. #}
   <footer class="footer muted">
-    Music data from <a href="{{ musicbrainz_web }}">MusicBrainz</a>
-    and <a href="{{ listenbrainz_web }}">ListenBrainz</a>, by the
-    <a href="https://metabrainz.org">MetaBrainz Foundation</a>
-    · cover art from the <a href="https://coverartarchive.org">Cover Art Archive</a>
+    Music data from <a href="{{ musicbrainz_web }}" rel="noopener" target="_blank">MusicBrainz</a>
+    and <a href="{{ listenbrainz_web }}" rel="noopener" target="_blank">ListenBrainz</a>, by the
+    <a href="https://metabrainz.org" rel="noopener" target="_blank">MetaBrainz Foundation</a>
+    · cover art from the <a href="https://coverartarchive.org" rel="noopener" target="_blank">Cover Art Archive</a>
     · v{{ version }}
   </footer>
 </body>
