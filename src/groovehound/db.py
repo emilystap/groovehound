@@ -68,6 +68,13 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX wishlist_added ON wishlist(user_id, added_at);
     """,
+    # 3: the wishlist page (roadmap 1b): the user's own notes, where they heard it, and when they
+    # bought it (NULL = not yet; bought items are kept but hidden by default).
+    """
+    ALTER TABLE wishlist ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+    ALTER TABLE wishlist ADD COLUMN heard TEXT NOT NULL DEFAULT '';
+    ALTER TABLE wishlist ADD COLUMN bought_at TEXT;
+    """,
 ]
 
 
@@ -92,6 +99,10 @@ class WishlistItem:
     first_release_date: str = ""
     release_mbid: str | None = None  # a specific edition, when one was chosen
     added_at: str = ""
+    notes: str = ""
+    heard: str = ""  # where the user heard it (free text)
+    bought_at: str | None = None
+    id: int | None = None  # set once saved
 
     @property
     def type_label(self) -> str:
@@ -166,31 +177,57 @@ class Store:
             )
         return cursor.rowcount == 1
 
-    def wishlist(self, user_id: int, limit: int | None = None) -> list[WishlistItem]:
-        """This user's wishlist, most recently added first."""
+    def wishlist(
+        self, user_id: int, limit: int | None = None, *, bought: bool = False
+    ) -> list[WishlistItem]:
+        """This user's wishlist, most recently added first: items still to buy, or with
+        `bought`, only the ones already bought."""
         rows = self.conn.execute(
-            "SELECT * FROM wishlist WHERE user_id = ? ORDER BY added_at DESC, id DESC LIMIT ?",
-            (user_id, -1 if limit is None else limit),
+            "SELECT * FROM wishlist WHERE user_id = ? AND (bought_at IS NOT NULL) = ? "
+            "ORDER BY added_at DESC, id DESC LIMIT ?",
+            (user_id, bought, -1 if limit is None else limit),
         )
-        return [
-            WishlistItem(
-                release_group_mbid=r["release_group_mbid"],
-                title=r["title"],
-                artist_credit=r["artist_credit"],
-                artist_mbids=tuple(json.loads(r["artist_mbids"])),
-                primary_type=r["primary_type"],
-                secondary_types=tuple(json.loads(r["secondary_types"])),
-                first_release_date=r["first_release_date"],
-                release_mbid=r["release_mbid"],
-                added_at=r["added_at"],
-            )
-            for r in rows
-        ]
+        return [_wishlist_item(r) for r in rows]
 
-    def wishlist_count(self, user_id: int) -> int:
+    def wishlist_item(self, user_id: int, item_id: int) -> WishlistItem | None:
+        row = self.conn.execute(
+            "SELECT * FROM wishlist WHERE user_id = ? AND id = ?", (user_id, item_id)
+        ).fetchone()
+        return _wishlist_item(row) if row else None
+
+    def wishlist_count(self, user_id: int, *, bought: bool = False) -> int:
+        """How many items are still to buy (or, with `bought`, already bought)."""
         return self.conn.execute(
-            "SELECT COUNT(*) FROM wishlist WHERE user_id = ?", (user_id,)
+            "SELECT COUNT(*) FROM wishlist WHERE user_id = ? AND (bought_at IS NOT NULL) = ?",
+            (user_id, bought),
         ).fetchone()[0]
+
+    def annotate_wishlist_item(self, user_id: int, item_id: int, notes: str, heard: str) -> bool:
+        """Replace an item's notes and "where I heard it"; False if it isn't this user's."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE wishlist SET notes = ?, heard = ? WHERE user_id = ? AND id = ?",
+                (notes, heard, user_id, item_id),
+            )
+        return cursor.rowcount == 1
+
+    def mark_bought(self, user_id: int, item_id: int, bought: bool = True) -> bool:
+        """Mark an item bought (kept, but hidden by default) or back to still wanted. Marking
+        an item already bought keeps its original date. False if it isn't this user's."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE wishlist SET bought_at = CASE WHEN ? THEN COALESCE(bought_at, ?) END "
+                "WHERE user_id = ? AND id = ?",
+                (bought, utcnow(), user_id, item_id),
+            )
+        return cursor.rowcount == 1
+
+    def remove_from_wishlist(self, user_id: int, item_id: int) -> bool:
+        with self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM wishlist WHERE user_id = ? AND id = ?", (user_id, item_id)
+            )
+        return cursor.rowcount == 1
 
     def wishlisted(self, user_id: int, release_group_mbids: Iterable[str]) -> set[str]:
         """Which of these release groups are on this user's wishlist."""
@@ -254,3 +291,21 @@ class Store:
                 "DELETE FROM api_cache WHERE service = ? AND kind = ? AND refresh_after < ?",
                 (service, kind, before),
             )
+
+
+def _wishlist_item(row: sqlite3.Row) -> WishlistItem:
+    return WishlistItem(
+        id=row["id"],
+        release_group_mbid=row["release_group_mbid"],
+        title=row["title"],
+        artist_credit=row["artist_credit"],
+        artist_mbids=tuple(json.loads(row["artist_mbids"])),
+        primary_type=row["primary_type"],
+        secondary_types=tuple(json.loads(row["secondary_types"])),
+        first_release_date=row["first_release_date"],
+        release_mbid=row["release_mbid"],
+        added_at=row["added_at"],
+        notes=row["notes"],
+        heard=row["heard"],
+        bought_at=row["bought_at"],
+    )

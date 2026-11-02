@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{% if bought %}Bought{% else %}Wishlist{% endif %} · Groovehound{% endblock %}
+{% block content %}
+<section class="card">
+  {% include "_wishlist_tabs.html" %}
+  {% if items %}
+  <ul class="hits">
+    {% for item in items %}{% include "_wishlist_item.html" %}{% endfor %}
+  </ul>
+  {% elif bought %}
+  <p class="muted">Nothing marked as bought yet.</p>
+  {% else %}
+  <p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
+  {% endif %}
+</section>
+{% endblock %}

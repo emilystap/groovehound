@@ -32,6 +32,9 @@
     </li>
     {% endfor %}
   </ul>
+  {% if wishlist_count > wishlist | length %}
+  <p class="more"><a href="/wishlist">All {{ wishlist_count }} on your wishlist</a></p>
+  {% endif %}
   {% else %}
   <p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
   {% endif %}

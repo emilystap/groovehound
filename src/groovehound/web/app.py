@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -26,6 +26,7 @@ from ..db import OWNER_ID, Store, User, WishlistItem
 from ..search import KINDS, clean, search
 
 HOME_WISHLIST = 10  # most recent items on the home page
+MAX_NOTES = 2000  # characters of a wishlist item's notes
 
 HERE = Path(__file__).parent
 
@@ -143,7 +144,87 @@ def create_app(settings: Settings) -> FastAPI:
             )
         return RedirectResponse(_local_path(form.get("next", "")), status_code=303)
 
+    @app.get("/wishlist", response_class=HTMLResponse)
+    def wishlist_page(
+        request: Request, store: StoreDep, user: UserDep, show: str = ""
+    ) -> HTMLResponse:
+        """Everything still to buy, newest first; `?show=bought` lists the bought items."""
+        bought = show == "bought"
+        return templates.TemplateResponse(
+            request,
+            "wishlist.html",
+            {
+                "page": "wishlist",
+                "bought": bought,
+                "items": store.wishlist(user.id, bought=bought),
+                **_wishlist_counts(store, user),
+                "here": str(request.url.path)
+                + (f"?{request.url.query}" if request.url.query else ""),
+            },
+        )
+
+    @app.post("/wishlist/{item_id}/notes")
+    async def annotate_wishlist_item(
+        request: Request, item_id: int, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Save an item's notes and "where I heard it". HTMX gets the updated item back."""
+        form = await _form(request)
+        notes = _multiline(form.get("notes", ""))[:MAX_NOTES]
+        if not store.annotate_wishlist_item(user.id, item_id, notes, clean(form.get("heard", ""))):
+            raise HTTPException(404, "not on your wishlist")
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "_wishlist_item.html",
+                {"item": store.wishlist_item(user.id, item_id), "here": form.get("next", "")},
+            )
+        return RedirectResponse(_local_path(form.get("next", "/wishlist")), status_code=303)
+
+    @app.post("/wishlist/{item_id}/bought")
+    async def mark_bought(
+        request: Request, item_id: int, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Mark an item bought (`bought=1`) or still wanted (`bought=0`). Either way it moves to
+        the other list, so HTMX gets nothing back and the item leaves this one."""
+        form = await _form(request)
+        if not store.mark_bought(user.id, item_id, form.get("bought", "1") != "0"):
+            raise HTTPException(404, "not on your wishlist")
+        return gone_or_back(request, store, user, form)
+
+    @app.post("/wishlist/{item_id}/remove")
+    async def remove_from_wishlist(
+        request: Request, item_id: int, store: StoreDep, user: UserDep
+    ) -> Response:
+        form = await _form(request)
+        if not store.remove_from_wishlist(user.id, item_id):
+            raise HTTPException(404, "not on your wishlist")
+        return gone_or_back(request, store, user, form)
+
+    def gone_or_back(request: Request, store: Store, user: User, form: dict[str, str]) -> Response:
+        """After an item left the list it was on: HTMX gets an empty swap (removing it from
+        the page) and the list counts out of band; a plain form post goes back to `next`."""
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "_wishlist_tabs.html",
+                {
+                    "oob": True,
+                    # which list the page shows: the one in `next`, i.e. the page's own URL
+                    "bought": parse_qs(urlsplit(form.get("next", "")).query).get("show")
+                    == ["bought"],
+                    **_wishlist_counts(store, user),
+                },
+            )
+        return RedirectResponse(_local_path(form.get("next", "/wishlist")), status_code=303)
+
     return app
+
+
+def _wishlist_counts(store: Store, user: User) -> dict[str, int]:
+    return {
+        "wanted_count": store.wishlist_count(user.id),
+        "bought_count": store.wishlist_count(user.id, bought=True),
+    }
 
 
 async def _form(request: Request) -> dict[str, str]:
@@ -174,6 +255,11 @@ def _wishlist_item(form: dict[str, str]) -> WishlistItem:
         secondary_types=tuple(t for t in clean(form.get("secondary_types", "")).split(",") if t),
         first_release_date=clean(form.get("first_release_date", ""))[:10],
     )
+
+
+def _multiline(text: str) -> str:
+    """A textarea's text with its line breaks kept (browsers send CRLF), trimmed."""
+    return "\n".join(line.rstrip() for line in text.splitlines()).strip()
 
 
 def _local_path(path: str) -> str:

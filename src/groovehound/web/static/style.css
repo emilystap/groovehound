@@ -70,7 +70,7 @@ main { max-width: 960px; margin: 0 auto; padding: 16px; }
 
 .footer { max-width: 960px; margin: 0 auto; padding: 16px; font-size: 0.85rem; }
 
-button, select, input[type="search"] {
+button, select, input[type="search"], input[type="text"], textarea {
   font: inherit;
   color: var(--text);
   background: var(--bg);
@@ -79,6 +79,7 @@ button, select, input[type="search"] {
   padding: 6px 10px;
 }
 button { background: var(--accent); color: var(--accent-text); border-color: var(--accent); cursor: pointer; }
+button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
 select { max-width: 100%; }
 
 .search { display: grid; gap: 10px; max-width: 480px; }
@@ -104,3 +105,27 @@ select { max-width: 100%; }
 .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .saved { display: inline-block; margin-top: 8px; color: var(--muted); }
+.more { margin-top: 12px; }
+
+.tabs { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs a[aria-current="page"] { font-weight: 600; color: var(--text); }
+
+.wish .heard, .wish .notes { margin: 6px 0 0; overflow-wrap: anywhere; }
+.wish .notes { white-space: pre-line; }
+.wish .edit { margin-top: 8px; }
+.wish .edit summary { color: var(--accent); cursor: pointer; width: fit-content; }
+.annotate { display: grid; gap: 8px; margin-top: 8px; max-width: 480px; }
+.annotate label { display: grid; gap: 4px; }
+.annotate input, .annotate textarea { width: 100%; }
+.annotate button { justify-self: start; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.actions form { margin: 0; }
+
+/* Phones: bigger touch targets, and the cover doesn't take room from the text. */
+@media (max-width: 480px) {
+  main { padding: 8px; }
+  .card { padding: 12px; }
+  .cover { width: 48px; height: 48px; }
+  button, .wish .edit summary { min-height: 40px; }
+  .wish .edit summary { display: flex; align-items: center; }
+}

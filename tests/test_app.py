@@ -150,3 +150,87 @@ def test_search_without_a_contact_explains_and_makes_no_request(tmp_path: Path, 
     client = TestClient(create_app(Settings(database_path=tmp_path / "db.sqlite")))
     assert "Not connected" in client.get("/search", params={"title": "x"}).text
     assert opener.requests == []
+
+
+def wishlist_app(tmp_path: Path) -> tuple[TestClient, int]:
+    """An app with one item (Brat) on the owner's wishlist, and that item's id."""
+    client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
+    client.post(
+        "/wishlist", data={"release_group": RG, "title": "Brat", "artist_credit": "Charli xcx"}
+    )
+    with Store(tmp_path / "groovehound.db") as store:
+        (item,) = store.wishlist(OWNER_ID)
+    return client, item.id
+
+
+def test_wishlist_page_notes_and_where_heard(tmp_path: Path):
+    client, item_id = wishlist_app(tmp_path)
+    page = client.get("/wishlist").text
+    assert "Brat" in page and 'Still to buy <span class="muted">(1)' in page
+    assert "Add notes" in page
+
+    saved = client.post(
+        f"/wishlist/{item_id}/notes",
+        data={"heard": "  the café   on Main St ", "notes": "the 2×CD one\r\n\r\nask Sam  "},  # noqa: RUF001
+        headers={"HX-Request": "true"},
+    )
+    assert saved.text.lstrip().startswith("<li") and "Heard: the café on Main St" in saved.text
+    with Store(tmp_path / "groovehound.db") as store:
+        item = store.wishlist_item(OWNER_ID, item_id)
+    assert (item.heard, item.notes) == ("the café on Main St", "the 2×CD one\n\nask Sam")  # noqa: RUF001
+    assert "Edit notes" in client.get("/wishlist").text
+
+
+def test_bought_items_are_kept_but_hidden(tmp_path: Path):
+    client, item_id = wishlist_app(tmp_path)
+    gone = client.post(
+        f"/wishlist/{item_id}/bought", data={"bought": "1"}, headers={"HX-Request": "1"}
+    )
+    assert gone.status_code == 200 and "<li" not in gone.text  # the item leaves the page
+    assert 'hx-swap-oob="true"' in gone.text and 'Bought <span class="muted">(1)' in gone.text
+    assert "Brat" not in client.get("/wishlist").text
+    assert "Brat" not in client.get("/").text
+    bought = client.get("/wishlist", params={"show": "bought"}).text
+    assert "Brat" in bought and "Still want it" in bought
+
+    with Store(tmp_path / "groovehound.db") as store:
+        first = store.wishlist_item(OWNER_ID, item_id).bought_at
+        assert first and store.mark_bought(OWNER_ID, item_id)  # again: keeps the first date
+        assert store.wishlist_item(OWNER_ID, item_id).bought_at == first
+        assert store.wishlist_count(OWNER_ID) == 0
+        assert store.wishlist_count(OWNER_ID, bought=True) == 1
+
+    back = client.post(
+        f"/wishlist/{item_id}/bought", data={"bought": "0", "next": "/wishlist?show=bought"}
+    )
+    assert (back.status_code, back.headers["location"]) == (303, "/wishlist?show=bought")
+    assert "Brat" in client.get("/wishlist").text
+
+
+def test_remove_from_wishlist(tmp_path: Path):
+    client, item_id = wishlist_app(tmp_path)
+    removed = client.post(f"/wishlist/{item_id}/remove")
+    assert (removed.status_code, removed.headers["location"]) == (303, "/wishlist")
+    assert "Nothing on your wishlist yet" in client.get("/wishlist").text
+    assert client.post(f"/wishlist/{item_id}/remove").status_code == 404
+
+
+def test_wishlist_actions_only_touch_your_own_items(tmp_path: Path):
+    client, item_id = wishlist_app(tmp_path)
+    with Store(tmp_path / "groovehound.db") as store:
+        store.conn.execute("INSERT INTO users (id, name, created_at) VALUES (2, 'other', '')")
+        store.conn.commit()
+        assert not store.mark_bought(2, item_id)
+        assert not store.annotate_wishlist_item(2, item_id, "x", "y")
+        assert not store.remove_from_wishlist(2, item_id)
+        assert store.wishlist_item(2, item_id) is None
+    for action in ("notes", "bought", "remove"):
+        assert client.post(f"/wishlist/{item_id + 1}/{action}").status_code == 404
+
+
+def test_home_links_to_the_whole_wishlist(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("groovehound.web.app.HOME_WISHLIST", 1)
+    client, _ = wishlist_app(tmp_path)
+    assert "All 1 on your wishlist" not in client.get("/").text
+    client.post("/wishlist", data={"release_group": R1, "title": "Other", "artist_credit": "x"})
+    assert "All 2 on your wishlist" in client.get("/").text
