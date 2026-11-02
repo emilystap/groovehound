@@ -14,6 +14,20 @@
     <div class="muted small">
       Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
     </div>
+    {% with found = found[item.id] %}{% if found %}
+    {% if item.bought_at %}
+    <div class="small owned">✓ In your library{% if found.other_edition %} (another edition){% endif %}</div>
+    {% else %}
+    {# offered, never done for you: an edition you already have may not be the one you want #}
+    <form class="owned found" method="post" action="/wishlist/{{ item.id }}/bought"
+          hx-post="/wishlist/{{ item.id }}/bought" hx-target="closest li" hx-swap="outerHTML">
+      <span class="small">✓ {% if found.other_edition %}Another edition{% else %}Found{% endif %} in your library on {{ found.since | local_date }}.</span>
+      <input type="hidden" name="bought" value="1">
+      <input type="hidden" name="next" value="{{ here }}">
+      <button type="submit" class="secondary">Mark bought</button>
+    </form>
+    {% endif %}
+    {% endif %}{% endwith %}
     {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
     {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
 

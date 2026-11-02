@@ -7,7 +7,8 @@ A self-hosted companion for people who keep their own music library:
 - **Follow artists**: new releases from the artists you follow, on the home page.
 - **Discover**: artist and release suggestions from ListenBrainz.
 - **Library**: knows what's already in your music folder, from the MusicBrainz tags Picard
-  writes (read-only; it never changes a file).
+  writes (read-only; it never changes a file), so albums you have are marked *In your library*
+  and a wishlist item you've since got is offered as bought.
 
 Status: early scaffolding. See [docs/roadmap.md](docs/roadmap.md) for the plan.
 

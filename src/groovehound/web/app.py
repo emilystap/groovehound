@@ -137,6 +137,7 @@ def create_app(settings: Settings) -> FastAPI:
         lb_user = _listenbrainz_user(user)
         suggested = personal.suggestions(store, user.id, lb_user)
         hits = [r.hit for r in (*feed.upcoming, *feed.new)] + suggested
+        wishlist = store.wishlist(user.id, limit=HOME_WISHLIST)
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -144,7 +145,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "page": "home",
                 "user": user,
                 "contact_problem": _contact_problem(settings),
-                "wishlist": store.wishlist(user.id, limit=HOME_WISHLIST),
+                "wishlist": wishlist,
                 "wishlist_count": store.wishlist_count(user.id),
                 "captures": store.captures(user.id),
                 "follow_count": len(store.follows(user.id)),
@@ -154,6 +155,8 @@ def create_app(settings: Settings) -> FastAPI:
                 "today": local_date(utcnow()),  # upcoming suggestions say "out <date>"
                 "followed": store.followed(user.id, (a for h in suggested for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                "owned": store.in_library(user.id, (h.mbid for h in hits)),
+                "found": library.found(store, user.id, wishlist),
                 "draft": draft,
                 "here": "/",
             },
@@ -175,6 +178,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "playlists": found,
                 "followed": store.followed(user.id, (a for h in hits for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                "owned": store.in_library(user.id, (h.mbid for h in hits)),
                 "here": "/discover",
             },
         )
@@ -305,6 +309,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "contact_problem": contact_problem,
                 "capture": store.capture(user.id, capture) if capture is not None else None,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
+                "owned": store.in_library(user.id, (h.mbid for h in hits or ())),
                 "followed": store.followed(
                     user.id, (a for h in hits or () for a in h.artist_mbids)
                 ),
@@ -512,6 +517,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "error": error,
                 "contact_problem": contact_problem,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                "owned": store.in_library(user.id, (h.mbid for h in hits)),
                 **similar_context(store, user, mbid),
                 "here": f"/artists/{mbid}",
             },
@@ -762,12 +768,13 @@ def create_app(settings: Settings) -> FastAPI:
         return RedirectResponse(_local_path(form.get("next", "/")), status_code=303)
 
     def item_context(store: Store, user: User, items: list[WishlistItem]) -> dict[str, object]:
-        """What wishlist items show without a request: *Where to buy* and *Choose edition* by
-        item id, and which of their artists are followed."""
+        """What wishlist items show without a request: *Where to buy*, *Choose edition* and
+        whether it's in the library by item id, and which of their artists are followed."""
         return {
             "where_to_buy": {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items},
             "editions": {i.id: releases.choice(store, i) for i in items},
             "followed": store.followed(user.id, (a for i in items for a in i.artist_mbids)),
+            "found": library.found(store, user.id, items),
         }
 
     def fetch_releases(store: Store, item: WishlistItem) -> str | None:

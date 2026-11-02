@@ -9,6 +9,7 @@
     <div class="muted small">
       {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {% if hit.first_release_date > today %}out {% endif %}{{ hit.first_release_date }}{% endif %}
     </div>
+    {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
     {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
     <div class="actions">
       {% with saved = hit.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}

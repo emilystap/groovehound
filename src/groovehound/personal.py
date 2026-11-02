@@ -22,7 +22,7 @@ import random
 import re
 from datetime import UTC, datetime
 
-from . import fresh
+from . import fresh, library
 from .brainz.http import ServicePause
 from .brainz.listenbrainz import ListenBrainzClient
 from .db import Store
@@ -76,7 +76,8 @@ def fetch(
 
 def suggestions(store: Store, user_id: int, user_name: str, *, limit: int = SHOWN) -> list[Hit]:
     """Release groups in the user's cached feed by artists they don't follow (none of the
-    credited artists), not dismissed, best ranked first (then newest). No request."""
+    credited artists), not dismissed, best ranked first (then newest), with those already in the
+    library after the rest. No request."""
     if not user_name.strip():
         return []
     entry = store.cached(fresh.SERVICE, CACHE_KIND, _key(user_name))
@@ -108,7 +109,8 @@ def suggestions(store: Store, user_id: int, user_name: str, *, limit: int = SHOW
     ]
     # best ranked first, then newest; ISO dates sort as text
     shown.sort(key=lambda s: (s[0], s[1].first_release_date), reverse=True)
-    return [hit for _, hit in shown[:limit]]
+    owned = store.in_library(user_id, (h.mbid for _, h in shown))
+    return library.owned_last((hit for _, hit in shown), owned, lambda h: h.mbid)[:limit]
 
 
 def listed(store: Store, user_name: str, release_group_mbid: str) -> bool:

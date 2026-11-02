@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from groovehound import follows, new_releases
-from groovehound.db import OWNER_ID, Follow, Store
+from groovehound.db import OWNER_ID, Follow, LibraryRelease, Store
 from groovehound.web import create_app
 
 from .conftest import settings_for
@@ -76,6 +76,16 @@ def test_new_and_upcoming_from_the_cache(tmp_path: Path):
         assert feed.new[0].first_seen == LATER
 
 
+def test_ones_in_the_library_come_last(tmp_path: Path):
+    with store_at(tmp_path) as store:
+        followed(store)
+        store.replace_library(
+            OWNER_ID, [LibraryRelease(RG_NEW + "-r", RG_NEW, (), "New One", "", "", 1)], LATER
+        )
+        feed = new_releases.feed(store, OWNER_ID, now=NOW)
+        assert mbids(feed.new) == [RG_RECENT, RG_UNDATED, RG_NEW]
+
+
 def test_new_for_a_while_then_not(tmp_path: Path):
     with store_at(tmp_path) as store:
         followed(store)
@@ -130,6 +140,12 @@ def test_home_page_lists_them_and_dismiss_removes_one(tmp_path: Path):
     assert "New One" in page and "Brat" not in page
     assert f'href="/artists/{ARTIST}"' in page and f"/cover/{RG_NEW}" in page
     assert 'From the <a href="/artists">1 artist you follow</a>' in " ".join(page.split())
+    assert "In your library" not in page
+    with Store(settings.database_path) as store:
+        store.replace_library(
+            OWNER_ID, [LibraryRelease(RG_NEW + "-r", RG_NEW, (), "New One", "", "", 1)], _iso(now)
+        )
+    assert "✓ In your library" in client.get("/").text
 
     # without JavaScript: back to the page; with HTMX: an empty swap
     response = client.post(f"/new/{RG_NEW}/dismiss", data={"next": "/"}, follow_redirects=False)

@@ -783,6 +783,22 @@ class Store:
             for r in rows
         ]
 
+    def in_library(self, user_id: int, mbids: Iterable[str]) -> dict[str, str]:
+        """Which of these release groups or releases (an MBID is never both) are in this user's
+        library, with when each was first found (a release group's earliest edition)."""
+        mbids = list(set(mbids))
+        if not mbids:
+            return {}
+        marks = ", ".join("?" * len(mbids))
+        rows = self.conn.execute(
+            "SELECT release_group_mbid, MIN(added_at) FROM library WHERE user_id = ? "
+            f"AND release_group_mbid IN ({marks}) GROUP BY release_group_mbid "
+            "UNION ALL SELECT release_mbid, added_at FROM library WHERE user_id = ? "
+            f"AND release_mbid IN ({marks})",
+            (user_id, *mbids, user_id, *mbids),
+        )
+        return {r[0]: r[1] for r in rows}
+
     def library_summary(self, user_id: int) -> LibrarySummary:
         releases = self.conn.execute(
             "SELECT COUNT(*), COUNT(DISTINCT release_group_mbid), "

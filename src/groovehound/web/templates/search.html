@@ -62,6 +62,7 @@
           {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
           {% if hit.songs %} · has “{{ hit.songs | join("”, “") }}”{% endif %}
         </div>
+        {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
         {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
         {% with saved = hit.mbid in saved_ids %}{% include "_wishlist_button.html" %}{% endwith %}
       </div>

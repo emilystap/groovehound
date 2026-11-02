@@ -13,7 +13,7 @@ from mutagen.mp4 import MP4FreeForm, MP4Tags
 
 from groovehound import cli, library
 from groovehound.config import load_settings
-from groovehound.db import OWNER_ID, LibraryFile, Store
+from groovehound.db import OWNER_ID, LibraryFile, LibraryRelease, Store, WishlistItem
 from groovehound.library import FileTags, LibraryScanner, scan, tags_from
 from groovehound.web import create_app
 
@@ -308,3 +308,73 @@ def test_library_page_and_rescan(tmp_path: Path):
 
     response = client.post("/library/scan", follow_redirects=False)
     assert response.status_code == 303 and response.headers["location"] == "/library"
+
+
+# --- "In your library" (5b) ---------------------------------------------------------------
+
+RG_BRAT = "0a1b2c3d-0000-4000-8000-0000000000b1"
+R_CD = "0a1b2c3d-0000-4000-8000-0000000000c1"
+R_VINYL = "0a1b2c3d-0000-4000-8000-0000000000c2"
+R_NO_GROUP = "0a1b2c3d-0000-4000-8000-0000000000c3"
+FOUND_AT = "2026-10-30T09:00:00+00:00"
+
+
+def release(mbid: str, release_group: str | None, title: str) -> LibraryRelease:
+    return LibraryRelease(mbid, release_group, (), title, "Charli xcx", title, 2)
+
+
+def owning(store: Store, *releases: LibraryRelease) -> None:
+    store.replace_library(OWNER_ID, releases, FOUND_AT)
+
+
+def test_in_library_by_release_group_or_release(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        owning(
+            store,
+            release(R_CD, RG_BRAT, "Brat"),
+            release(R_NO_GROUP, None, "Untagged group"),
+        )
+        found = store.in_library(OWNER_ID, [RG_BRAT, R_NO_GROUP, R_VINYL])
+        assert found == {RG_BRAT: FOUND_AT, R_NO_GROUP: FOUND_AT}
+        assert store.in_library(OWNER_ID + 1, [RG_BRAT]) == {}  # only your own library
+        assert store.in_library(OWNER_ID, []) == {}
+
+
+def test_wishlist_items_found_in_the_library(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        owning(store, release(R_CD, RG_BRAT, "Brat"))
+        items = [
+            WishlistItem(RG_BRAT, "Brat", "Charli xcx", id=1),  # any edition
+            WishlistItem(RG_BRAT, "Brat", "Charli xcx", release_mbid=R_CD, id=2),
+            WishlistItem(RG_BRAT, "Brat", "Charli xcx", release_mbid=R_VINYL, id=3),
+            WishlistItem(R_NO_GROUP, "Other", "Someone", id=4),
+        ]
+        assert library.found(store, OWNER_ID, items) == {
+            1: library.Found(FOUND_AT, other_edition=False),
+            2: library.Found(FOUND_AT, other_edition=False),
+            3: library.Found(FOUND_AT, other_edition=True),
+        }
+
+
+def test_owned_last_keeps_the_order_otherwise():
+    assert library.owned_last("abcd", {"b", "d"}, str) == ["a", "c", "b", "d"]
+
+
+def test_wishlist_offers_found_items_as_bought(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
+    client.post(
+        "/wishlist", data={"release_group": RG_BRAT, "title": "Brat", "artist_credit": "Charli"}
+    )
+    assert "In your library" not in client.get("/wishlist").text
+    with Store(tmp_path / "groovehound.db") as store:
+        owning(store, release(R_CD, RG_BRAT, "Brat"))
+        (item,) = store.wishlist(OWNER_ID)
+    page = client.get("/wishlist").text
+    assert "Found in your library on 2026-10-30" in page and "Mark bought" in page
+    assert "In your library" in client.get("/").text
+    with Store(tmp_path / "groovehound.db") as store:
+        assert store.wishlist_item(OWNER_ID, item.id).bought_at is None  # offered, not done
+
+    client.post(f"/wishlist/{item.id}/bought", data={"bought": "1"})
+    bought = client.get("/wishlist", params={"show": "bought"}).text
+    assert "In your library" in bought and "Mark bought" not in bought
