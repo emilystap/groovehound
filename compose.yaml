@@ -18,6 +18,7 @@ services:
       # Optional: a config.toml instead of the environment variables below.
       # - /path/to/groovehound/config:/config:ro
     environment:
+      # Your time zone (an IANA name), for the dates shown in the UI; stored times are UTC
       TZ: Etc/UTC
       # Required for anything that calls MusicBrainz or ListenBrainz: how they can reach you
       GROOVEHOUND_CONTACT: "you@example.com"

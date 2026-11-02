@@ -8,6 +8,14 @@
 </section>
 {% endif %}
 
+{% if capture %}
+<section class="card looking-up" id="capture-banner">
+  <p class="muted small">Looking up what you wrote down on {{ capture.captured_at | local_date }}:</p>
+  <p class="capture-text">{{ capture.text }}</p>
+  <p class="muted small">Saving a result to your wishlist puts this in its notes.</p>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Find something you heard</h2>
   {# A plain GET form: one search per press (no search-as-you-type), and the results page can be
@@ -22,6 +30,7 @@
                         autocomplete="off" {% if not title %}autofocus{% endif %}></label>
     <label><span>Artist <span class="muted small">(optional)</span></span>
       <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"></label>
+    {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
     <button type="submit">Search</button>
   </form>
 </section>

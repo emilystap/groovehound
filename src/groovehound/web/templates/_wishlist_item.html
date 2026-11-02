@@ -10,7 +10,7 @@
       {% if item.release_mbid %} · a specific edition{% endif %}
     </div>
     <div class="muted small">
-      Added {{ item.added_at[:10] }}{% if item.bought_at %} · bought {{ item.bought_at[:10] }}{% endif %}
+      Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
     </div>
     {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
     {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}

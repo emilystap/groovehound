@@ -12,13 +12,15 @@ artist followed by two users is still fetched once. Today there is one user, id 
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import zlib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 OWNER_ID = 1  # the single user until accounts exist (roadmap: "Users")
 
@@ -75,11 +77,41 @@ MIGRATIONS: list[str] = [
     ALTER TABLE wishlist ADD COLUMN heard TEXT NOT NULL DEFAULT '';
     ALTER TABLE wishlist ADD COLUMN bought_at TEXT;
     """,
+    # 4: quick capture (roadmap 1d): free text saved when there's no time to search, looked up
+    # later. Filing one on a wishlist item moves its text into the item's notes.
+    """
+    CREATE TABLE captures (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text         TEXT NOT NULL,
+        captured_at  TEXT NOT NULL
+    );
+    CREATE INDEX captures_added ON captures(user_id, captured_at);
+    """,
 ]
 
 
 def utcnow() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def local_zone() -> tzinfo:
+    """The time zone dates are shown in: `TZ` (an IANA name such as America/New_York, as Docker
+    images take it), else the system's own. Timestamps are always stored in UTC."""
+    name = os.environ.get("TZ", "").lstrip(":")
+    if name:
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError):
+            pass  # not an IANA name (e.g. a POSIX rule string): fall back to the system's
+    return datetime.now().astimezone().tzinfo
+
+
+def local_date(timestamp: str | None) -> str:
+    """A stored UTC timestamp's date in the local time zone, e.g. "2026-11-01"; "" for none."""
+    if not timestamp:
+        return ""
+    return datetime.fromisoformat(timestamp).astimezone(local_zone()).date().isoformat()
 
 
 @dataclass(frozen=True)
@@ -108,6 +140,15 @@ class WishlistItem:
     def type_label(self) -> str:
         """e.g. "Album", "Album · Live", or "" when MusicBrainz has no type."""
         return " · ".join(t for t in (self.primary_type, *self.secondary_types) if t)
+
+
+@dataclass(frozen=True)
+class Capture:
+    """Something heard, written down to look up later (roadmap 1d)."""
+
+    id: int
+    text: str
+    captured_at: str
 
 
 @dataclass(frozen=True)
@@ -240,6 +281,61 @@ class Store:
             (user_id, *mbids),
         )
         return {r[0] for r in rows}
+
+    # --- Quick capture --------------------------------------------------------------------
+
+    def add_capture(self, user_id: int, text: str) -> int:
+        """Save free text to look up later; its id."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "INSERT INTO captures (user_id, text, captured_at) VALUES (?, ?, ?)",
+                (user_id, text, utcnow()),
+            )
+        return cursor.lastrowid
+
+    def captures(self, user_id: int) -> list[Capture]:
+        """This user's captures, most recent first."""
+        rows = self.conn.execute(
+            "SELECT id, text, captured_at FROM captures WHERE user_id = ? "
+            "ORDER BY captured_at DESC, id DESC",
+            (user_id,),
+        )
+        return [Capture(r["id"], r["text"], r["captured_at"]) for r in rows]
+
+    def capture(self, user_id: int, capture_id: int) -> Capture | None:
+        row = self.conn.execute(
+            "SELECT id, text, captured_at FROM captures WHERE user_id = ? AND id = ?",
+            (user_id, capture_id),
+        ).fetchone()
+        return Capture(row["id"], row["text"], row["captured_at"]) if row else None
+
+    def remove_capture(self, user_id: int, capture_id: int) -> bool:
+        with self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM captures WHERE user_id = ? AND id = ?", (user_id, capture_id)
+            )
+        return cursor.rowcount == 1
+
+    def file_capture(self, user_id: int, capture_id: int, release_group_mbid: str) -> bool:
+        """Turn a capture into part of a wishlist item: its text (with the date it was written
+        down) goes at the end of the item's notes and the capture is gone. False, changing
+        nothing, if either isn't this user's."""
+        capture = self.capture(user_id, capture_id)
+        if capture is None:
+            return False
+        note = f"{capture.text} ({local_date(capture.captured_at)})"
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE wishlist SET notes = CASE WHEN notes = '' THEN ? "
+                "ELSE notes || char(10) || ? END WHERE user_id = ? AND release_group_mbid = ?",
+                (note, note, user_id, release_group_mbid),
+            )
+            if cursor.rowcount != 1:
+                return False
+            self.conn.execute(
+                "DELETE FROM captures WHERE user_id = ? AND id = ?", (user_id, capture_id)
+            )
+        return True
 
     # --- API cache ------------------------------------------------------------------------
 

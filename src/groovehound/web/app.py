@@ -22,11 +22,12 @@ from ..brainz import listenbrainz, musicbrainz
 from ..brainz.http import ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
-from ..db import OWNER_ID, Store, User, WishlistItem
+from ..db import OWNER_ID, Store, User, WishlistItem, local_date
 from ..search import KINDS, clean, search
 
 HOME_WISHLIST = 10  # most recent items on the home page
 MAX_NOTES = 2000  # characters of a wishlist item's notes
+MAX_CAPTURE = 500  # characters of a quick capture
 
 HERE = Path(__file__).parent
 
@@ -69,6 +70,7 @@ def create_app(settings: Settings) -> FastAPI:
         musicbrainz_web=musicbrainz.WEB_ROOT,
         listenbrainz_web=listenbrainz.WEB_ROOT,
     )
+    templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -86,6 +88,8 @@ def create_app(settings: Settings) -> FastAPI:
                 "contact_problem": _contact_problem(settings),
                 "wishlist": store.wishlist(user.id, limit=HOME_WISHLIST),
                 "wishlist_count": store.wishlist_count(user.id),
+                "captures": store.captures(user.id),
+                "here": "/",
             },
         )
 
@@ -97,8 +101,11 @@ def create_app(settings: Settings) -> FastAPI:
         kind: str = "album",
         title: str = "",
         artist: str = "",
+        capture: int | None = None,
     ) -> HTMLResponse:
-        """The search form; with a title, one MusicBrainz search (or its cached answer)."""
+        """The search form; with a title, one MusicBrainz search (or its cached answer). With
+        `capture`, it's looking up that quick capture: its text is shown, and saving a result
+        files it on the item."""
         kind = kind if kind in KINDS else "album"
         title, artist = clean(title), clean(artist)
         contact_problem = _contact_problem(settings)
@@ -126,6 +133,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "hits": hits,
                 "error": error,
                 "contact_problem": contact_problem,
+                "capture": store.capture(user.id, capture) if capture is not None else None,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
@@ -134,14 +142,20 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.post("/wishlist")
     async def add_to_wishlist(request: Request, store: StoreDep, user: UserDep) -> Response:
-        """Save a search result. The fields are the result's own (no request is made); an
-        HTMX request gets the button's replacement, a plain form post goes back to `next`."""
+        """Save a search result. The fields are the result's own (no request is made); with
+        `capture`, that quick capture is filed in the item's notes. An HTMX request gets the
+        button's replacement, a plain form post goes back to `next`."""
         form = await _form(request)
         item = _wishlist_item(form)
         store.add_to_wishlist(user.id, item)
+        filed = form.get("capture", "").isdigit() and store.file_capture(
+            user.id, int(form["capture"]), item.release_group_mbid
+        )
         if request.headers.get("HX-Request"):
             return templates.TemplateResponse(
-                request, "_wishlist_button.html", {"mbid": item.release_group_mbid, "saved": True}
+                request,
+                "_wishlist_button.html",
+                {"mbid": item.release_group_mbid, "saved": True, "filed": filed},
             )
         return RedirectResponse(_local_path(form.get("next", "")), status_code=303)
 
@@ -159,6 +173,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "page": "wishlist",
                 "bought": bought,
                 "items": items,
+                "captures": [] if bought else store.captures(user.id),
                 "where_to_buy": where_to_buy(store, items),
                 **_wishlist_counts(store, user),
                 "here": str(request.url.path)
@@ -237,6 +252,37 @@ def create_app(settings: Settings) -> FastAPI:
         if not store.remove_from_wishlist(user.id, item_id):
             raise HTTPException(404, "not on your wishlist")
         return gone_or_back(request, store, user, form)
+
+    @app.post("/captures")
+    async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:
+        """Save free text to look up later. HTMX gets the quick capture card back (an empty
+        form and the updated list); a plain form post goes back to `next`."""
+        form = await _form(request)
+        text = " ".join(form.get("text", "").split())[:MAX_CAPTURE]
+        if not text:
+            raise HTTPException(400, "nothing to save")
+        store.add_capture(user.id, text)
+        return captures_or_back(request, store, user, form)
+
+    @app.post("/captures/{capture_id}/remove")
+    async def remove_capture(
+        request: Request, capture_id: int, store: StoreDep, user: UserDep
+    ) -> Response:
+        form = await _form(request)
+        if not store.remove_capture(user.id, capture_id):
+            raise HTTPException(404, "not one of your captures")
+        return captures_or_back(request, store, user, form)
+
+    def captures_or_back(
+        request: Request, store: Store, user: User, form: dict[str, str]
+    ) -> Response:
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "_captures.html",
+                {"captures": store.captures(user.id), "here": form.get("next", "")},
+            )
+        return RedirectResponse(_local_path(form.get("next", "/")), status_code=303)
 
     def where_to_buy(store: Store, items: list[WishlistItem]) -> dict[int, buy.WhereToBuy]:
         return {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items}

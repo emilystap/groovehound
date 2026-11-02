@@ -1,0 +1,33 @@
+{# Quick capture (roadmap 1d): a one-line form for when there's no time to search, and what's
+   waiting to be looked up. With HTMX, its forms replace this whole card; without JavaScript they
+   post normally and come back to the page (`next`). #}
+<section class="card" id="captures">
+  <h2>Quick capture</h2>
+  <form class="capture" method="post" action="/captures"
+        hx-post="/captures" hx-target="#captures" hx-swap="outerHTML">
+    <input type="text" name="text" required maxlength="500" autocomplete="off"
+           aria-label="What you heard" placeholder="e.g. song with the saxophone at the café">
+    <input type="hidden" name="next" value="{{ here }}">
+    <button type="submit">Save for later</button>
+  </form>
+  {% if captures %}
+  <h3 class="muted small">To look up ({{ captures | length }})</h3>
+  <ul class="captures">
+    {% for capture in captures %}
+    <li>
+      <span class="capture-text">{{ capture.text }}</span>
+      <span class="muted small">{{ capture.captured_at | local_date }}</span>
+      <div class="actions">
+        <a class="button" href="/search?capture={{ capture.id }}">Look it up</a>
+        <form method="post" action="/captures/{{ capture.id }}/remove"
+              hx-post="/captures/{{ capture.id }}/remove" hx-target="#captures" hx-swap="outerHTML"
+              hx-confirm="Forget “{{ capture.text }}”?">
+          <input type="hidden" name="next" value="{{ here }}">
+          <button type="submit" class="secondary">Remove</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
