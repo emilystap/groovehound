@@ -142,6 +142,52 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (user_id, kind, mbid)
     );
     """,
+    # 9: the library scan (roadmap 5a). library_files: every audio file under the user's library
+    # folder (path relative to it, "/"-separated), with its mtime and size (a rescan re-reads
+    # only files whose either changed) and what its MusicBrainz tags say; release_mbid NULL =
+    # untagged, or unreadable (problem says why). library: one row per release, rebuilt from
+    # library_files after each scan; added_at = when it was first found. library_scans: each
+    # user's latest scan, for the Library page (finished_at NULL while it runs, or if the app
+    # stopped during it).
+    """
+    CREATE TABLE library_files (
+        user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        path                TEXT NOT NULL,
+        mtime_ns            INTEGER NOT NULL,
+        size                INTEGER NOT NULL,
+        release_mbid        TEXT,
+        release_group_mbid  TEXT,
+        album_artist_mbids  TEXT NOT NULL DEFAULT '[]',
+        album               TEXT NOT NULL DEFAULT '',
+        album_artist        TEXT NOT NULL DEFAULT '',
+        problem             TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (user_id, path)
+    );
+    CREATE TABLE library (
+        user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        release_mbid        TEXT NOT NULL,
+        release_group_mbid  TEXT,
+        album_artist_mbids  TEXT NOT NULL DEFAULT '[]',
+        title               TEXT NOT NULL DEFAULT '',
+        artist              TEXT NOT NULL DEFAULT '',
+        folder              TEXT NOT NULL DEFAULT '',
+        files               INTEGER NOT NULL,
+        added_at            TEXT NOT NULL,
+        last_seen           TEXT NOT NULL,
+        PRIMARY KEY (user_id, release_mbid)
+    );
+    CREATE INDEX library_release_group ON library(user_id, release_group_mbid);
+    CREATE TABLE library_scans (
+        user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        root         TEXT NOT NULL,
+        started_at   TEXT NOT NULL,
+        finished_at  TEXT,
+        files        INTEGER NOT NULL DEFAULT 0,
+        read         INTEGER NOT NULL DEFAULT 0,
+        left_over    INTEGER NOT NULL DEFAULT 0,
+        error        TEXT NOT NULL DEFAULT ''
+    );
+    """,
 ]
 
 
@@ -166,6 +212,13 @@ def local_date(timestamp: str | None) -> str:
     if not timestamp:
         return ""
     return datetime.fromisoformat(timestamp).astimezone(local_zone()).date().isoformat()
+
+
+def local_time(timestamp: str | None) -> str:
+    """A stored UTC timestamp in the local time zone, to the minute: "2026-11-01 14:05"."""
+    if not timestamp:
+        return ""
+    return datetime.fromisoformat(timestamp).astimezone(local_zone()).strftime("%Y-%m-%d %H:%M")
 
 
 @dataclass(frozen=True)
@@ -217,6 +270,59 @@ class Capture:
     id: int
     text: str
     captured_at: str
+
+
+@dataclass(frozen=True)
+class LibraryFile:
+    """An audio file in the user's library folder, and what its tags say (roadmap 5a)."""
+
+    path: str  # relative to the library folder, "/"-separated
+    mtime_ns: int
+    size: int
+    release_mbid: str | None = None  # None: untagged, or unreadable (see problem)
+    release_group_mbid: str | None = None
+    album_artist_mbids: tuple[str, ...] = ()
+    album: str = ""
+    album_artist: str = ""
+    problem: str = ""  # why it couldn't be read, if it couldn't
+
+
+@dataclass(frozen=True)
+class LibraryRelease:
+    """A release in the user's library, from its files' tags (roadmap 5a)."""
+
+    release_mbid: str
+    release_group_mbid: str | None  # None: the files have an album id but no release group id
+    album_artist_mbids: tuple[str, ...]
+    title: str
+    artist: str
+    folder: str  # the folder holding all its files, relative to the library folder
+    files: int
+    added_at: str = ""  # when it was first found
+    last_seen: str = ""
+
+
+@dataclass(frozen=True)
+class LibraryScan:
+    """The user's latest library scan."""
+
+    root: str
+    started_at: str
+    finished_at: str | None  # None: still running, or the app stopped during it
+    files: int  # audio files found (so far, while it runs)
+    read: int  # files read
+    left_over: int  # changed files left for the next scan
+    error: str
+
+
+@dataclass(frozen=True)
+class LibrarySummary:
+    releases: int = 0
+    release_groups: int = 0
+    without_release_group: int = 0  # releases whose files have no release group id
+    files: int = 0
+    untagged: int = 0  # files without an album id
+    unreadable: int = 0
 
 
 @dataclass(frozen=True)
@@ -555,6 +661,180 @@ class Store:
                 "DELETE FROM captures WHERE user_id = ? AND id = ?", (user_id, capture_id)
             )
         return True
+
+    # --- Library --------------------------------------------------------------------------
+
+    def library_index(self, user_id: int) -> dict[str, tuple[int, int]]:
+        """Path -> (mtime_ns, size) of every file the last scans read for this user."""
+        rows = self.conn.execute(
+            "SELECT path, mtime_ns, size FROM library_files WHERE user_id = ?", (user_id,)
+        )
+        return {r[0]: (r[1], r[2]) for r in rows}
+
+    def save_library_files(self, user_id: int, files: Iterable[LibraryFile]) -> None:
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO library_files (user_id, path, mtime_ns, size, "
+                "release_mbid, release_group_mbid, album_artist_mbids, album, album_artist, "
+                "problem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    (
+                        user_id,
+                        f.path,
+                        f.mtime_ns,
+                        f.size,
+                        f.release_mbid,
+                        f.release_group_mbid,
+                        json.dumps(list(f.album_artist_mbids)),
+                        f.album,
+                        f.album_artist,
+                        f.problem,
+                    )
+                    for f in files
+                ),
+            )
+
+    def forget_library_files(self, user_id: int, paths: Iterable[str]) -> None:
+        with self.conn:
+            self.conn.executemany(
+                "DELETE FROM library_files WHERE user_id = ? AND path = ?",
+                ((user_id, p) for p in paths),
+            )
+
+    def library_files(self, user_id: int, *, tagged: bool | None = None) -> list[LibraryFile]:
+        """This user's indexed files by path: all of them, or only those with (`tagged`) or
+        without an album id."""
+        where = "" if tagged is None else f" AND release_mbid IS {'NOT ' if tagged else ''}NULL"
+        rows = self.conn.execute(
+            f"SELECT * FROM library_files WHERE user_id = ?{where} ORDER BY path", (user_id,)
+        )
+        return [
+            LibraryFile(
+                path=r["path"],
+                mtime_ns=r["mtime_ns"],
+                size=r["size"],
+                release_mbid=r["release_mbid"],
+                release_group_mbid=r["release_group_mbid"],
+                album_artist_mbids=tuple(json.loads(r["album_artist_mbids"])),
+                album=r["album"],
+                album_artist=r["album_artist"],
+                problem=r["problem"],
+            )
+            for r in rows
+        ]
+
+    def replace_library(self, user_id: int, releases: Iterable[LibraryRelease], now: str) -> None:
+        """Make these the user's library: releases already there keep the date they were first
+        found; any others are gone."""
+        releases = list(releases)
+        with self.conn:
+            self.conn.executemany(
+                "INSERT INTO library (user_id, release_mbid, release_group_mbid, "
+                "album_artist_mbids, title, artist, folder, files, added_at, last_seen) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, release_mbid) "
+                "DO UPDATE SET release_group_mbid = excluded.release_group_mbid, "
+                "album_artist_mbids = excluded.album_artist_mbids, title = excluded.title, "
+                "artist = excluded.artist, folder = excluded.folder, files = excluded.files, "
+                "last_seen = excluded.last_seen",
+                (
+                    (
+                        user_id,
+                        r.release_mbid,
+                        r.release_group_mbid,
+                        json.dumps(list(r.album_artist_mbids)),
+                        r.title,
+                        r.artist,
+                        r.folder,
+                        r.files,
+                        now,
+                        now,
+                    )
+                    for r in releases
+                ),
+            )
+            kept = {r.release_mbid for r in releases}
+            existing = self.conn.execute(
+                "SELECT release_mbid FROM library WHERE user_id = ?", (user_id,)
+            ).fetchall()
+            self.conn.executemany(
+                "DELETE FROM library WHERE user_id = ? AND release_mbid = ?",
+                ((user_id, r[0]) for r in existing if r[0] not in kept),
+            )
+
+    def library(self, user_id: int) -> list[LibraryRelease]:
+        """This user's library, by album artist then title."""
+        rows = self.conn.execute(
+            "SELECT * FROM library WHERE user_id = ? "
+            "ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE, release_mbid",
+            (user_id,),
+        )
+        return [
+            LibraryRelease(
+                release_mbid=r["release_mbid"],
+                release_group_mbid=r["release_group_mbid"],
+                album_artist_mbids=tuple(json.loads(r["album_artist_mbids"])),
+                title=r["title"],
+                artist=r["artist"],
+                folder=r["folder"],
+                files=r["files"],
+                added_at=r["added_at"],
+                last_seen=r["last_seen"],
+            )
+            for r in rows
+        ]
+
+    def library_summary(self, user_id: int) -> LibrarySummary:
+        releases = self.conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT release_group_mbid), "
+            "COUNT(*) - COUNT(release_group_mbid) FROM library WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        files = self.conn.execute(
+            "SELECT COUNT(*), COALESCE(SUM(release_mbid IS NULL AND problem = ''), 0), "
+            "COALESCE(SUM(problem != ''), 0) FROM library_files WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return LibrarySummary(*releases, *files)
+
+    def start_library_scan(self, user_id: int, root: str, now: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO library_scans (user_id, root, started_at) VALUES (?, ?, ?)",
+                (user_id, root, now),
+            )
+
+    def library_scan_progress(self, user_id: int, files: int, read: int) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE library_scans SET files = ?, read = ? WHERE user_id = ?",
+                (files, read, user_id),
+            )
+
+    def finish_library_scan(
+        self, user_id: int, files: int, read: int, left_over: int, error: str
+    ) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE library_scans SET finished_at = ?, files = ?, read = ?, left_over = ?, "
+                "error = ? WHERE user_id = ?",
+                (utcnow(), files, read, left_over, error, user_id),
+            )
+
+    def library_scan(self, user_id: int) -> LibraryScan | None:
+        row = self.conn.execute(
+            "SELECT * FROM library_scans WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return LibraryScan(
+            row["root"],
+            row["started_at"],
+            row["finished_at"],
+            row["files"],
+            row["read"],
+            row["left_over"],
+            row["error"],
+        )
 
     # --- API cache ------------------------------------------------------------------------
 

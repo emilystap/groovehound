@@ -17,6 +17,8 @@ services:
       - /path/to/groovehound/data:/data
       # Optional: a config.toml instead of the environment variables below.
       # - /path/to/groovehound/config:/config:ro
+      # Optional: your music library, read-only, to know what you already have
+      # - /path/to/music:/music:ro
     environment:
       # Your time zone (an IANA name), for the dates shown in the UI; stored times are UTC
       TZ: Etc/UTC
@@ -25,6 +27,8 @@ services:
       # Optional: personal fresh releases and recommendations
       # GROOVEHOUND_LISTENBRAINZ_USER: "your-listenbrainz-name"
       # GROOVEHOUND_LISTENBRAINZ_TOKEN: "..." # from https://listenbrainz.org/settings/
+      # Optional: the music library mounted above
+      # GROOVEHOUND_LIBRARY: /music
       # Optional: your own MusicBrainz mirror, which may allow a shorter interval
       # GROOVEHOUND_MUSICBRAINZ_API_ROOT: "http://mirror:5000"
       # GROOVEHOUND_MUSICBRAINZ_INTERVAL: "0"
