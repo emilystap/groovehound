@@ -85,6 +85,21 @@ class ListenBrainzClient(JsonClient):
         """A playlist as JSPF, with its recordings."""
         return self.get_json(f"/1/playlist/{urllib.parse.quote(mbid.strip(), safe='')}")
 
+    def similar_artists(self, mbid: str, *, count: int = 20) -> dict:
+        """Artists similar to this one, from LB Radio's artist endpoint (roadmap 4b): keyed by
+        artist MBID (this one's too, unordered), each with one of their recordings and their
+        name. One recording each is the fewest it allows; the closest ("easy") artists only."""
+        return self.get_json(
+            f"/1/lb-radio/artist/{urllib.parse.quote(mbid.strip(), safe='')}",
+            {
+                "mode": "easy",
+                "max_similar_artists": count,
+                "max_recordings_per_artist": 1,
+                "pop_begin": 0,
+                "pop_end": 100,
+            },
+        )
+
     def recording_metadata(self, mbids: list[str]) -> dict:
         """Each recording's release and release group (`inc=release`), keyed by recording MBID:
         one request for a whole playlist, which names only the album (roadmap 4a)."""

@@ -51,7 +51,8 @@ done; phase 2a (follow / unfollow artists), 2b (release group types per follow) 
 reconciliation: the background re-browse, `reconcile.py`) and 2d (the home page's new and upcoming
 releases, `new_releases.py`) done; phase 3a (ListenBrainz's sitewide fresh releases, `fresh.py`)
 and 3b (personal fresh releases, `personal.py`) done; phase 4a ("Created for you" playlists on
-the Discover page, `playlists.py`) done. Next: phase 4b (similar artists via LB Radio). Links to other sites open in a new tab
+the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the artist page,
+`similar.py`) done. Next: phase 4c (CF recording recommendations, if useful). Links to other sites open in a new tab
 (`target="_blank"`).
 
 ## Commands
