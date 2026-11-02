@@ -1,0 +1,28 @@
+{# One album drawn for Rediscover (`pick`: rediscover.Pick). Its title opens it on MusicBrainz,
+   its artist their page here. A new release (`pick.hit`) gets *Add to wishlist* unless it's in
+   the library. *Dismiss* removes it with HTMX and keeps it off this page; without JavaScript the
+   form posts normally and comes back (`next`). #}
+<li class="hit" id="pick-{{ pick.mbid }}">
+  {% with mbid = pick.mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
+  <div class="hit-body">
+    <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ pick.mbid }}" rel="noopener" target="_blank">{{ pick.title or "?" }}</a>
+    <div>{% if pick.artist_mbid %}<a href="/artists/{{ pick.artist_mbid }}">{{ pick.artist or "?" }}</a>{% else %}{{ pick.artist or "?" }}{% endif %}</div>
+    {% if pick.hit %}
+    <div class="muted small">{{ pick.hit.type_label or "Unknown type" }}{% if pick.hit.first_release_date %} · {{ pick.hit.first_release_date }}{% endif %}</div>
+    {% elif pick.listens %}
+    <div class="muted small">{{ pick.listens }} listen{{ "" if pick.listens == 1 else "s" }} ·
+      {% if pick.last_played %}last {{ pick.last_played | local_date }}{% else %}none since {{ draw.history_since | local_date }}{% endif %}</div>
+    {% endif %}
+    {% with mbid = pick.mbid %}{% include "_owned.html" %}{% endwith %}
+    <div class="actions">
+      {% if pick.hit and pick.mbid not in owned %}
+      {% with hit = pick.hit, saved = pick.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}
+      {% endif %}
+      <form method="post" action="/rediscover/{{ pick.mbid }}/dismiss" hx-post="/rediscover/{{ pick.mbid }}/dismiss"
+            hx-target="#pick-{{ pick.mbid }}" hx-swap="outerHTML">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit" class="secondary" aria-label="Dismiss {{ pick.title }}">Dismiss</button>
+      </form>
+    </div>
+  </div>
+</li>

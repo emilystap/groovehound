@@ -447,11 +447,25 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     those, and songs linked to another album (a compilation, a single), don't count.
   - Matched by release group MBID only: library releases without one get no badge, and
     nothing is marked before the first stats arrive.
-- 5f **Rediscover.** One page of library albums to put on next, picked at random in fixed
+- 5f ✅ **Rediscover.** One page of library albums to put on next, picked at random in fixed
   proportions: unplayed ones by artists you play most, unplayed ones by artists you rarely play,
   albums you played but not lately, plus new releases (phases 2–3) by your most-played artists
   that you haven't played yet. *Shuffle* draws again (locally, no requests); *dismiss* stays
-  dismissed. Fixed proportions on purpose: no tunable weights or saved mixes.
+  dismissed. Fixed proportions on purpose: no tunable weights or saved mixes
+  (`rediscover.py`).
+  - **The proportions:** 12 albums: 4 never played by the artists you play most, 3 never played
+    by the others, 3 not played in six months, 2 new releases. A section with fewer albums
+    shows what it has; the others don't make up the difference.
+  - **Artists you play most:** an album artist's plays are the all-time listens (5e) of their
+    release groups in the library; the top quarter of the artists with any (at least one),
+    Various Artists and [unknown] aside. The rest, including artists never played, are "the
+    others". New releases count for a followed artist among them, from the home page's feed
+    (2d), in the library or not (*Add to wishlist* if not).
+  - **Played** means the stats or the history have a listen of the album. "Not lately" needs the
+    history's dates, so it waits for the first fill; an album the stats count but the history
+    doesn't was played before its oldest listen, so it's not lately.
+  - **Dismiss** has its own kind (`rediscover`): an album dismissed here still shows elsewhere.
+    Nothing shows before the first stats arrive, so nothing is called unplayed on a guess.
   - **Listen history, not just stats:** 5e's all-time counts have no dates, so they can't tell
     "played two years ago" from "played yesterday". 5f keeps your listens
     (`/1/user/<name>/listens`, public, no token) in a per-user `listens` table: when, the
