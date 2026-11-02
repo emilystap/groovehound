@@ -1,4 +1,4 @@
-"""SQLite persistence: users, their wishlists, and the shared caches of MusicBrainz /
+"""SQLite persistence: users, their wishlists and follows, and the shared caches of MusicBrainz /
 ListenBrainz responses and cover thumbnails.
 
 Plain `sqlite3` keeps the dependency list short. Schema changes go in MIGRATIONS (append
@@ -99,6 +99,30 @@ MIGRATIONS: list[str] = [
         refresh_after       TEXT NOT NULL
     );
     """,
+    # 6: following artists (roadmap 2a). follows is the user's, with the artist's name as of
+    # following (CC0), so the list renders without a request. release_groups_seen is shared,
+    # like the caches: every release group an artist browse has returned, with when it was
+    # first seen, so a release group is new to a follower only if first seen after following.
+    # wishlist.artist_names: the credited artists' names, in artist_mbids' order (JSON list).
+    """
+    CREATE TABLE follows (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        artist_mbid     TEXT NOT NULL,
+        name            TEXT NOT NULL,
+        sort_name       TEXT NOT NULL DEFAULT '',
+        disambiguation  TEXT NOT NULL DEFAULT '',
+        followed_at     TEXT NOT NULL,
+        UNIQUE (user_id, artist_mbid)
+    );
+    CREATE TABLE release_groups_seen (
+        artist_mbid         TEXT NOT NULL,
+        release_group_mbid  TEXT NOT NULL,
+        first_seen          TEXT NOT NULL,
+        PRIMARY KEY (artist_mbid, release_group_mbid)
+    );
+    ALTER TABLE wishlist ADD COLUMN artist_names TEXT NOT NULL DEFAULT '[]';
+    """,
 ]
 
 
@@ -137,6 +161,7 @@ class WishlistItem:
     title: str
     artist_credit: str
     artist_mbids: tuple[str, ...] = ()
+    artist_names: tuple[str, ...] = ()  # in artist_mbids' order; () for items saved before 2a
     primary_type: str = ""
     secondary_types: tuple[str, ...] = ()
     first_release_date: str = ""
@@ -151,6 +176,17 @@ class WishlistItem:
     def type_label(self) -> str:
         """e.g. "Album", "Album · Live", or "" when MusicBrainz has no type."""
         return " · ".join(t for t in (self.primary_type, *self.secondary_types) if t)
+
+
+@dataclass(frozen=True)
+class Follow:
+    """An artist the user follows (roadmap 2a)."""
+
+    artist_mbid: str
+    name: str
+    sort_name: str = ""
+    disambiguation: str = ""  # e.g. "UK singer", to tell artists with one name apart
+    followed_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -219,8 +255,8 @@ class Store:
         with self.conn:
             cursor = self.conn.execute(
                 "INSERT INTO wishlist (user_id, release_group_mbid, release_mbid, title, "
-                "artist_credit, artist_mbids, primary_type, secondary_types, first_release_date, "
-                "added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "artist_credit, artist_mbids, artist_names, primary_type, secondary_types, "
+                "first_release_date, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (user_id, release_group_mbid) DO NOTHING",
                 (
                     user_id,
@@ -229,6 +265,7 @@ class Store:
                     item.title,
                     item.artist_credit,
                     json.dumps(list(item.artist_mbids)),
+                    json.dumps(list(item.artist_names)),
                     item.primary_type,
                     json.dumps(list(item.secondary_types)),
                     item.first_release_date,
@@ -310,6 +347,81 @@ class Store:
             (user_id, *mbids),
         )
         return {r[0] for r in rows}
+
+    # --- Follows --------------------------------------------------------------------------
+
+    def follow(self, user_id: int, follow: Follow) -> bool:
+        """Follow an artist; False if this user already did (left as it was, date and all)."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "INSERT INTO follows (user_id, artist_mbid, name, sort_name, disambiguation, "
+                "followed_at) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (user_id, artist_mbid) DO NOTHING",
+                (
+                    user_id,
+                    follow.artist_mbid,
+                    follow.name,
+                    follow.sort_name,
+                    follow.disambiguation,
+                    follow.followed_at or utcnow(),
+                ),
+            )
+        return cursor.rowcount == 1
+
+    def unfollow(self, user_id: int, artist_mbid: str) -> bool:
+        with self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM follows WHERE user_id = ? AND artist_mbid = ?", (user_id, artist_mbid)
+            )
+        return cursor.rowcount == 1
+
+    def follows(self, user_id: int) -> list[Follow]:
+        """The artists this user follows, by sort name (as MusicBrainz sorts artists)."""
+        rows = self.conn.execute(
+            "SELECT * FROM follows WHERE user_id = ? "
+            "ORDER BY COALESCE(NULLIF(sort_name, ''), name) COLLATE NOCASE, id",
+            (user_id,),
+        )
+        return [_follow(r) for r in rows]
+
+    def follow_of(self, user_id: int, artist_mbid: str) -> Follow | None:
+        row = self.conn.execute(
+            "SELECT * FROM follows WHERE user_id = ? AND artist_mbid = ?", (user_id, artist_mbid)
+        ).fetchone()
+        return _follow(row) if row else None
+
+    def followed(self, user_id: int, artist_mbids: Iterable[str]) -> set[str]:
+        """Which of these artists this user follows."""
+        mbids = list(set(artist_mbids))
+        if not mbids:
+            return set()
+        rows = self.conn.execute(
+            "SELECT artist_mbid FROM follows WHERE user_id = ? AND artist_mbid "
+            f"IN ({', '.join('?' * len(mbids))})",
+            (user_id, *mbids),
+        )
+        return {r[0] for r in rows}
+
+    def see_release_groups(
+        self, artist_mbid: str, release_group_mbids: Iterable[str], when: str | None = None
+    ) -> None:
+        """Remember that an artist browse returned these release groups; ones seen before
+        keep the date they were first seen."""
+        when = when or utcnow()
+        with self.conn:
+            self.conn.executemany(
+                "INSERT INTO release_groups_seen (artist_mbid, release_group_mbid, first_seen) "
+                "VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                ((artist_mbid, mbid, when) for mbid in dict.fromkeys(release_group_mbids)),
+            )
+
+    def release_groups_seen(self, artist_mbid: str) -> dict[str, str]:
+        """Release group MBID -> when it was first seen, for one artist."""
+        rows = self.conn.execute(
+            "SELECT release_group_mbid, first_seen FROM release_groups_seen WHERE artist_mbid = ?",
+            (artist_mbid,),
+        )
+        return {r[0]: r[1] for r in rows}
 
     # --- Quick capture --------------------------------------------------------------------
 
@@ -457,6 +569,7 @@ def _wishlist_item(row: sqlite3.Row) -> WishlistItem:
         title=row["title"],
         artist_credit=row["artist_credit"],
         artist_mbids=tuple(json.loads(row["artist_mbids"])),
+        artist_names=tuple(json.loads(row["artist_names"])),
         primary_type=row["primary_type"],
         secondary_types=tuple(json.loads(row["secondary_types"])),
         first_release_date=row["first_release_date"],
@@ -465,4 +578,14 @@ def _wishlist_item(row: sqlite3.Row) -> WishlistItem:
         notes=row["notes"],
         heard=row["heard"],
         bought_at=row["bought_at"],
+    )
+
+
+def _follow(row: sqlite3.Row) -> Follow:
+    return Follow(
+        artist_mbid=row["artist_mbid"],
+        name=row["name"],
+        sort_name=row["sort_name"],
+        disambiguation=row["disambiguation"],
+        followed_at=row["followed_at"],
     )

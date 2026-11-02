@@ -14,6 +14,8 @@
   <input type="hidden" name="title" value="{{ hit.title }}">
   <input type="hidden" name="artist_credit" value="{{ hit.artist_credit }}">
   <input type="hidden" name="artist_mbids" value="{{ hit.artist_mbids | join(',') }}">
+  {# JSON, since a name can have a comma; single quotes, as tojson leaves double quotes alone #}
+  <input type="hidden" name="artist_names" value='{{ hit.artist_names | list | tojson }}'>
   <input type="hidden" name="primary_type" value="{{ hit.primary_type }}">
   <input type="hidden" name="secondary_types" value="{{ hit.secondary_types | join(',') }}">
   <input type="hidden" name="first_release_date" value="{{ hit.first_release_date }}">

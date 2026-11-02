@@ -138,6 +138,20 @@ a.button {
   color: var(--accent-text);
 }
 a.button:hover { text-decoration: none; }
+a.button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+
+/* An artist's Follow button (search results, wishlist items, artist pages). */
+.follows { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
+.follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.follow form { margin: 0; }
+button.chip { padding: 2px 10px; border-radius: 999px; font-size: 0.85rem; }
+button.chip.on { background: transparent; color: var(--muted); border-color: var(--border); }
+.follow-error { color: var(--warning); flex-basis: 100%; }
+.artists { list-style: none; margin: 0; padding: 0; }
+.artists li { padding: 8px 0; border-top: 1px solid var(--border); }
+.artists li:first-child { border-top: 0; }
+.more-groups { margin-top: 12px; }
+.more-groups summary { color: var(--accent); cursor: pointer; width: fit-content; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
@@ -159,5 +173,6 @@ a.button:hover { text-decoration: none; }
   .card { padding: 12px; }
   .cover { width: 48px; height: 48px; }
   button, a.button, .wish .edit summary { min-height: 40px; }
+  button.chip { min-height: 32px; }
   .wish .edit summary { display: flex; align-items: center; }
 }

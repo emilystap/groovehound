@@ -7,6 +7,7 @@ the logged-in user from the session.
 
 from __future__ import annotations
 
+import json
 import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,9 +19,9 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers, releases
+from .. import __version__, buy, covers, follows, releases
 from ..brainz import coverart, listenbrainz, musicbrainz
-from ..brainz.http import ServiceError, validate_contact
+from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
 from ..db import OWNER_ID, Store, User, WishlistItem, local_date
@@ -78,6 +79,7 @@ def create_app(settings: Settings) -> FastAPI:
         listenbrainz_web=listenbrainz.WEB_ROOT,
     )
     templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
+    templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     @app.get("/healthz", response_class=PlainTextResponse)
@@ -100,6 +102,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "wishlist": store.wishlist(user.id, limit=HOME_WISHLIST),
                 "wishlist_count": store.wishlist_count(user.id),
                 "captures": store.captures(user.id),
+                "follow_count": len(store.follows(user.id)),
                 "draft": draft,
                 "here": "/",
             },
@@ -205,6 +208,9 @@ def create_app(settings: Settings) -> FastAPI:
                 "contact_problem": contact_problem,
                 "capture": store.capture(user.id, capture) if capture is not None else None,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
+                "followed": store.followed(
+                    user.id, (a for h in hits or () for a in h.artist_mbids)
+                ),
                 "prefilled": not run,
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
@@ -245,7 +251,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "bought": bought,
                 "items": items,
                 "captures": [] if bought else store.captures(user.id),
-                **item_context(store, items),
+                **item_context(store, user, items),
                 **_wishlist_counts(store, user),
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
@@ -266,7 +272,7 @@ def create_app(settings: Settings) -> FastAPI:
             return templates.TemplateResponse(
                 request,
                 "_wishlist_item.html",
-                {"item": item, **item_context(store, [item]), "here": form.get("next", "")},
+                {"item": item, **item_context(store, user, [item]), "here": form.get("next", "")},
             )
         return RedirectResponse(_local_path(form.get("next", "/wishlist")), status_code=303)
 
@@ -312,7 +318,7 @@ def create_app(settings: Settings) -> FastAPI:
             return templates.TemplateResponse(
                 request,
                 "_wishlist_item.html",
-                {"item": item, **item_context(store, [item]), "here": form.get("next", "")},
+                {"item": item, **item_context(store, user, [item]), "here": form.get("next", "")},
             )
         back = _local_path(form.get("next", "/wishlist"))
         return RedirectResponse(f"{back}#wish-{item_id}", status_code=303)
@@ -362,6 +368,110 @@ def create_app(settings: Settings) -> FastAPI:
             raise HTTPException(404, "not on your wishlist")
         return gone_or_back(request, store, user, form)
 
+    @app.get("/artists", response_class=HTMLResponse)
+    def artists_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """The artists you follow (no requests)."""
+        return templates.TemplateResponse(
+            request,
+            "artists.html",
+            {"page": "artists", "follows": store.follows(user.id), "here": "/artists"},
+        )
+
+    @app.get("/artists/{mbid}", response_class=HTMLResponse)
+    def artist_page(request: Request, mbid: str, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """An artist's albums and EPs, with *Follow*: one browse unless cached (the same one
+        following makes, so following from here asks nothing more)."""
+        mbid = _artist_mbid(mbid)
+        contact_problem = _contact_problem(settings)
+        found, error = None, None
+        if contact_problem:
+            found, _ = follows.cached_discography(store, mbid)
+        else:
+            try:
+                found = follows.discography(
+                    store, musicbrainz.client_for(settings), musicbrainz.PAUSE, mbid
+                )
+            except NotFound as exc:
+                raise HTTPException(404, "no such artist on MusicBrainz") from exc
+            except ServiceError as exc:
+                found, _ = follows.cached_discography(store, mbid)
+                error = str(exc)
+        follow = store.follow_of(user.id, mbid)
+        hits = found.release_groups if found else ()
+        return templates.TemplateResponse(
+            request,
+            "artist.html",
+            {
+                "page": "artists",
+                "mbid": mbid,
+                "found": found,
+                # what to call them when MusicBrainz couldn't be asked: the name as followed
+                "name": found.artist.name if found else follow.name if follow else "",
+                "following": follow is not None,
+                "error": error,
+                "contact_problem": contact_problem,
+                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                "here": f"/artists/{mbid}",
+            },
+        )
+
+    @app.post("/artists/{mbid}/follow")
+    async def follow_artist(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Follow an artist: the first time, one browse of their albums and EPs (unless cached),
+        so what's already out isn't reported as new. HTMX gets every *Follow* button for them
+        on the page updated; a plain form post goes back to `next`."""
+        mbid = _artist_mbid(mbid)
+        form = await _form(request)
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                follows.follow(
+                    store, musicbrainz.client_for(settings), musicbrainz.PAUSE, user.id, mbid
+                )
+            except NotFound as exc:
+                raise HTTPException(404, "no such artist on MusicBrainz") from exc
+            except ServiceError as exc:
+                error = str(exc)
+        return follow_button_or_back(request, store, user, mbid, form, error)
+
+    @app.post("/artists/{mbid}/unfollow")
+    async def unfollow_artist(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Stop following an artist. What's cached about them stays (it's shared)."""
+        mbid = _artist_mbid(mbid)
+        form = await _form(request)
+        store.unfollow(user.id, mbid)
+        return follow_button_or_back(request, store, user, mbid, form)
+
+    def follow_button_or_back(
+        request: Request,
+        store: Store,
+        user: User,
+        mbid: str,
+        form: dict[str, str],
+        error: str | None = None,
+    ) -> Response:
+        """HTMX gets the artist's *Follow* button, out of band for every copy on the page (an
+        artist can be on several results); a plain form post goes back to `next`."""
+        if request.headers.get("HX-Request"):
+            follow = store.follow_of(user.id, mbid)
+            name = follow.name if follow else clean(form.get("name", "")) or mbid
+            return templates.TemplateResponse(
+                request,
+                "_follow_button.html",
+                {
+                    "oob": True,
+                    "artist": follows.Credited(mbid, name),
+                    "following": follow is not None,
+                    "error": error,
+                    "here": form.get("next", ""),
+                },
+            )
+        return RedirectResponse(_local_path(form.get("next", f"/artists/{mbid}")), status_code=303)
+
     @app.post("/captures")
     async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:
         """Save free text to look up later. HTMX gets the quick capture card back (an empty
@@ -393,12 +503,13 @@ def create_app(settings: Settings) -> FastAPI:
             )
         return RedirectResponse(_local_path(form.get("next", "/")), status_code=303)
 
-    def item_context(store: Store, items: list[WishlistItem]) -> dict[str, dict]:
-        """What wishlist items show without a request, by item id: *Where to buy* and *Choose
-        edition*."""
+    def item_context(store: Store, user: User, items: list[WishlistItem]) -> dict[str, object]:
+        """What wishlist items show without a request: *Where to buy* and *Choose edition* by
+        item id, and which of their artists are followed."""
         return {
             "where_to_buy": {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items},
             "editions": {i.id: releases.choice(store, i) for i in items},
+            "followed": store.followed(user.id, (a for i in items for a in i.artist_mbids)),
         }
 
     def fetch_releases(store: Store, item: WishlistItem) -> str | None:
@@ -451,12 +562,20 @@ async def _form(request: Request) -> dict[str, str]:
     return {k: v[0] for k, v in form.items()}
 
 
+def _artist_mbid(mbid: str) -> str:
+    """An artist MBID from the URL, lowercased. Raises HTTPException(404) if it isn't one."""
+    if not is_mbid(mbid):
+        raise HTTPException(404, "not an artist MBID")
+    return mbid.strip().lower()
+
+
 def _wishlist_item(form: dict[str, str]) -> WishlistItem:
     """The wishlist item a result's form describes. Raises HTTPException(400) for a missing
     title or a malformed MBID."""
     mbid = form.get("release_group", "").strip()
     release = form.get("release", "").strip()
     artists = tuple(a for a in form.get("artist_mbids", "").split(",") if a.strip())
+    names = _artist_names(form.get("artist_names", ""), len(artists))
     title = clean(form.get("title", ""))
     if not is_mbid(mbid) or (release and not is_mbid(release)) or not title:
         raise HTTPException(400, "not a release group from the search results")
@@ -468,10 +587,23 @@ def _wishlist_item(form: dict[str, str]) -> WishlistItem:
         title=title,
         artist_credit=clean(form.get("artist_credit", "")),
         artist_mbids=tuple(a.strip().lower() for a in artists),
+        artist_names=names,
         primary_type=clean(form.get("primary_type", "")),
         secondary_types=tuple(t for t in clean(form.get("secondary_types", "")).split(",") if t),
         first_release_date=clean(form.get("first_release_date", ""))[:10],
     )
+
+
+def _artist_names(value: str, count: int) -> tuple[str, ...]:
+    """The credited artists' names from a result's form (a JSON list, since a name can have a
+    comma in it); () unless it's one name per artist MBID."""
+    try:
+        names = json.loads(value) if value else []
+    except ValueError:
+        return ()
+    if not isinstance(names, list) or len(names) != count:
+        return ()
+    return tuple(clean(n) if isinstance(n, str) else "" for n in names)
 
 
 def _multiline(text: str) -> str:
