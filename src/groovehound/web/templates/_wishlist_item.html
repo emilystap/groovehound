@@ -1,0 +1,47 @@
+{# One item on the wishlist page. With HTMX, its forms replace (or remove) just this item; without
+   JavaScript they post normally and come back to the list (`next`). #}
+<li class="hit wish" id="wish-{{ item.id }}">
+  {% with mbid = item.release_group_mbid %}{% include "_cover.html" %}{% endwith %}
+  <div class="hit-body">
+    <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
+    <div>{{ item.artist_credit }}</div>
+    <div class="muted small">
+      {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
+      {% if item.release_mbid %} · a specific edition{% endif %}
+    </div>
+    <div class="muted small">
+      Added {{ item.added_at[:10] }}{% if item.bought_at %} · bought {{ item.bought_at[:10] }}{% endif %}
+    </div>
+    {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
+    {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
+
+    <details class="edit">
+      <summary>{% if item.notes or item.heard %}Edit notes{% else %}Add notes{% endif %}</summary>
+      <form class="annotate" method="post" action="/wishlist/{{ item.id }}/notes"
+            hx-post="/wishlist/{{ item.id }}/notes" hx-target="closest li" hx-swap="outerHTML">
+        <label>Where I heard it
+          <input type="text" name="heard" value="{{ item.heard }}" maxlength="200"
+                 placeholder="e.g. the café on Main St, 2026-11-01"></label>
+        <label>Notes
+          <textarea name="notes" rows="3" maxlength="2000">{{ item.notes }}</textarea></label>
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit">Save</button>
+      </form>
+    </details>
+
+    <div class="actions">
+      <form method="post" action="/wishlist/{{ item.id }}/bought"
+            hx-post="/wishlist/{{ item.id }}/bought" hx-target="closest li" hx-swap="outerHTML">
+        <input type="hidden" name="bought" value="{{ '0' if item.bought_at else '1' }}">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit">{% if item.bought_at %}Still want it{% else %}Bought it{% endif %}</button>
+      </form>
+      <form method="post" action="/wishlist/{{ item.id }}/remove"
+            hx-post="/wishlist/{{ item.id }}/remove" hx-target="closest li" hx-swap="outerHTML"
+            hx-confirm="Remove “{{ item.title }}” from your wishlist?">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit" class="secondary">Remove</button>
+      </form>
+    </div>
+  </div>
+</li>

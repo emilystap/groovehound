@@ -43,8 +43,8 @@ needs in one `inc=`. When in doubt, make fewer requests. See the roadmap's Groun
 
 ## Status
 
-Phases 0 (scaffolding) and 1a (search and save to the wishlist) done. Next: phase 1b (the
-wishlist page).
+Phases 0 (scaffolding), 1a (search and save to the wishlist) and 1b (the wishlist page) done.
+Next: phase 1c (where to buy).
 
 ## Commands
 

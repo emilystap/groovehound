@@ -99,7 +99,7 @@ The core loop: hear something → find it → save it → buy it later.
   artist for "I heard this song", which lists the release groups it appears on). One search
   request per *Search* press. Results show title, artist credit, type, first release date, CAA
   thumbnail. *Add to wishlist* saves the release group (and optionally a specific release).
-- 1b **Wishlist page.** Sorted by date added; notes; "where I heard it" (free text); mark as
+- 1b ✅ **Wishlist page.** Sorted by date added; notes; "where I heard it" (free text); mark as
   *bought* (kept, hidden by default) or remove. Mobile-friendly: this is used from a phone.
 - 1c **Where to buy.** Per item: search links built locally, no requests (Bandcamp, Qobuz
   store search with artist + title), plus links MusicBrainz already has. One release lookup
@@ -162,12 +162,33 @@ The core loop: hear something → find it → save it → buy it later.
 - 4c CF recording recommendations (experimental endpoint), if they turn out useful.
 - Dismissed suggestions stay dismissed (per user).
 
-### 5. Library awareness (Navidrome)
+### 5. Library awareness
 
-- 5a Read the library through Navidrome's Subsonic API (read-only, its MBIDs) to mark wishlist
-  items and new releases you already own, and to auto-complete a wishlist item as *bought* when it
-  appears. No MusicBrainz requests.
-- 5b Suggest follows: artists with N+ albums in the library you don't follow yet.
+Know what's already in your music library, so Groovehound can say "you have this" instead of
+suggesting it again. Everything here is local: **no MusicBrainz requests**. 5a and 5b need only
+phase 1 and could move earlier; 5d needs phase 2.
+
+- 5a **Library scan.** Mount the music folder into the container read-only (e.g.
+  `/music:ro`, `library.path` in config) and read the MusicBrainz tags Picard writes (via
+  `mutagen`: FLAC/Ogg/Opus Vorbis comments, MP3 `TXXX`/`UFID`, MP4 freeform atoms):
+  *MusicBrainz Release Group Id*, *Album Id* (the release), *Album Artist Id* and *Artist Id*.
+  One row per release in a per-user `library` table (release group, release, album artist
+  MBIDs, folder, file count, last seen), plus a per-file mtime/size index so rescans only
+  re-read changed files. Files without MBID tags are counted and listed, not guessed at by name.
+  Scans run on demand (*Rescan* button, `groovehound scan`) and on the same randomized trickle
+  as other background work; it's local disk, but a big library still shouldn't be re-read all
+  at once. A release with an album id but no release group id is matched against wishlist
+  editions only; resolving it would cost a lookup per release, so it's left alone.
+- 5b **"In your library".** Search results, wishlist items and new releases get a badge when
+  their release group is in the library; owned ones sort after (or hide from) new-release lists. A
+  wishlist item that appears in the library is offered as *bought* ("found in your library on
+  2026-…"), not silently changed.
+- 5c **Navidrome instead of a folder** (optional): the same table filled from Navidrome's
+  Subsonic API (read-only; it exposes MusicBrainz ids), for when Groovehound can't see the files.
+- 5d **Suggest follows** (needs phase 2): album artists with N+ release groups in the library
+  that you don't follow, ranked by how many you own, with *Follow* and *dismiss* (stays
+  dismissed). Following one also seeds the "already out" list from the library, so albums you
+  own are never reported as new. Later, combine with ListenBrainz listen counts (phase 4).
 
 ### 6. Notifications and polish
 
