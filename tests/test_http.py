@@ -6,6 +6,7 @@ from groovehound.brainz.http import (
     NotFound,
     RateLimiter,
     ServiceError,
+    ServicePause,
     requested_wait,
     user_agent,
 )
@@ -107,3 +108,16 @@ def test_requested_wait():
     assert requested_wait({"Retry-After": "5", "X-RateLimit-Reset-In": "9"}) == 9
     assert requested_wait({"Retry-After": "soon"}) is None
     assert requested_wait({}) is None
+
+
+def test_service_pause_lasts_an_hour_or_as_asked():
+    clock = FakeClock()
+    pause = ServicePause(clock=clock)
+    assert pause.remaining() == 0
+    pause.start()
+    clock.now += 600
+    assert pause.remaining() == 3000
+    pause.start(retry_after=7200)
+    assert pause.remaining() == 7200
+    pause.clear()
+    assert pause.remaining() == 0

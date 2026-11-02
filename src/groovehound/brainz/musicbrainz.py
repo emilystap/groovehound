@@ -23,7 +23,7 @@ import urllib.parse
 from collections.abc import Iterable
 
 from ..config import Settings
-from .http import MIN_INTERVAL, JsonClient, NotFound, RateLimiter
+from .http import MIN_INTERVAL, JsonClient, NotFound, RateLimiter, ServicePause
 
 API_ROOT = "https://musicbrainz.org/ws/2"
 WEB_ROOT = "https://musicbrainz.org"  # UI links always go to musicbrainz.org, even with a mirror
@@ -39,6 +39,8 @@ _MBID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 LIMITER = RateLimiter()
 _MIRROR_LIMITERS: dict[tuple[str, float], RateLimiter] = {}  # likewise, per other server
 _MIRROR_LOCK = threading.Lock()
+# Started when a run fails; new runs check it first (http.py). One for MusicBrainz, mirror or not.
+PAUSE = ServicePause()
 
 
 def is_mbid(value: str) -> bool:

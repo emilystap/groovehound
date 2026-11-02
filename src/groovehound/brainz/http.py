@@ -17,8 +17,10 @@ https://listenbrainz.readthedocs.io/en/latest/users/api/index.html). So, for eve
   next request until the window resets, before it can be refused;
 - responses are requested gzip-compressed.
 
-Callers decide what happens after a `ServiceError` (the background jobs pause that service for
-an hour). Tests never reach the network: `tests/conftest.py` replaces `_urlopen`.
+Callers decide what happens after a `ServiceError`: a run that fails starts the service's
+`ServicePause`, and new runs (a background batch, a *Search* press) check it first, so repeated
+clicks during an outage don't keep poking it. Tests never reach the network:
+`tests/conftest.py` replaces `_urlopen`.
 """
 
 from __future__ import annotations
@@ -44,6 +46,7 @@ MIN_INTERVAL = 1.5  # seconds from one response to the next request; the documen
 BACKOFF = (15.0, 60.0)  # waits after a 503 / 429 before retrying; then give up
 MAX_RETRY_WAIT = 300.0  # a longer requested wait ends the call instead of blocking the thread
 RETRY_STATUSES = frozenset({429, 503})
+PAUSE_AFTER_ERROR = 3600.0  # a failed run stops new runs for this long (or as asked, if longer)
 
 
 class ServiceError(Exception):
@@ -137,6 +140,29 @@ class RateLimiter:
         """Push the next allowed call at least `seconds` into the future."""
         with self._lock:
             self._next = max(self._next, self._clock() + seconds)
+
+
+class ServicePause:
+    """Once a run against a service fails, new runs don't start for `PAUSE_AFTER_ERROR` (or as
+    long as the service asked, if longer). One per service, shared by the whole process."""
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._until = 0.0
+
+    def start(self, retry_after: float | None = None) -> None:
+        with self._lock:
+            self._until = self._clock() + max(PAUSE_AFTER_ERROR, retry_after or 0)
+
+    def remaining(self) -> float:
+        """Seconds until new runs may start; 0 when they may now."""
+        with self._lock:
+            return max(0.0, self._until - self._clock())
+
+    def clear(self) -> None:
+        with self._lock:
+            self._until = 0.0
 
 
 Opener = Callable[..., object]

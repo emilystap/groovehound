@@ -18,7 +18,7 @@ import urllib.parse
 from datetime import date
 
 from ..config import Settings
-from .http import JsonClient, RateLimiter
+from .http import JsonClient, RateLimiter, ServicePause
 
 API_ROOT = "https://api.listenbrainz.org"
 WEB_ROOT = "https://listenbrainz.org"
@@ -26,6 +26,7 @@ MAX_FRESH_DAYS = 90  # the API's maximum window
 
 # Shared by every client in the process.
 LIMITER = RateLimiter()
+PAUSE = ServicePause()  # started when a run fails; new runs check it first (http.py)
 
 
 def client_for(settings: Settings) -> ListenBrainzClient:

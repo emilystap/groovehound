@@ -3,11 +3,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from groovehound.brainz import musicbrainz
 from groovehound.config import Settings, load_settings
 from groovehound.db import OWNER_ID, Store
 from groovehound.web import create_app
 
-from .conftest import settings_for
+from .conftest import FakeOpener, settings_for
+from .test_brainz import ARTIST, mb_client
+from .test_search import R1, RECORDINGS, RG
 
 
 def test_settings_precedence(tmp_path: Path):
@@ -54,3 +57,96 @@ def test_home_explains_a_missing_contact(tmp_path: Path):
 def test_bad_musicbrainz_settings_fail_at_startup(tmp_path: Path):
     with pytest.raises(ValueError):
         create_app(settings_for(tmp_path, musicbrainz_interval=0.5))
+
+
+def search_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *answers) -> FakeOpener:
+    """An app whose MusicBrainz client answers from a FakeOpener."""
+    opener = FakeOpener(*answers)
+    monkeypatch.setattr(musicbrainz, "client_for", lambda settings: mb_client(opener))
+    return opener
+
+
+def test_search_page_without_a_title_makes_no_request(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/search").text
+    assert 'name="title"' in page
+    assert opener.requests == []
+
+
+def test_search_shows_results_and_saves_to_the_wishlist(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RECORDINGS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/search", params={"kind": "song", "title": "360", "artist": "charli"}).text
+    assert "Brat" in page and "Hits 2024" in page
+    assert "2024-06-07 · GB · 2×CD" in page  # noqa: RUF001  (an edition to choose)
+    assert page.count("Add to wishlist") == 2
+
+    added = client.post(
+        "/wishlist",
+        data={
+            "release_group": RG.upper(),
+            "release": R1,
+            "title": "Brat",
+            "artist_credit": "Charli xcx",
+            "artist_mbids": ARTIST,
+            "primary_type": "Album",
+            "secondary_types": "",
+            "first_release_date": "2024-06-01",
+            "next": "/search?kind=song&title=360",
+        },
+        headers={"HX-Request": "true"},
+    )
+    assert "On your wishlist" in added.text
+
+    page = client.get("/search", params={"kind": "song", "title": "360", "artist": "charli"}).text
+    assert len(opener.requests) == 1  # the same search again comes from the cache
+    assert page.count("Add to wishlist") == 1 and "On your wishlist" in page
+
+    with Store(tmp_path / "groovehound.db") as store:
+        (item,) = store.wishlist(OWNER_ID)
+    assert (item.release_group_mbid, item.release_mbid) == (RG, R1)
+    assert item.artist_mbids == (ARTIST,) and item.secondary_types == ()
+    home = client.get("/").text
+    assert "Brat" in home and "a specific edition" in home
+
+
+def test_plain_form_post_goes_back_but_only_on_this_site(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
+    form = {"release_group": RG, "title": "Brat", "artist_credit": "Charli xcx"}
+    back = client.post("/wishlist", data={**form, "next": "/search?title=brat"})
+    assert (back.status_code, back.headers["location"]) == (303, "/search?title=brat")
+    for elsewhere in ("https://evil.example/", "//evil.example/", r"/\evil.example/"):
+        moved = client.post("/wishlist", data={**form, "next": elsewhere})
+        assert moved.headers["location"] == "/"
+    with Store(tmp_path / "groovehound.db") as store:
+        assert store.wishlist_count(OWNER_ID) == 1  # added once; the rest were already there
+
+
+@pytest.mark.parametrize(
+    "form",
+    [
+        {"release_group": "nope", "title": "Brat"},
+        {"release_group": RG, "title": "  "},
+        {"release_group": RG, "title": "Brat", "release": "nope"},
+        {"release_group": RG, "title": "Brat", "artist_mbids": "nope"},
+    ],
+)
+def test_wishlist_rejects_malformed_items(tmp_path: Path, form):
+    client = TestClient(create_app(settings_for(tmp_path)))
+    assert client.post("/wishlist", data=form).status_code == 400
+
+
+def test_search_errors_are_shown_and_pause_searching(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, 500)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    assert "MusicBrainz answered 500" in client.get("/search", params={"title": "x"}).text
+    assert "paused" in client.get("/search", params={"title": "y"}).text
+    assert len(opener.requests) == 1
+
+
+def test_search_without_a_contact_explains_and_makes_no_request(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch)
+    client = TestClient(create_app(Settings(database_path=tmp_path / "db.sqlite")))
+    assert "Not connected" in client.get("/search", params={"title": "x"}).text
+    assert opener.requests == []
