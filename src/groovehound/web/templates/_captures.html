@@ -3,10 +3,14 @@
    post normally and come back to the page (`next`). #}
 <section class="card" id="captures">
   <h2>Quick capture</h2>
+  {% if draft %}
+  <p class="muted small">Shared to Groovehound, but it doesn't read as “song by artist”. Save it
+    to look up later, or edit it first.</p>
+  {% endif %}
   <form class="capture" method="post" action="/captures"
         hx-post="/captures" hx-target="#captures" hx-swap="outerHTML">
     <input type="text" name="text" required maxlength="500" autocomplete="off"
-           aria-label="What you heard" placeholder="e.g. song with the saxophone at the café">
+           value="{{ draft }}" {% if draft %}autofocus{% endif %} aria-label="What you heard" placeholder="e.g. song with the saxophone at the café">
     <input type="hidden" name="next" value="{{ here }}">
     <button type="submit">Save for later</button>
   </form>

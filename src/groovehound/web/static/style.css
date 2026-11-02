@@ -68,7 +68,12 @@ main { max-width: 960px; margin: 0 auto; padding: 16px; }
 .card p:last-child { margin-bottom: 0; }
 .notice { background: var(--warning-bg); border-color: var(--warning); }
 
-.footer { max-width: 960px; margin: 0 auto; padding: 16px; font-size: 0.85rem; }
+.footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));  /* clear of the gesture bar */
+  font-size: 0.85rem;
+}
 
 button, select, input[type="search"], input[type="text"], textarea {
   font: inherit;

@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# viewport-fit=cover: where Chrome draws edge-to-edge (135+), the page runs on under
+     Android's gesture bar, so the bar shows this theme's background, not white #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Groovehound{% endblock %}</title>
   {# Root-relative, not url_for(): behind a TLS-terminating proxy the app sees plain http, and
      absolute http:// asset URLs on an https page are blocked as mixed content. #}
