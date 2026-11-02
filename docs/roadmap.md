@@ -95,7 +95,7 @@ MusicBrainz and ListenBrainz clients with the first few calls; no features yet.
 
 The core loop: hear something → find it → save it → buy it later.
 
-- 1a **Search and save.** A search box (release group by title + artist; recording by title +
+- 1a ✅ **Search and save.** A search box (release group by title + artist; recording by title +
   artist for "I heard this song", which lists the release groups it appears on). One search
   request per *Search* press. Results show title, artist credit, type, first release date, CAA
   thumbnail. *Add to wishlist* saves the release group (and optionally a specific release).
@@ -107,8 +107,18 @@ The core loop: hear something → find it → save it → buy it later.
   "streaming" URLs, often pointing straight at the Bandcamp or Qobuz page.
 - 1d **Quick capture.** A minimal form that saves free text ("song with the saxophone at the
   café, 2026-11-01") when you can't search right now; turn it into a real wishlist item later.
-- Later: a share target (PWA manifest) so Android's *Share* from a song ID app lands in the
-  capture form.
+- 1e **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,
+  theme colour, `display: standalone`) so Chrome's *Install app* puts Groovehound on the home
+  screen and opens it in its own window, without the browser bar. Chrome only offers this
+  over HTTPS (or `localhost`), so it needs the reverse proxy. No offline mode: everything
+  lives on the server.
+- 1f **Share to search** (needs 1e): a `share_target` in the manifest, so Groovehound shows up
+  in Android's share sheet. Sharing a song from a song ID app (Pixel's Now Playing history,
+  Shazam, SoundHound) opens the search form pre-filled with a best guess at title and artist,
+  parsed locally from the shared text. You still press *Search*, so it's one request as
+  usual, and you can fix a bad guess first. A share with nothing usable (only a link) lands in
+  quick capture (1d). Parsing comes from real shared text recorded as test fixtures; links
+  are never fetched to work out what they point at.
 
 ### 2. Follow artists
 

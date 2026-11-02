@@ -34,12 +34,17 @@ needs in one `inc=`. When in doubt, make fewer requests. See the roadmap's Groun
   Routes get the user only through `web/app.py::current_user` (always `OWNER_ID` for now).
 - **Config precedence**: defaults < `config.toml` < `GROOVEHOUND_*` env vars < CLI flags.
 - Deployments may sit behind an HTTPS reverse proxy: templates use root-relative URLs.
+- **The UI is meant to be replaceable**: logic (searching, caching, rules about requests,
+  storage) lives outside `web/` (`search.py`, `db.py`, `brainz/`) and never imports from it;
+  routes in `web/app.py` only parse input, call that code and pick a template. Keep it that
+  way so the templates and CSS can be reworked, or a JSON API added, without touching logic.
 - Every page credits MusicBrainz, ListenBrainz and the Cover Art Archive (footer). Tags,
   genres and ratings are CC BY-NC-SA.
 
 ## Status
 
-Phase 0 (scaffolding) done. Next: phase 1a (search and save to the wishlist).
+Phases 0 (scaffolding) and 1a (search and save to the wishlist) done. Next: phase 1b (the
+wishlist page).
 
 ## Commands
 

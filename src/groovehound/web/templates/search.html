@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{% if title %}{{ title }} · {% endif %}Search · Groovehound{% endblock %}
+{% block content %}
+{% if contact_problem %}
+<section class="card notice">
+  <h2>Not connected to MusicBrainz yet</h2>
+  <p>{{ contact_problem }}</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Find something you heard</h2>
+  {# A plain GET form: one search per press (no search-as-you-type), and the results page can be
+     reloaded or returned to without asking MusicBrainz again (the answer is cached). #}
+  <form class="search" method="get" action="/search">
+    <fieldset class="kinds">
+      <legend class="muted small">Looking for</legend>
+      <label><input type="radio" name="kind" value="album" {% if kind == "album" %}checked{% endif %}> an album</label>
+      <label><input type="radio" name="kind" value="song" {% if kind == "song" %}checked{% endif %}> a song</label>
+    </fieldset>
+    <label>Title <input type="search" name="title" value="{{ title }}" required maxlength="200"
+                        autocomplete="off" {% if not title %}autofocus{% endif %}></label>
+    <label><span>Artist <span class="muted small">(optional)</span></span>
+      <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"></label>
+    <button type="submit">Search</button>
+  </form>
+</section>
+
+{% if error %}
+<section class="card notice"><p>{{ error }}</p></section>
+{% endif %}
+
+{% if hits is not none %}
+<section class="card">
+  <h2>{% if kind == "song" %}Albums with this song{% else %}Albums{% endif %}</h2>
+  {% if not hits %}
+  <p class="muted">Nothing found on MusicBrainz. Try fewer words, or check the spelling.</p>
+  {% else %}
+  <ul class="hits">
+    {% for hit in hits %}
+    <li class="hit">
+      {% with mbid = hit.mbid %}{% include "_cover.html" %}{% endwith %}
+      <div class="hit-body">
+        <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}">{{ hit.title }}</a>
+        <div>{{ hit.artist_credit }}</div>
+        <div class="muted small">
+          {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
+          {% if hit.songs %} · has “{{ hit.songs | join("”, “") }}”{% endif %}
+        </div>
+        {% with saved = hit.mbid in saved_ids %}{% include "_wishlist_button.html" %}{% endwith %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

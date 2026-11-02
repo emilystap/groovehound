@@ -1,4 +1,5 @@
-"""SQLite persistence: users and the shared cache of MusicBrainz / ListenBrainz responses.
+"""SQLite persistence: users, their wishlists, and the shared cache of MusicBrainz /
+ListenBrainz responses.
 
 Plain `sqlite3` keeps the dependency list short. Schema changes go in MIGRATIONS (append
 only); `PRAGMA user_version` records which have run.
@@ -13,7 +14,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import zlib
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -47,6 +48,26 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX api_cache_due ON api_cache(refresh_after);
     """,
+    # 2: the wishlist (roadmap 1a). Title, credit, types and date are a snapshot from the search
+    # result (CC0 data), so the list renders without a request; release_mbid is an optional
+    # specific edition. artist_mbids and secondary_types are JSON lists.
+    """
+    CREATE TABLE wishlist (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        release_group_mbid  TEXT NOT NULL,
+        release_mbid        TEXT,
+        title               TEXT NOT NULL,
+        artist_credit       TEXT NOT NULL,
+        artist_mbids        TEXT NOT NULL DEFAULT '[]',
+        primary_type        TEXT NOT NULL DEFAULT '',
+        secondary_types     TEXT NOT NULL DEFAULT '[]',
+        first_release_date  TEXT NOT NULL DEFAULT '',
+        added_at            TEXT NOT NULL,
+        UNIQUE (user_id, release_group_mbid)
+    );
+    CREATE INDEX wishlist_added ON wishlist(user_id, added_at);
+    """,
 ]
 
 
@@ -58,6 +79,24 @@ def utcnow() -> str:
 class User:
     id: int
     name: str
+
+
+@dataclass(frozen=True)
+class WishlistItem:
+    release_group_mbid: str
+    title: str
+    artist_credit: str
+    artist_mbids: tuple[str, ...] = ()
+    primary_type: str = ""
+    secondary_types: tuple[str, ...] = ()
+    first_release_date: str = ""
+    release_mbid: str | None = None  # a specific edition, when one was chosen
+    added_at: str = ""
+
+    @property
+    def type_label(self) -> str:
+        """e.g. "Album", "Album · Live", or "" when MusicBrainz has no type."""
+        return " · ".join(t for t in (self.primary_type, *self.secondary_types) if t)
 
 
 @dataclass(frozen=True)
@@ -101,6 +140,70 @@ class Store:
         row = self.conn.execute("SELECT id, name FROM users WHERE id = ?", (user_id,)).fetchone()
         return User(row["id"], row["name"]) if row else None
 
+    # --- Wishlist -------------------------------------------------------------------------
+
+    def add_to_wishlist(self, user_id: int, item: WishlistItem) -> bool:
+        """Save `item` for this user; False if the release group was already on the list (left
+        as it was)."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "INSERT INTO wishlist (user_id, release_group_mbid, release_mbid, title, "
+                "artist_credit, artist_mbids, primary_type, secondary_types, first_release_date, "
+                "added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (user_id, release_group_mbid) DO NOTHING",
+                (
+                    user_id,
+                    item.release_group_mbid,
+                    item.release_mbid,
+                    item.title,
+                    item.artist_credit,
+                    json.dumps(list(item.artist_mbids)),
+                    item.primary_type,
+                    json.dumps(list(item.secondary_types)),
+                    item.first_release_date,
+                    item.added_at or utcnow(),
+                ),
+            )
+        return cursor.rowcount == 1
+
+    def wishlist(self, user_id: int, limit: int | None = None) -> list[WishlistItem]:
+        """This user's wishlist, most recently added first."""
+        rows = self.conn.execute(
+            "SELECT * FROM wishlist WHERE user_id = ? ORDER BY added_at DESC, id DESC LIMIT ?",
+            (user_id, -1 if limit is None else limit),
+        )
+        return [
+            WishlistItem(
+                release_group_mbid=r["release_group_mbid"],
+                title=r["title"],
+                artist_credit=r["artist_credit"],
+                artist_mbids=tuple(json.loads(r["artist_mbids"])),
+                primary_type=r["primary_type"],
+                secondary_types=tuple(json.loads(r["secondary_types"])),
+                first_release_date=r["first_release_date"],
+                release_mbid=r["release_mbid"],
+                added_at=r["added_at"],
+            )
+            for r in rows
+        ]
+
+    def wishlist_count(self, user_id: int) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM wishlist WHERE user_id = ?", (user_id,)
+        ).fetchone()[0]
+
+    def wishlisted(self, user_id: int, release_group_mbids: Iterable[str]) -> set[str]:
+        """Which of these release groups are on this user's wishlist."""
+        mbids = list(set(release_group_mbids))
+        if not mbids:
+            return set()
+        rows = self.conn.execute(
+            "SELECT release_group_mbid FROM wishlist WHERE user_id = ? AND release_group_mbid "
+            f"IN ({', '.join('?' * len(mbids))})",
+            (user_id, *mbids),
+        )
+        return {r[0] for r in rows}
+
     # --- API cache ------------------------------------------------------------------------
 
     def save_cached(
@@ -142,3 +245,12 @@ class Store:
             (service, kind, now, limit),
         )
         return [r["key"] for r in rows]
+
+    def drop_cached_before(self, service: str, kind: str, before: str) -> None:
+        """Forget responses of `kind` whose refresh was due before `before` (for kinds nothing
+        refreshes, such as searches)."""
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM api_cache WHERE service = ? AND kind = ? AND refresh_after < ?",
+                (service, kind, before),
+            )

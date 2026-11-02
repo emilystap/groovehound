@@ -15,7 +15,25 @@
 </section>
 
 <section class="card">
-  <h2>Wishlist</h2>
-  <p class="muted">Nothing on your wishlist yet.</p>
+  <h2>Wishlist{% if wishlist_count %} <span class="muted">({{ wishlist_count }})</span>{% endif %}</h2>
+  {% if wishlist %}
+  <ul class="hits">
+    {% for item in wishlist %}
+    <li class="hit">
+      {% with mbid = item.release_group_mbid %}{% include "_cover.html" %}{% endwith %}
+      <div class="hit-body">
+        <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
+        <div>{{ item.artist_credit }}</div>
+        <div class="muted small">
+          {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
+          {% if item.release_mbid %} · a specific edition{% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
+  {% endif %}
 </section>
 {% endblock %}

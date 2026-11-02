@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from groovehound.brainz import http
+from groovehound.brainz import http, listenbrainz, musicbrainz
 from groovehound.config import Settings
 
 CONTACT = "tests@example.com"
@@ -23,6 +23,13 @@ def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
         raise AssertionError("tests must not make real HTTP requests")
 
     monkeypatch.setattr(http, "_urlopen", refuse)
+
+
+@pytest.fixture(autouse=True)
+def _no_pauses() -> None:
+    """Each test starts with neither service paused after an error."""
+    musicbrainz.PAUSE.clear()
+    listenbrainz.PAUSE.clear()
 
 
 def settings_for(tmp_path: Path, **overrides: object) -> Settings:
