@@ -10,11 +10,12 @@ finds new ones (`refresh`, roadmap 2c) runs in the background (`reconcile.py`). 
 name comes from the browse's artist credits, so the artist lookup is only made when there are
 none (an artist with no albums or EPs). All of it is CC0.
 
-Each follow is for some release group types (roadmap 2b, `TYPES`): albums and EPs by default,
-singles if asked for, and live, compilations, remixes etc. only if asked for, since they're
-noisy. Secondary types are filtered locally: the album and EP browse returns them anyway.
-Singles need a browse of their own (`SINGLES_KIND`), made only for artists someone follows
-with singles on; the singles already out when that was turned on count as seen, not new.
+Each follow is for some release group types (roadmap 2b, `TYPES`): albums and EPs by default
+(`[follows] types` in the config changes what a new follow starts with), singles if asked for,
+and live, compilations, remixes etc. only if asked for, since they're noisy. Secondary types
+are filtered locally: the album and EP browse returns them anyway. Singles need a browse of
+their own (`SINGLES_KIND`), made only for artists someone follows with singles on; the singles
+already out when that was turned on count as seen, not new.
 """
 
 from __future__ import annotations
@@ -288,19 +289,25 @@ def follow(
     pause: ServicePause,
     user_id: int,
     mbid: str,
+    types: tuple[str, ...] = DEFAULT_TYPES,
     *,
     now: datetime | None = None,
     rng: random.Random | None = None,
 ) -> Follow:
-    """Follow an artist. The first time, their release groups are browsed (unless cached), so
-    what's already out is recorded as seen; already following asks nothing. Raises NotFound
-    for no such artist (or a special purpose one), ServiceError as `discography`."""
+    """Follow an artist for these types (`clean_types`' output). The first time, their release
+    groups are browsed (unless cached), and their singles too if `types` has them, so what's
+    already out is recorded as seen; already following asks nothing (and keeps its types).
+    Raises NotFound for no such artist (or a special purpose one), ServiceError as
+    `discography`, following no one."""
     if mbid in NOT_FOLLOWABLE:
         raise NotFound(f"{mbid} is a special purpose artist")
     existing = store.follow_of(user_id, mbid)
     if existing is not None:
         return existing
+    now = now or datetime.now(UTC)
     artist = discography(store, client, pause, mbid, now=now, rng=rng).artist
+    if "single" in types:
+        singles(store, client, pause, mbid, now=now, rng=rng)
     store.follow(
         user_id,
         Follow(
@@ -308,9 +315,11 @@ def follow(
             name=artist.name,
             sort_name=artist.sort_name,
             disambiguation=artist.disambiguation,
-            followed_at=_iso(now) if now else "",
+            followed_at=_iso(now),
         ),
     )
+    if types != DEFAULT_TYPES:
+        store.set_follow_types(user_id, mbid, types, _iso(now) if "single" in types else None)
     return store.follow_of(user_id, mbid)
 
 

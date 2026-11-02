@@ -37,6 +37,10 @@ your music folder, mounted read-only in Docker. It reads the *MusicBrainz Album 
 guessed at. Scans run on their own every few hours, or now with *Rescan* or
 `uv run groovehound scan`.
 
+A new follow is for albums and EPs; set `[follows] types` (or `GROOVEHOUND_FOLLOW_TYPES`) to
+start with others, e.g. `["album", "ep", "single"]`. Each follow can be changed on its artist
+page.
+
 ### On your phone
 
 Served over HTTPS (behind a reverse proxy, with root-relative URLs throughout), Groovehound can

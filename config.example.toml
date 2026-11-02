@@ -25,6 +25,12 @@ contact = "you@example.com"
 # Only ever read. In Docker, mount it read-only and give the path inside the container.
 # path = "/music"
 
+[follows]
+# The release group types a new follow is for; each follow can be changed on its artist page.
+# Primary: album, ep, single (at least one). Also: live, compilation, remix, soundtrack, dj-mix,
+# mixtape/street, demo, other. Singles cost one more MusicBrainz browse per artist.
+# types = ["album", "ep", "single"]
+
 [stores]
 # The Qobuz store the wishlist's "Where to buy" search links open: the country-language part of
 # its address, as in https://www.qobuz.com/gb-en/ (us-en, gb-en, fr-fr, de-de, ...).
