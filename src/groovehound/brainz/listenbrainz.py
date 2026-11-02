@@ -23,6 +23,7 @@ from .http import JsonClient, RateLimiter, ServicePause
 API_ROOT = "https://api.listenbrainz.org"
 WEB_ROOT = "https://listenbrainz.org"
 MAX_FRESH_DAYS = 90  # the API's maximum window
+MAX_RECORDINGS = 100  # recordings per metadata request (a generated playlist has 50), URL length
 
 # Shared by every client in the process.
 LIMITER = RateLimiter()
@@ -83,3 +84,14 @@ class ListenBrainzClient(JsonClient):
     def playlist(self, mbid: str) -> dict:
         """A playlist as JSPF, with its recordings."""
         return self.get_json(f"/1/playlist/{urllib.parse.quote(mbid.strip(), safe='')}")
+
+    def recording_metadata(self, mbids: list[str]) -> dict:
+        """Each recording's release and release group (`inc=release`), keyed by recording MBID:
+        one request for a whole playlist, which names only the album (roadmap 4a)."""
+        return self.get_json(
+            "/1/metadata/recording/",
+            {
+                "recording_mbids": ",".join(m.strip() for m in mbids[:MAX_RECORDINGS]),
+                "inc": "release",
+            },
+        )

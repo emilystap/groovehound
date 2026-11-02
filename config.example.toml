@@ -16,7 +16,7 @@ contact = "you@example.com"
 # interval = 0
 
 [listenbrainz]
-# For personal fresh releases and recommendations.
+# For personal fresh releases and the playlists ListenBrainz makes for you (Discover).
 # user = "your-listenbrainz-name"
 # token = "..."  # https://listenbrainz.org/settings/ (optional; keep this file private)
 

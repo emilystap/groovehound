@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not listenbrainz_user %}
+<section class="card">
+  <h2>Discover</h2>
+  <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> in
+    <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see the albums on
+    the playlists ListenBrainz makes for you here.</p>
+</section>
+{% else %}
+{% for playlist in playlists %}
+<section class="card">
+  {# the first playlist (Weekly Exploration, when there is one) open, the rest folded #}
+  <details class="playlist"{% if loop.first %} open{% endif %}>
+    <summary><h2>{{ playlist.title }}</h2></summary>
+    {% if playlist.releases %}
+    <ul class="hits">
+      {% for hit in playlist.releases %}{% include "_playlist_release.html" %}{% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Nothing left to show.</p>
+    {% endif %}
+    <p class="muted small more">{{ playlist.releases | length }} album{% if playlist.releases | length != 1 %}s{% endif %}
+      {%- if playlist.hidden %} ({{ playlist.hidden }} more track{% if playlist.hidden != 1 %}s{% endif %} dismissed or not matched to an album){% endif %}.
+      <a href="{{ playlist.url }}" rel="noopener" target="_blank">The playlist on ListenBrainz</a></p>
+  </details>
+</section>
+{% else %}
+<section class="card">
+  <h2>Discover</h2>
+  <p class="muted">Nothing yet. The playlists ListenBrainz creates for you (Weekly Exploration
+    and the like) show up here within a day or so of being made.</p>
+</section>
+{% endfor %}
+{% if playlists %}
+<p class="muted small">From the playlists
+  <a href="{{ listenbrainz_web }}/user/{{ listenbrainz_user | urlencode }}/playlists/" rel="noopener" target="_blank">ListenBrainz created for you</a>,
+  checked every day.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
