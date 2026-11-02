@@ -138,6 +138,8 @@ The core loop: hear something → find it → save it → buy it later.
   with the saxophone at the café") with the date, when you can't search right now. *Look it up*
   opens the search page with the text shown above the form; saving a result moves the text
   (and its date) into that item's notes and the capture is gone. No requests of its own.
+  When a search doesn't find it, *Not what you were looking for?* below the results saves the
+  query (editable, e.g. "360 by Charli xcx (song)") as a capture to come back to.
 - 1e ✅ **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,
   theme colour, `display: standalone`) so Chrome's *Install app* puts Groovehound on the home
   screen and opens it in its own window, without the browser bar. Chrome only offers this
