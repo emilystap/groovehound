@@ -1026,6 +1026,20 @@ class Store:
         ).fetchone()
         return ListenSummary(row[0], row[1], row[2], row[3])
 
+    def heard(self, user_id: int, release_group_mbids: Iterable[str]) -> set[str]:
+        """Which of these release groups have a listen in this user's listen history."""
+        mbids = list(set(release_group_mbids))
+        found: set[str] = set()
+        for start in range(0, len(mbids), 500):  # well under SQLite's variable limit
+            chunk = mbids[start : start + 500]
+            rows = self.conn.execute(
+                "SELECT DISTINCT release_group_mbid FROM listens WHERE user_id = ? "
+                f"AND release_group_mbid IN ({', '.join('?' * len(chunk))})",
+                (user_id, *chunk),
+            )
+            found.update(r[0] for r in rows)
+        return found
+
     def album_plays(self, user_id: int) -> dict[str, AlbumPlays]:
         """Each release group in this user's listen history: how many listens, and the last."""
         rows = self.conn.execute(

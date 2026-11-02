@@ -445,6 +445,11 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     user came back in one request, down to those played once, so no export is needed. 6 of the
     238 had no release group (listens ListenBrainz couldn't link), and the Library page says
     those, and songs linked to another album (a compilation, a single), don't count.
+  - **Played also counts 5f's listen history** (decided 2026-11-02): in a real snapshot, 38
+    library albums with 279 listens in the history were missing from the stats, which had
+    linked their songs to other release groups (singles, compilations). The history keeps the
+    album the scrobbler sent (Navidrome sends your tags' ids), so an album is played if either
+    has a listen of it, as Rediscover does.
   - Matched by release group MBID only: library releases without one get no badge, and
     nothing is marked before the first stats arrive.
 - 5f ✅ **Rediscover.** One page of library albums to put on next, picked at random in fixed

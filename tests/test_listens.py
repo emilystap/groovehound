@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from groovehound import listens
 from groovehound.brainz.http import ServiceError, ServicePause
-from groovehound.db import OWNER_ID, LibraryRelease, Store
+from groovehound.db import OWNER_ID, LibraryRelease, Listen, Store
 from groovehound.web import create_app
 
 from .conftest import FakeOpener, settings_for
@@ -184,3 +184,19 @@ def test_the_library_page_and_badges(tmp_path: Path):
 
     page = TestClient(create_app(settings_for(tmp_path))).get("/library").text
     assert "Set your ListenBrainz username" in page
+
+
+def test_the_listen_history_counts_as_played(tmp_path: Path):
+    """The stats may link a song to another album (a single); the history keeps the album the
+    scrobbler sent, so a listen there makes it played too."""
+    with store_at(tmp_path) as store:
+        owning(store, release(R_CD, RG_BRAT, "Brat"), release(R_CRASH, RG_CRASH, "Crash"))
+        store.save_listens(OWNER_ID, [Listen(1792000000, "msid", release_group_mbid=RG_CRASH)])
+        assert listens.never_played(store, OWNER_ID, USER, [RG_CRASH]) == set()  # no stats yet
+        fetch(store, FakeOpener(STATS))
+        assert listens.never_played(store, OWNER_ID, USER, [RG_BRAT, RG_CRASH]) == set()
+        assert listens.played(store, OWNER_ID, [RG_BRAT, RG_CRASH, RG_SUCKER]) == {
+            RG_BRAT,
+            RG_CRASH,
+        }
+        assert listens.unplayed_by_artist(store, OWNER_ID, USER) == []

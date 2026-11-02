@@ -12,10 +12,14 @@ real user came back, down to those played once). A 204 (stats not calculated yet
 (no such user) are cached like a response; any other error pauses ListenBrainz. None to
 MusicBrainz. The artist stats aren't fetched: what's played per artist follows from these.
 
-**Matching** is by release group MBID only. A listen ListenBrainz couldn't link to MusicBrainz
-(the stats list those without a release group, counted as `unlinked`), or linked to a song on
-another album (a compilation, a single), doesn't make an album played; the Library page says so.
-Library releases without a release group id can't be matched, so they get no badge.
+**Matching** is by release group MBID only. An album is played if the stats or the listen
+history (`history.py`, roadmap 5f) have a listen of it. The two can disagree: the stats use
+ListenBrainz's own link from a song to an album, which is often another one (the single, a
+compilation), while the history keeps the album the scrobbler sent (Navidrome sends your tags'
+ids), so counting both catches albums the stats alone miss. A listen linked to no album at all
+(the stats list those without a release group, counted as `unlinked`) doesn't make an album
+played; the Library page says so. Library releases without a release group id can't be matched,
+so they get no badge.
 ListenBrainz data is CC0.
 """
 
@@ -155,7 +159,15 @@ def never_played(store: Store, user_id: int, user_name: str, mbids: Iterable[str
     if stats(store, user_name) is None:
         return set()
     mbids = set(mbids)
-    return mbids - set(store.listened(user_id, mbids))
+    return mbids - played(store, user_id, mbids)
+
+
+def played(store: Store, user_id: int, mbids: Iterable[str]) -> set[str]:
+    """Which of these release groups were played: in the stats, or in the listen history
+    (`history.py`), which knows the album the scrobbler sent where the stats may have linked
+    the song to another one. No request."""
+    mbids = set(mbids)
+    return set(store.listened(user_id, mbids)) | store.heard(user_id, mbids)
 
 
 def unplayed_by_artist(store: Store, user_id: int, user_name: str) -> list[ArtistUnplayed]:
@@ -174,12 +186,12 @@ def unplayed_by_artist(store: Store, user_id: int, user_name: str) -> list[Artis
             mbid = first if first and first not in NOT_FOLLOWABLE else ""
             by_artist[key] = ArtistUnplayed(name=release.artist, mbid=mbid)
         titles.setdefault(key, {}).setdefault(release.release_group_mbid, release.title)
-    played = store.listened(user_id, (m for t in titles.values() for m in t))
+    heard = played(store, user_id, (m for t in titles.values() for m in t))
     found = []
     for key, artist in by_artist.items():
         artist.owned = len(titles[key])
         artist.never_played = sorted(
-            (t for m, t in titles[key].items() if m not in played), key=str.casefold
+            (t for m, t in titles[key].items() if m not in heard), key=str.casefold
         )
         if artist.never_played:
             found.append(artist)
