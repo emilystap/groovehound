@@ -50,7 +50,8 @@ to buy, 1d quick capture, 1e installable on Android, 1f share to search, 1g choo
 done; phase 2a (follow / unfollow artists), 2b (release group types per follow) and 2c (slow
 reconciliation: the background re-browse, `reconcile.py`) and 2d (the home page's new and upcoming
 releases, `new_releases.py`) done; phase 3a (ListenBrainz's sitewide fresh releases, `fresh.py`)
-done. Next: phase 3b (personal fresh releases). Links to other sites open in a new tab
+and 3b (personal fresh releases, `personal.py`) done. Next: phase 4a ("Created for you"
+playlists). Links to other sites open in a new tab
 (`target="_blank"`).
 
 ## Commands

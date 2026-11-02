@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-from .brainz.http import ServiceError, ServicePause
+from .brainz.http import NotFound, ServiceError, ServicePause
 from .brainz.listenbrainz import ListenBrainzClient
 from .db import Follow, Store
 from .search import Hit
@@ -56,23 +57,19 @@ def fetch(
     followed = store.followed_artists()
     if not followed or not due(store, now=now):
         return None
-    waiting = pause.remaining()
-    if waiting:
-        raise ServiceError(
-            f"ListenBrainz is paused after an error; try again in {math.ceil(waiting / 60)} min."
-        )
-    try:
-        data = client.fresh_releases(days=DAYS, around=now.date())
-    except ServiceError as exc:
-        pause.start(exc.retry_after)
-        raise
+    data = fetch_into_cache(
+        store,
+        pause,
+        CACHE_KIND,
+        CACHE_KEY,
+        lambda: client.fresh_releases(days=DAYS, around=now.date()),
+        now=now,
+        rng=rng,
+    )
     fetched_at = _iso(now)
-    low, high = TTL
-    refresh_after = _iso(now + low + (high - low) * (rng or random).random())
-    store.save_cached(SERVICE, CACHE_KIND, CACHE_KEY, data, refresh_after, fetched_at=fetched_at)
     new = 0
     by_artist: dict[str, list[str]] = {}
-    for release in releases(data):
+    for release in releases(data or {}):
         for mbid in release.get("artist_mbids") or []:
             if mbid in followed and release.get("release_group_mbid"):
                 by_artist.setdefault(mbid, []).append(release["release_group_mbid"])
@@ -81,6 +78,37 @@ def fetch(
         new += len(set(groups) - set(before))
         store.see_release_groups(mbid, groups, fetched_at)
     return new
+
+
+def fetch_into_cache(
+    store: Store,
+    pause: ServicePause,
+    kind: str,
+    key: str,
+    call: Callable[[], dict],
+    *,
+    now: datetime,
+    rng: random.Random | None = None,
+) -> dict | None:
+    """Make one ListenBrainz request (`call`) unless paused, and cache its response for a
+    randomized `TTL`. A 404 is cached as None (nothing for this key; no pause). Raises
+    ServiceError if ListenBrainz failed (starting the pause) or is paused."""
+    waiting = pause.remaining()
+    if waiting:
+        raise ServiceError(
+            f"ListenBrainz is paused after an error; try again in {math.ceil(waiting / 60)} min."
+        )
+    try:
+        data = call()
+    except NotFound:
+        data = None
+    except ServiceError as exc:
+        pause.start(exc.retry_after)
+        raise
+    low, high = TTL
+    refresh_after = _iso(now + low + (high - low) * (rng or random).random())
+    store.save_cached(SERVICE, kind, key, data, refresh_after, fetched_at=_iso(now))
+    return data
 
 
 def cached_hits(store: Store, follow: Follow) -> list[Hit]:
@@ -106,7 +134,7 @@ def cached_hits(store: Store, follow: Follow) -> list[Hit]:
             # names aren't in the feed: only the followed artist's is known
             artist_names=tuple(follow.name if m == follow.artist_mbid else "" for m in mbids),
             primary_type=release.get("release_group_primary_type") or "",
-            secondary_types=_secondary(release.get("release_group_secondary_type")),
+            secondary_types=secondary_types(release.get("release_group_secondary_type")),
             first_release_date=date,
         )
     return list(found.values())
@@ -119,7 +147,7 @@ def releases(data: dict | list) -> list[dict]:
     return [r for r in data if isinstance(r, dict)]
 
 
-def _secondary(value: object) -> tuple[str, ...]:
+def secondary_types(value: object) -> tuple[str, ...]:
     if isinstance(value, str) and value:
         return (value,)
     if isinstance(value, list):
