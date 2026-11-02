@@ -9,6 +9,7 @@
       {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
       {% if item.release_mbid and not editions[item.id].chosen %} · a specific edition{% endif %}
     </div>
+    {% with credits = followable(item.artist_mbids, item.artist_names, item.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
     {% if editions[item.id].chosen %}<div class="muted small">Edition: {{ editions[item.id].chosen.details }}</div>{% endif %}
     <div class="muted small">
       Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}

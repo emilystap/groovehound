@@ -1,0 +1,23 @@
+{# *Follow* / *Following* for one artist (`artist`: mbid and name), with a link to their page
+   unless `link` is false. Every copy for an artist has the class follow-<mbid>, so the response
+   to following or unfollowing replaces them all, out of band (`oob`): an artist is often on
+   several search results. Without JavaScript the form posts normally and comes back (`next`). #}
+<span class="follow follow-{{ artist.mbid }}"{% if oob %} hx-swap-oob="outerHTML:.follow-{{ artist.mbid }}"{% endif %}>
+  {% if link is not defined or link %}<a href="/artists/{{ artist.mbid }}">{{ artist.name }}</a>{% endif %}
+  {% if following %}
+  <form method="post" action="/artists/{{ artist.mbid }}/unfollow" hx-post="/artists/{{ artist.mbid }}/unfollow"
+        hx-swap="none" hx-confirm="Stop following {{ artist.name }}?">
+    <input type="hidden" name="name" value="{{ artist.name }}">
+    <input type="hidden" name="next" value="{{ here }}">
+    <button type="submit" class="chip on" aria-label="Following {{ artist.name }}; stop following">✓ Following</button>
+  </form>
+  {% else %}
+  <form method="post" action="/artists/{{ artist.mbid }}/follow" hx-post="/artists/{{ artist.mbid }}/follow"
+        hx-swap="none" hx-disabled-elt="find button">
+    <input type="hidden" name="name" value="{{ artist.name }}">
+    <input type="hidden" name="next" value="{{ here }}">
+    <button type="submit" class="chip" aria-label="Follow {{ artist.name }}">Follow</button>
+  </form>
+  {% endif %}
+  {% if error %}<span class="follow-error small">{{ error }}</span>{% endif %}
+</span>

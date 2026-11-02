@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Artists · Groovehound{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>Artists you follow{% if follows %} <span class="muted">({{ follows | length }})</span>{% endif %}</h2>
+  {% if follows %}
+  <ul class="artists">
+    {% for follow in follows %}
+    <li>
+      {% with artist = {"mbid": follow.artist_mbid, "name": follow.name}, following = true %}{% include "_follow_button.html" %}{% endwith %}
+      <div class="muted small">
+        {% if follow.disambiguation %}{{ follow.disambiguation }} · {% endif %}since {{ follow.followed_at | local_date }}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">You don't follow anyone yet. <em>Follow</em> an artist from a
+    <a href="/search">search</a> result or your <a href="/wishlist">wishlist</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

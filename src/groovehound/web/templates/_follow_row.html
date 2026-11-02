@@ -1,0 +1,9 @@
+{# A result's or wishlist item's artists, each with *Follow*. Expects `credits` (from
+   followable()) and `followed` (the MBIDs followed). #}
+{% if credits %}
+<div class="follows small">
+  {% for artist in credits %}
+  {% with following = artist.mbid in followed %}{% include "_follow_button.html" %}{% endwith %}
+  {% endfor %}
+</div>
+{% endif %}

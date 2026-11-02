@@ -13,7 +13,12 @@
 
 <section class="card">
   <h2>New releases</h2>
+  {% if follow_count %}
+  <p class="muted">You follow <a href="/artists">{{ follow_count }} artist{% if follow_count != 1 %}s{% endif %}</a>.
+    Their new releases will show here.</p>
+  {% else %}
   <p class="muted">Follow artists to see their new releases here.</p>
+  {% endif %}
 </section>
 
 <section class="card">

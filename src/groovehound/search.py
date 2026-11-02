@@ -45,6 +45,7 @@ class Hit:
     title: str
     artist_credit: str
     artist_mbids: tuple[str, ...] = ()
+    artist_names: tuple[str, ...] = ()  # in artist_mbids' order
     primary_type: str = ""
     secondary_types: tuple[str, ...] = ()
     first_release_date: str = ""
@@ -135,6 +136,15 @@ def credit_mbids(credit: list[dict] | None) -> tuple[str, ...]:
     return tuple(c["artist"]["id"] for c in credit or [] if (c.get("artist") or {}).get("id"))
 
 
+def credit_names(credit: list[dict] | None) -> tuple[str, ...]:
+    """The credited artists' own names (not as credited), in `credit_mbids`' order."""
+    return tuple(
+        c["artist"].get("name") or c.get("name") or ""
+        for c in credit or []
+        if (c.get("artist") or {}).get("id")
+    )
+
+
 def release_group_hits(data: dict) -> list[Hit]:
     """Hits from a release group search, in MusicBrainz's (relevance) order."""
     hits = []
@@ -147,6 +157,7 @@ def release_group_hits(data: dict) -> list[Hit]:
                 title=group.get("title") or "",
                 artist_credit=credit_text(group.get("artist-credit")),
                 artist_mbids=credit_mbids(group.get("artist-credit")),
+                artist_names=credit_names(group.get("artist-credit")),
                 primary_type=group.get("primary-type") or "",
                 secondary_types=tuple(group.get("secondary-types") or ()),
                 first_release_date=group.get("first-release-date") or "",
@@ -175,6 +186,7 @@ def recording_hits(data: dict) -> list[Hit]:
                         title=rg.get("title") or release.get("title") or "",
                         artist_credit=credit_text(credit),
                         artist_mbids=credit_mbids(credit),
+                        artist_names=credit_names(credit),
                         primary_type=rg.get("primary-type") or "",
                         secondary_types=tuple(rg.get("secondary-types") or ()),
                     ),

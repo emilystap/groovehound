@@ -187,10 +187,28 @@ The core loop: hear something → find it → save it → buy it later.
 
 ### 2. Follow artists
 
-- 2a **Follow / unfollow** from search results, wishlist items, and an artist page. Following
+- 2a ✅ **Follow / unfollow** from search results, wishlist items, and an artist page. Following
   fetches the artist's release groups once (`/release-group?artist=<mbid>&limit=100`, at most
   a few pages; official releases only, by default) into the cache, so what's already out isn't
   reported as new.
+  - **Requests:** one browse of the artist's albums and EPs (`type=album|ep`,
+    `release-group-status=website-default`, `inc=artist-credits`; a page per 100, at most 3),
+    cached for a randomized 7–14 days (2c's refresh interval) and shared by the artist page
+    and *Follow*: open the page, follow, and it's one browse. Following someone already
+    followed, or again while the browse is cached, asks nothing. The artist's name comes from
+    the browse's credits; the artist lookup (cached 30–60 days) is only made for an artist
+    with no albums or EPs. A 404 is cached too, so a bad link isn't asked about again soon.
+  - **"Already out":** every browse records its release groups in `release_groups_seen`
+    (shared, with the date first seen). A release group is new to a follower if it was first
+    seen after they followed: that's what 2c and 2d read. A failed browse follows no one,
+    since there'd be nothing to compare against.
+  - **UI:** each credited artist on a search result or wishlist item gets their name (linking
+    to their artist page, `/artists/<mbid>`) and *Follow* / *✓ Following*; a click updates
+    every button for that artist on the page. Various Artists and [unknown] get none. The
+    artist page lists albums and EPs newest first (live, compilations, remixes etc. folded
+    away), each with *Add to wishlist*. `/artists` lists who you follow (*Artists* in the top
+    bar). Wishlist items now keep the credited artists' names; items saved before 2a fall back
+    to the credit (one artist) or "artist 1, 2" (several).
 - 2b **Release group types.** Per follow (default: album + EP; singles optional; live,
   compilation, remix etc. off) since secondary types are noisy.
 - 2c **Slow reconciliation.** The background trickle re-browses each followed artist every
