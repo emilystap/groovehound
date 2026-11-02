@@ -271,6 +271,16 @@ class Store:
             )
         return cursor.rowcount == 1
 
+    def choose_edition(self, user_id: int, item_id: int, release_mbid: str | None) -> bool:
+        """Save which edition (release) an item is for; None = any edition. False if it isn't
+        this user's."""
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE wishlist SET release_mbid = ? WHERE user_id = ? AND id = ?",
+                (release_mbid, user_id, item_id),
+            )
+        return cursor.rowcount == 1
+
     def mark_bought(self, user_id: int, item_id: int, bought: bool = True) -> bool:
         """Mark an item bought (kept, but hidden by default) or back to still wanted. Marking
         an item already bought keeps its original date. False if it isn't this user's."""

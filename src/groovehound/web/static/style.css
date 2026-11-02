@@ -139,6 +139,19 @@ a.button {
 }
 a.button:hover { text-decoration: none; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.edition-list p { margin: 6px 0 0; }
+.edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
+.edition {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.edition:first-child { border-top: 0; }
+.edition > span { display: grid; min-width: 0; }
 
 /* Phones: bigger touch targets, and the cover doesn't take room from the text. */
 @media (max-width: 480px) {

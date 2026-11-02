@@ -45,9 +45,9 @@ requests. See the roadmap's Ground rules.
 
 ## Status
 
-Phases 0 (scaffolding), 1a (search and save to the wishlist), 1b (the wishlist page), 1c
-(where to buy), 1d (quick capture), 1e (installable on Android) and 1f (share to search) done.
-Next: phase 1g (choose the edition on the wishlist item).
+Phases 0 (scaffolding) and 1 (the wishlist: 1a search and save, 1b the wishlist page, 1c where
+to buy, 1d quick capture, 1e installable on Android, 1f share to search, 1g choose the edition)
+done. Next: phase 2a (follow / unfollow artists).
 
 ## Commands
 

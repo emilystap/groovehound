@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from groovehound import buy
+from groovehound import buy, releases
 from groovehound.brainz import musicbrainz
 from groovehound.brainz.http import ServiceError, ServicePause
 from groovehound.db import OWNER_ID, Store, WishlistItem
@@ -24,13 +24,19 @@ def url_rel(kind: str, url: str, **extra) -> dict:
     return {"type": kind, "target-type": "url", "url": {"resource": url}, **extra}
 
 
-# A browse of the release group's releases with inc=url-rels, as MusicBrainz shapes it
+# A browse of the release group's releases with inc=media labels url-rels, as MusicBrainz shapes it
 RELEASES = {
     "release-count": 2,
     "releases": [
         {
             "id": R1,
             "title": "Brat",
+            "status": "Official",
+            "date": "2024-06-07",
+            "country": "GB",
+            "barcode": "075678612345",
+            "media": [{"format": "CD", "position": 1, "track-count": 15}],
+            "label-info": [{"catalog-number": "075678", "label": {"name": "Atlantic"}}],
             "relations": [
                 url_rel("streaming", "https://open.spotify.com/album/r1"),
                 url_rel("purchase for download", "https://www.qobuz.com/gb-en/album/brat/r1"),
@@ -40,6 +46,11 @@ RELEASES = {
         {
             "id": R2,
             "title": "Brat",
+            "status": "Official",
+            "date": "2024-06-07",
+            "country": "XW",
+            "media": [{"format": "Digital Media", "position": 1, "track-count": 15}],
+            "label-info": [],
             "relations": [
                 url_rel("purchase for download", "https://charlixcx.bandcamp.com/album/brat"),
                 url_rel("purchase for mail-order", "https://charlixcx.bandcamp.com/album/brat"),
@@ -98,14 +109,14 @@ def test_links_are_one_request_then_cached(tmp_path: Path):
         (request,) = opener.requests
         assert urllib.parse.urlsplit(request.full_url).path == "/ws/2/release"
         assert params(request)["release-group"] == [RG]
-        assert params(request)["inc"] == ["url-rels"]
+        assert params(request)["inc"] == ["media labels url-rels"]
 
         after = buy.where_to_buy(store, ITEM, "us-en", now=NOW)
         assert after.links == links and not after.due
         assert [link.site for link in after.buy] == ["Qobuz", "Bandcamp", "Bandcamp"]
 
-        refresh = store.cached("musicbrainz", buy.CACHE_KIND, RG).refresh_after
-        low, high = buy.LINKS_TTL
+        refresh = store.cached("musicbrainz", releases.CACHE_KIND, RG).refresh_after
+        low, high = releases.TTL
         assert (NOW + low).isoformat() <= refresh <= (NOW + high).isoformat()
         later = NOW + high
         assert buy.where_to_buy(store, ITEM, "us-en", now=later).due

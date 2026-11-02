@@ -164,22 +164,24 @@ The core loop: hear something → find it → save it → buy it later.
   Pixel, Chrome 156; `viewport-fit=cover` made no difference), and a manifest has one colour,
   so it's the dark top bar's. The page's `theme-color` still follows the theme for the status
   bar, and `user_preferences` asks for white in light mode where Chrome supports it.
-- 1g **Choose the edition on the wishlist item.** An album search's response lists each release
+- 1g ✅ **Choose the edition on the wishlist item.** An album search's response lists each release
   group's editions with only id, title and status (a search can't ask for more), so the
   *edition* select shows a row of identical titles: 15 × "BITE ME" for Reneé Rapp's album.
   Instead, *Add to wishlist* saves the album (any edition), and the item gets *Choose edition*:
   every edition with what tells them apart, as on its MusicBrainz page: release date, country,
   status, formats and discs ("2×CD", "Digital Media"), track count, label and catalogue number,
-  barcode, packaging, and the disambiguation ("explicit", "deluxe"). All CC0.
+  and the disambiguation ("explicit", "deluxe"). All CC0. Barcode and packaging are left out
+  (2026-11-01): they matter mostly for buying a physical copy, and the MusicBrainz page has them.
   - **Requests:** the browse 1c already makes when *Where to buy* opens, asking for
     `inc=media labels url-rels` instead of `url-rels`: one request, one cache entry, feeding
-    both. Responses cached before the change lack media and labels, so they're refetched when
-    next opened (a new cache kind, or a check for the missing fields).
+    both (`releases.py`). Responses cached before the change lack media and labels: they still
+    show their links, but count as due, so they're refetched when next opened.
   - **UI:** a list, not a `<select>` (an option is one line of plain text). One row per
-    edition, two short lines each: date · country · formats · tracks over label · catalogue
-    number · disambiguation; picked with a radio button, plus *Any edition* to go
-    back. Editions identical in everything shown share a row ("×3"); official ones first,
-    then oldest first. Choosing one also puts its links first under *Where to buy*.
+    edition, two short lines each: date · country · formats · tracks (· status, unless
+    official) over title (if it differs) · label · catalogue number · disambiguation. Picked
+    with a radio button, plus *Any edition* to go back; the item then shows the chosen
+    edition's first line. Editions identical in everything shown share a row ("×3"); official
+    ones first, then oldest first. Choosing one also puts its links first under *Where to buy*.
   - The search page's select goes for album searches, which have nothing to show in it. Song
     searches keep it: their results already carry date, country and format.
 

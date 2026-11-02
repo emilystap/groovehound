@@ -100,7 +100,7 @@ def test_release_group_hits():
     assert hit.artist_mbids == (ARTIST, GUEST)
     assert hit.type_label == "Album · Live"
     assert hit.first_release_date == "2024-06-07"
-    assert [e.label for e in hit.editions] == ["Brat"]
+    assert hit.editions == ()  # the response can't tell them apart: chosen on the wishlist
 
 
 def test_recording_hits_group_by_album_originals_first():

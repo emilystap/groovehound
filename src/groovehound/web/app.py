@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers
+from .. import __version__, buy, covers, releases
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
@@ -245,7 +245,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "bought": bought,
                 "items": items,
                 "captures": [] if bought else store.captures(user.id),
-                "where_to_buy": where_to_buy(store, items),
+                **item_context(store, items),
                 **_wishlist_counts(store, user),
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
@@ -266,13 +266,56 @@ def create_app(settings: Settings) -> FastAPI:
             return templates.TemplateResponse(
                 request,
                 "_wishlist_item.html",
-                {
-                    "item": item,
-                    "where_to_buy": where_to_buy(store, [item]),
-                    "here": form.get("next", ""),
-                },
+                {"item": item, **item_context(store, [item]), "here": form.get("next", "")},
             )
         return RedirectResponse(_local_path(form.get("next", "/wishlist")), status_code=303)
+
+    @app.get("/wishlist/{item_id}/editions")
+    def wishlist_item_editions(
+        request: Request, item_id: int, store: StoreDep, user: UserDep, next: str = ""
+    ) -> Response:
+        """Every edition of an item's album, asked for when its *Choose edition* is opened: one
+        request unless cached (the same browse as *Where to buy*). HTMX gets the list in place;
+        without JavaScript, back to the item on the list."""
+        item = store.wishlist_item(user.id, item_id)
+        if item is None:
+            raise HTTPException(404, "not on your wishlist")
+        error = fetch_releases(store, item)
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(
+                request,
+                "_editions.html",
+                {
+                    "item": item,
+                    "choice": releases.choice(store, item),
+                    "error": error,
+                    "here": next,
+                },
+            )
+        back = _local_path(next or "/wishlist")
+        return RedirectResponse(f"{back}#wish-{item.id}", status_code=303)
+
+    @app.post("/wishlist/{item_id}/edition")
+    async def choose_edition(
+        request: Request, item_id: int, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Save which edition an item is for (`release`, empty = any edition). HTMX gets the
+        updated item back, with that edition's links first under *Where to buy*."""
+        form = await _form(request)
+        release = form.get("release", "").strip()
+        if release and not is_mbid(release):
+            raise HTTPException(400, "malformed release MBID")
+        if not store.choose_edition(user.id, item_id, release.lower() or None):
+            raise HTTPException(404, "not on your wishlist")
+        if request.headers.get("HX-Request"):
+            item = store.wishlist_item(user.id, item_id)
+            return templates.TemplateResponse(
+                request,
+                "_wishlist_item.html",
+                {"item": item, **item_context(store, [item]), "here": form.get("next", "")},
+            )
+        back = _local_path(form.get("next", "/wishlist"))
+        return RedirectResponse(f"{back}#wish-{item_id}", status_code=303)
 
     @app.get("/wishlist/{item_id}/links")
     def wishlist_item_links(
@@ -284,19 +327,14 @@ def create_app(settings: Settings) -> FastAPI:
         item = store.wishlist_item(user.id, item_id)
         if item is None:
             raise HTTPException(404, "not on your wishlist")
-        error = _contact_problem(settings)
-        if not error:
-            try:
-                buy.fetch_links(store, musicbrainz.client_for(settings), musicbrainz.PAUSE, item)
-            except ServiceError as exc:
-                error = str(exc)
+        error = fetch_releases(store, item)
         if request.headers.get("HX-Request"):
             return templates.TemplateResponse(
                 request,
                 "_buy_links.html",
                 {
                     "item": item,
-                    "where": where_to_buy(store, [item])[item.id],
+                    "where": buy.where_to_buy(store, item, settings.qobuz_store),
                     "error": error,
                     "here": next,
                 },
@@ -355,8 +393,29 @@ def create_app(settings: Settings) -> FastAPI:
             )
         return RedirectResponse(_local_path(form.get("next", "/")), status_code=303)
 
-    def where_to_buy(store: Store, items: list[WishlistItem]) -> dict[int, buy.WhereToBuy]:
-        return {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items}
+    def item_context(store: Store, items: list[WishlistItem]) -> dict[str, dict]:
+        """What wishlist items show without a request, by item id: *Where to buy* and *Choose
+        edition*."""
+        return {
+            "where_to_buy": {i.id: buy.where_to_buy(store, i, settings.qobuz_store) for i in items},
+            "editions": {i.id: releases.choice(store, i) for i in items},
+        }
+
+    def fetch_releases(store: Store, item: WishlistItem) -> str | None:
+        """Make sure the item's album's editions are cached (one request if they aren't, or are
+        due); why not, if that failed."""
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                releases.fetch(
+                    store,
+                    musicbrainz.client_for(settings),
+                    musicbrainz.PAUSE,
+                    item.release_group_mbid,
+                )
+            except ServiceError as exc:
+                error = str(exc)
+        return error
 
     def gone_or_back(request: Request, store: Store, user: User, form: dict[str, str]) -> Response:
         """After an item left the list it was on: HTMX gets an empty swap (removing it from

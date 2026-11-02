@@ -5,10 +5,8 @@ Two kinds of links, neither of which scrapes a store:
 - **Store searches**, built locally from the artist and title (no request): Bandcamp and Qobuz.
 - **Links MusicBrainz already has**: editors attach "purchase for download", "purchase for
   mail-order" and "streaming" URLs to releases, often straight to the Bandcamp or Qobuz page.
-  One browse of the release group's releases with `inc=url-rels` covers every edition. It's only
-  made when someone opens *Where to buy* on an item, so items nobody looks at cost nothing; the
-  raw response is cached and refreshed (again only when opened) after a randomized
-  `LINKS_TTL`, since MusicBrainz asks clients not to poll for changes.
+  One browse of the release group's releases covers every edition; it's shared with *Choose
+  edition*, and made and cached as `releases.py` describes (only when opened).
 
 The edition saved with the item, if any, has its links listed first. One link per store and
 kind: a Bandcamp album page is the same whichever edition it's attached to.
@@ -16,19 +14,17 @@ kind: a Bandcamp album page is the same whichever edition it's attached to.
 
 from __future__ import annotations
 
-import math
 import random
 import re
 import urllib.parse
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 
-from .brainz.http import NotFound, ServiceError, ServicePause
+from . import releases
+from .brainz.http import ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
 from .db import Store, WishlistItem
 
-CACHE_KIND = "release-group-releases"
-LINKS_TTL = (timedelta(days=30), timedelta(days=60))  # refreshed (when opened) at random within
 QOBUZ_STORE = re.compile(r"[a-z]{2}-[a-z]{2}")  # e.g. gb-en: country, then language
 MAX_LINKS = 8  # per kind, so a release with dozens of streaming links stays readable
 
@@ -119,14 +115,11 @@ def where_to_buy(
     store: Store, item: WishlistItem, qobuz_store: str, *, now: datetime | None = None
 ) -> WhereToBuy:
     """What's known without a request: the store searches, and MusicBrainz's links if cached."""
-    entry = store.cached("musicbrainz", CACHE_KIND, item.release_group_mbid)
-    links = None
-    if entry is not None:
-        links = musicbrainz_links(entry.data or {}, item.release_mbid)
+    entry = releases.cached(store, item.release_group_mbid, now=now)
     return WhereToBuy(
         searches=search_links(item, qobuz_store),
-        links=links,
-        due=entry is None or entry.refresh_after <= _iso(now or datetime.now(UTC)),
+        links=None if entry is None else musicbrainz_links(entry.data, item.release_mbid),
+        due=entry is None or entry.due,
     )
 
 
@@ -140,29 +133,9 @@ def fetch_links(
     rng: random.Random | None = None,
 ) -> tuple[Link, ...]:
     """MusicBrainz's purchase and streaming links for the item: from the cache while it's
-    fresh, otherwise one request. Raises ServiceError if MusicBrainz failed or is paused after
-    a failure (starting the pause, for a new failure)."""
-    now = now or datetime.now(UTC)
-    key = item.release_group_mbid
-    entry = store.cached("musicbrainz", CACHE_KIND, key)
-    if entry is not None and entry.refresh_after > _iso(now):
-        return musicbrainz_links(entry.data or {}, item.release_mbid)
-    waiting = pause.remaining()
-    if waiting:
-        raise ServiceError(
-            f"MusicBrainz is paused after an error; try again in {math.ceil(waiting / 60)} min."
-        )
-    try:
-        data = client.release_group_releases(key)
-    except NotFound:
-        data = None  # merged or deleted since it was saved: remembered, so not asked again soon
-    except ServiceError as exc:
-        pause.start(exc.retry_after)
-        raise
-    low, high = LINKS_TTL
-    ttl = low + (high - low) * (rng or random).random()
-    store.save_cached("musicbrainz", CACHE_KIND, key, data, _iso(now + ttl), fetched_at=_iso(now))
-    return musicbrainz_links(data or {}, item.release_mbid)
+    fresh, otherwise one request. Raises ServiceError as `releases.fetch` does."""
+    data = releases.fetch(store, client, pause, item.release_group_mbid, now=now, rng=rng)
+    return musicbrainz_links(data, item.release_mbid)
 
 
 def musicbrainz_links(data: dict, release_mbid: str | None = None) -> tuple[Link, ...]:
@@ -195,7 +168,3 @@ def site_name(url: str) -> str:
         if host == domain or host.endswith("." + domain):
             return SITES[domain]
     return host
-
-
-def _iso(when: datetime) -> str:
-    return when.astimezone(UTC).isoformat(timespec="seconds")
