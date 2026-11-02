@@ -33,7 +33,7 @@ from typing import Any
 import mutagen
 
 from .config import Settings
-from .db import OWNER_ID, LibraryFile, LibraryRelease, Store
+from .db import OWNER_ID, LibraryFile, LibraryRelease, Store, WishlistItem
 
 log = logging.getLogger(__name__)
 
@@ -298,6 +298,40 @@ def _most[T](values: Iterable[T]) -> T | None:
         if value:
             counts[value] = counts.get(value, 0) + 1
     return max(counts, key=counts.__getitem__) if counts else None
+
+
+@dataclass(frozen=True)
+class Found:
+    """A wishlist item found in the library (roadmap 5b)."""
+
+    since: str  # when the library scan first found it
+    other_edition: bool  # the item is for one edition, and the library has another
+
+
+def found(store: Store, user_id: int, items: Iterable[WishlistItem]) -> dict[int, Found]:
+    """Which of these wishlist items are in the user's library, by item id: the edition it's
+    for, or with no edition chosen, any edition of its release group. Only ever offered as
+    bought, never marked so."""
+    items = list(items)
+    owned = store.in_library(
+        user_id, (m for i in items for m in (i.release_group_mbid, i.release_mbid) if m)
+    )
+    result = {}
+    for item in items:
+        if item.id is None:
+            continue
+        if item.release_mbid in owned:
+            result[item.id] = Found(owned[item.release_mbid], other_edition=False)
+        elif item.release_group_mbid in owned:
+            result[item.id] = Found(owned[item.release_group_mbid], bool(item.release_mbid))
+    return result
+
+
+def owned_last[T](things: Iterable[T], owned: Iterable[str], mbid: Callable[[T], str]) -> list[T]:
+    """`things` in the same order, but those whose release group is in `owned` after the rest."""
+    owned = set(owned)
+    things = list(things)
+    return [t for t in things if mbid(t) not in owned] + [t for t in things if mbid(t) in owned]
 
 
 def untagged_folders(files: Iterable[LibraryFile]) -> list[tuple[str, int]]:

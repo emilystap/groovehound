@@ -16,15 +16,17 @@ A release group shows if the follow is for its types (`follows.wanted`) and it i
   released more than `CATALOGUE` before it was first seen is an old record MusicBrainz only
   just got.
 
-Dismissed ones stay dismissed (per user). All of it is CC0.
+Dismissed ones stay dismissed (per user), and ones already in the library (roadmap 5b) come
+after the rest of their list. All of it is CC0.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from . import follows, fresh
+from . import follows, fresh, library
 from .db import Follow, Store, local_date
 from .search import Hit, release_group_hits
 
@@ -71,13 +73,23 @@ def feed(store: Store, user_id: int, *, now: datetime | None = None) -> Feed:
                 new[hit.mbid] = found
     # newest release date first (then most recently seen), undated last; ISO dates sort as text
     newest = sorted(new.values(), key=lambda r: (r.hit.first_release_date, r.first_seen))
+    owned = store.in_library(user_id, [*upcoming, *new])
     return Feed(
-        upcoming=tuple(sorted(upcoming.values(), key=lambda r: r.hit.first_release_date)),
-        new=(
-            *(r for r in reversed(newest) if r.hit.first_release_date),
-            *(r for r in reversed(newest) if not r.hit.first_release_date),
+        upcoming=_owned_last(
+            sorted(upcoming.values(), key=lambda r: r.hit.first_release_date), owned
+        ),
+        new=_owned_last(
+            (
+                *(r for r in reversed(newest) if r.hit.first_release_date),
+                *(r for r in reversed(newest) if not r.hit.first_release_date),
+            ),
+            owned,
         ),
     )
+
+
+def _owned_last(releases: Iterable[NewRelease], owned: Iterable[str]) -> tuple[NewRelease, ...]:
+    return tuple(library.owned_last(releases, owned, lambda r: r.hit.mbid))
 
 
 def _cached_hits(store: Store, follow: Follow) -> list[Hit]:

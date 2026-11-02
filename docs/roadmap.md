@@ -81,7 +81,8 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
   Tags, genres, ratings and annotations are **CC BY-NC-SA 3.0**: fine for personal,
   non-commercial use, but the UI credits MusicBrainz wherever they're shown. ListenBrainz data
   is CC0. The footer always credits both, with links.
-- Cover art comes from the Cover Art Archive (`coverartarchive.org`) only, as 250 px
+- Cover art comes from the Cover Art Archive (`coverartarchive.org`) only (until 5i takes
+  covers of albums in the library from the files), as 250 px
   thumbnails, loaded lazily. Wishlist covers go through the server's cover cache
   (`covers.py`, `/cover/<mbid>`): fetched through `brainz/http.py` like any other request,
   once per release group when first shown, refreshed (again only when shown) after a
@@ -361,10 +362,13 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     file) reading at most 2,000 changed files. A missing folder, or one with no audio files
     where the index had some (an unmounted share), stops the scan and changes nothing. Hidden
     files and folders are skipped; symlinked folders aren't followed.
-- 5b **"In your library".** Search results, wishlist items and new releases get a badge when
-  their release group is in the library; owned ones sort after (or hide from) new-release lists. A
-  wishlist item that appears in the library is offered as *bought* ("found in your library on
-  2026-…"), not silently changed.
+- 5b ✅ **"In your library".** Search results, wishlist items, new releases, suggestions, the
+  artist page and Discover get an *In your library* badge when their release group is in the
+  library (`Store.in_library`, matching a release MBID too, for files without a release group
+  id); owned ones sort after the rest of the new-release and suggestion lists, rather than hiding.
+  A wishlist item that appears in the library is offered as *bought* ("Found in your library on
+  2026-…", *Mark bought*), never changed for you; an item for one edition, with another in the
+  library, says "Another edition" (`library.found`).
 - 5c **Navidrome instead of a folder** (optional): the same table filled from Navidrome's
   Subsonic API (read-only; it exposes MusicBrainz ids), for when Groovehound can't see the files.
   **Check first** that it gives the *release group* MBID: the Subsonic API reliably has the
@@ -420,6 +424,14 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     In the check, the 59 unheard songs were on 45 albums by 30 artists, all with a release
     group, and mostly well-known pop (Sabrina Carpenter, Chappell Roan, Dua Lipa, ABBA): watch
     whether that's useful once the library filter is in.
+- 5i **Covers from the library** (needs 5a/5b; before 5f, whose page is all library albums):
+  for a release group in the library, the cover cache (`covers.py`) takes the cover from its
+  folder first (`cover.jpg`, `folder.jpg`, `front.*` and the like), then the art embedded in
+  its files (FLAC pictures, ID3 `APIC`, MP4 `covr`; the front cover if marked), and asks the
+  Cover Art Archive only if neither has one. Made lazily, when first shown, resized to 250 px
+  (Pillow) and cached in `covers` with where it came from, so a rescan that sees the folder or
+  file change can drop it; `/cover/<mbid>` also allows release groups in the library. Fewer
+  requests, and covers for releases the archive doesn't have.
 
 ### 6. Notifications and polish
 

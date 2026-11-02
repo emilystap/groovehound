@@ -11,6 +11,7 @@
       {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {% if upcoming %}out {% endif %}{{ hit.first_release_date }}{% endif %}
       {% if not upcoming and release.first_seen %} · on MusicBrainz since {{ release.first_seen | local_date }}{% endif %}
     </div>
+    {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
     <div class="actions">
       {% with saved = hit.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}
       <form method="post" action="/new/{{ hit.mbid }}/dismiss" hx-post="/new/{{ hit.mbid }}/dismiss"

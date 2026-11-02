@@ -11,6 +11,7 @@
       <div class="muted small">
         {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
       </div>
+      {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
       {% with saved = hit.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}
     </div>
   </li>

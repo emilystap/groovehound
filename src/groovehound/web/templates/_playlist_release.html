@@ -9,6 +9,7 @@
     <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
     <div>{{ hit.artist_credit }}</div>
     <div class="muted small">“{{ hit.songs | join("”, “") }}”</div>
+    {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
     {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
     <div class="actions">
       {% with saved = hit.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}

@@ -68,6 +68,7 @@
           {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
           {% if item.release_mbid %} · a specific edition{% endif %}
         </div>
+        {% if found[item.id] %}<div class="small owned">✓ In your library</div>{% endif %}
       </div>
     </li>
     {% endfor %}
