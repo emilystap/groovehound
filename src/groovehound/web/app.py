@@ -18,8 +18,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy
-from ..brainz import listenbrainz, musicbrainz
+from .. import __version__, buy, covers
+from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
@@ -30,6 +30,8 @@ from ..share import parse_share
 HOME_WISHLIST = 10  # most recent items on the home page
 MAX_NOTES = 2000  # characters of a wishlist item's notes
 MAX_CAPTURE = 500  # characters of a quick capture
+COVER_MAX_AGE = 30 * 24 * 3600  # seconds the browser keeps a cover
+NO_COVER_MAX_AGE = 24 * 3600  # ... or the answer that there's none
 
 HERE = Path(__file__).parent
 
@@ -100,6 +102,32 @@ def create_app(settings: Settings) -> FastAPI:
                 "captures": store.captures(user.id),
                 "draft": draft,
                 "here": "/",
+            },
+        )
+
+    @app.get("/cover/{mbid}")
+    def cover(mbid: str, store: StoreDep, user: UserDep) -> Response:
+        """A wishlist item's cover thumbnail, from the cover cache (one request to the Cover Art
+        Archive the first time, or when due for a refresh). Only for release groups on your
+        wishlist, so this isn't a way to make the server fetch anything else."""
+        mbid = mbid.lower()
+        if not is_mbid(mbid) or not store.wishlisted(user.id, [mbid]):
+            raise HTTPException(404, "not on your wishlist")
+        client = None if _contact_problem(settings) else coverart.client_for(settings)
+        try:
+            found = covers.cover(store, client, coverart.PAUSE, mbid)
+        except ServiceError:
+            return Response(status_code=503, headers={"Cache-Control": "no-store"})
+        if found.image is None:
+            return Response(
+                status_code=404, headers={"Cache-Control": f"max-age={NO_COVER_MAX_AGE}"}
+            )
+        return Response(
+            found.image,
+            media_type=found.content_type,
+            headers={
+                "Cache-Control": f"private, max-age={COVER_MAX_AGE}",
+                "X-Content-Type-Options": "nosniff",
             },
         )
 

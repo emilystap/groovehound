@@ -1,5 +1,5 @@
-"""SQLite persistence: users, their wishlists, and the shared cache of MusicBrainz /
-ListenBrainz responses.
+"""SQLite persistence: users, their wishlists, and the shared caches of MusicBrainz /
+ListenBrainz responses and cover thumbnails.
 
 Plain `sqlite3` keeps the dependency list short. Schema changes go in MIGRATIONS (append
 only); `PRAGMA user_version` records which have run.
@@ -88,6 +88,17 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX captures_added ON captures(user_id, captured_at);
     """,
+    # 5: cover thumbnails from the Cover Art Archive (covers.py), shared like api_cache. image
+    # NULL = the release group has no cover art. refresh_after is randomized per row.
+    """
+    CREATE TABLE covers (
+        release_group_mbid  TEXT PRIMARY KEY,
+        image               BLOB,
+        content_type        TEXT NOT NULL DEFAULT '',
+        fetched_at          TEXT NOT NULL,
+        refresh_after       TEXT NOT NULL
+    );
+    """,
 ]
 
 
@@ -154,6 +165,14 @@ class Capture:
 @dataclass(frozen=True)
 class CacheEntry:
     data: dict | None  # None = the service had nothing for this key
+    fetched_at: str
+    refresh_after: str
+
+
+@dataclass(frozen=True)
+class CachedCover:
+    image: bytes | None  # None: the release group has no cover art
+    content_type: str
     fetched_at: str
     refresh_after: str
 
@@ -378,6 +397,38 @@ class Store:
             (service, kind, now, limit),
         )
         return [r["key"] for r in rows]
+
+    # --- Cover thumbnails -----------------------------------------------------------------
+
+    def save_cover(
+        self,
+        release_group_mbid: str,
+        image: bytes | None,
+        content_type: str,
+        refresh_after: str,
+        *,
+        fetched_at: str | None = None,
+    ) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO covers (release_group_mbid, image, content_type, fetched_at, "
+                "refresh_after) VALUES (?, ?, ?, ?, ?) ON CONFLICT (release_group_mbid) DO "
+                "UPDATE SET image = excluded.image, content_type = excluded.content_type, "
+                "fetched_at = excluded.fetched_at, refresh_after = excluded.refresh_after",
+                (release_group_mbid, image, content_type, fetched_at or utcnow(), refresh_after),
+            )
+
+    def cover(self, release_group_mbid: str) -> CachedCover | None:
+        row = self.conn.execute(
+            "SELECT image, content_type, fetched_at, refresh_after FROM covers "
+            "WHERE release_group_mbid = ?",
+            (release_group_mbid,),
+        ).fetchone()
+        if row is None:
+            return None
+        return CachedCover(
+            row["image"], row["content_type"], row["fetched_at"], row["refresh_after"]
+        )
 
     def drop_cached_before(self, service: str, kind: str, before: str) -> None:
         """Forget responses of `kind` whose refresh was due before `before` (for kinds nothing

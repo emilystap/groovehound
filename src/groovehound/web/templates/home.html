@@ -22,7 +22,7 @@
   <ul class="hits">
     {% for item in wishlist %}
     <li class="hit">
-      {% with mbid = item.release_group_mbid %}{% include "_cover.html" %}{% endwith %}
+      {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
       <div class="hit-body">
         <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
         <div>{{ item.artist_credit }}</div>
