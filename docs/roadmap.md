@@ -140,7 +140,7 @@ The core loop: hear something → find it → save it → buy it later.
   over HTTPS (or `localhost`), so it needs the reverse proxy. No offline mode: everything
   lives on the server, so no service worker either (Chrome no longer requires one). Icons
   are drawn by `scripts/make_icons.py` (stdlib only).
-- 1f **Share to search** (needs 1e): a `share_target` in the manifest, so Groovehound shows up
+- 1f ✅ **Share to search** (needs 1e): a `share_target` in the manifest, so Groovehound shows up
   in Android's share sheet, aimed at Pixel's Now Playing (*Share* on a song in its history;
   the live recognition screen has no share). Its share is two lines, recorded in
   `tests/fixtures/now_playing_shares.txt`:
@@ -154,7 +154,12 @@ The core loop: hear something → find it → save it → buy it later.
   artist; you still press *Search*, so it's one request as usual and you can fix a bad guess
   first. The share names only the main artist, not featured artists, which is fine: the
   artist field matches part of a credit ("Gwen Stefani" finds "Gwen Stefani feat. Eve").
-  A share that doesn't parse lands in quick capture (1d) as free text.
+  A share that doesn't parse lands in quick capture (1d) as free text, filled in but not saved
+  until you press *Save*. (`/share`, a GET `share_target`; parsing in `share.py`.)
+  Also here: the installed app's gesture bar takes the manifest's `theme_color` (checked on a
+  Pixel, Chrome 156; `viewport-fit=cover` made no difference), and a manifest has one colour,
+  so it's the dark top bar's. The page's `theme-color` still follows the theme for the status
+  bar, and `user_preferences` asks for white in light mode where Chrome supports it.
 - 1g **Choose the edition on the wishlist item.** An album search's response lists each release
   group's editions with only id, title and status (a search can't ask for more), so the
   *edition* select shows a row of identical titles: 15 × "BITE ME" for Reneé Rapp's album.

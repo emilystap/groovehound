@@ -12,7 +12,8 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  {# The status bar above the app's window: the top bar's colour in each theme #}
+  {# The status bar above the app's window: the top bar's colour in each theme. The installed
+     app's gesture bar takes the manifest's theme_color instead (one colour: the dark one). #}
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c2027" media="(prefers-color-scheme: dark)">
   <script src="/static/htmx.min.js" defer></script>

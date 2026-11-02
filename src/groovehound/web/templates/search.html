@@ -8,6 +8,12 @@
 </section>
 {% endif %}
 
+{% if prefilled %}
+<section class="card looking-up" id="share-banner">
+  <p class="muted small">Shared to Groovehound: check the title and artist, then press <em>Search</em>.</p>
+</section>
+{% endif %}
+
 {% if capture %}
 <section class="card looking-up" id="capture-banner">
   <p class="muted small">Looking up what you wrote down on {{ capture.captured_at | local_date }}:</p>
@@ -31,7 +37,7 @@
     <label><span>Artist <span class="muted small">(optional)</span></span>
       <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"></label>
     {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
-    <button type="submit">Search</button>
+    <button type="submit" {% if prefilled %}autofocus{% endif %}>Search</button>
   </form>
 </section>
 

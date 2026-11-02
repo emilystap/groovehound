@@ -289,6 +289,33 @@ def test_quick_capture_and_remove(tmp_path: Path):
         assert not store.remove_capture(2, long.id)
 
 
+def test_a_shared_song_fills_in_the_search_without_searching(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    manifest = client.get("/static/manifest.webmanifest").json()
+    assert manifest["share_target"]["action"] == "/share"
+    page = client.get(
+        "/share",
+        params={
+            "text": "Stand by Me by Ben E. King\n"
+            "https://www.google.com/search?q=Stand+by+Me+by+Ben+E.+King"
+        },
+    ).text
+    assert 'value="song" checked' in page
+    assert 'name="title" value="Stand by Me"' in page
+    assert 'name="artist" value="Ben E. King"' in page
+    assert "Shared to Groovehound" in page
+    assert opener.requests == []  # you still press Search
+
+
+def test_a_share_that_does_not_parse_fills_in_quick_capture(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/share", params={"title": "Look", "text": "sax song  at the café"}).text
+    assert 'value="Look sax song at the café"' in page and "Quick capture" in page
+    with Store(tmp_path / "groovehound.db") as store:
+        assert store.captures(OWNER_ID) == []  # saved only when you press Save
+
+
 def test_looking_up_a_capture_files_it_on_the_item(tmp_path: Path, monkeypatch):
     opener = search_app(tmp_path, monkeypatch, RECORDINGS)
     client = TestClient(create_app(settings_for(tmp_path)))

@@ -25,6 +25,7 @@ from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
 from ..db import OWNER_ID, Store, User, WishlistItem, local_date
 from ..search import KINDS, clean, search
+from ..share import parse_share
 
 HOME_WISHLIST = 10  # most recent items on the home page
 MAX_NOTES = 2000  # characters of a wishlist item's notes
@@ -83,6 +84,10 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        return home_page(request, store, user)
+
+    def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
+        """The home page; with `draft`, the quick capture form is filled in with it."""
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -93,6 +98,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "wishlist": store.wishlist(user.id, limit=HOME_WISHLIST),
                 "wishlist_count": store.wishlist_count(user.id),
                 "captures": store.captures(user.id),
+                "draft": draft,
                 "here": "/",
             },
         )
@@ -110,11 +116,43 @@ def create_app(settings: Settings) -> FastAPI:
         """The search form; with a title, one MusicBrainz search (or its cached answer). With
         `capture`, it's looking up that quick capture: its text is shown, and saving a result
         files it on the item."""
+        return search_page_for(request, store, user, kind, title, artist, capture)
+
+    @app.get("/share", response_class=HTMLResponse)
+    def share(
+        request: Request,
+        store: StoreDep,
+        user: UserDep,
+        title: str = "",
+        text: str = "",
+        url: str = "",
+    ) -> HTMLResponse:
+        """Something shared to Groovehound from Android's share sheet (the manifest's
+        `share_target`). "<song> by <artist>", as Now Playing shares it, gives the song search
+        filled in; anything else, the quick capture form filled in. Nothing is searched or saved
+        until you press the button, so a bad guess can be fixed first."""
+        found = parse_share(title, text, url)
+        if found:
+            return search_page_for(request, store, user, "song", *found, run=False)
+        draft = " ".join(" ".join((title, text, url)).split())[:MAX_CAPTURE]
+        return home_page(request, store, user, draft)
+
+    def search_page_for(
+        request: Request,
+        store: Store,
+        user: User,
+        kind: str,
+        title: str,
+        artist: str,
+        capture: int | None = None,
+        run: bool = True,
+    ) -> HTMLResponse:
+        """The search page; it searches only if `run` (and there's a title)."""
         kind = kind if kind in KINDS else "album"
         title, artist = clean(title), clean(artist)
         contact_problem = _contact_problem(settings)
         hits, error = None, None
-        if title and not contact_problem:
+        if run and title and not contact_problem:
             try:
                 hits = search(
                     store,
@@ -139,6 +177,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "contact_problem": contact_problem,
                 "capture": store.capture(user.id, capture) if capture is not None else None,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
+                "prefilled": not run,
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
             },
