@@ -21,7 +21,7 @@ def test_settings_precedence(tmp_path: Path):
     settings = load_settings(config, env={"GROOVEHOUND_CONTACT": "env@example.com"})
     assert settings.contact == "env@example.com"
     assert settings.listenbrainz_user == "me"
-    assert "t" not in repr(settings).split("listenbrainz_user")[1]
+    assert "listenbrainz_token" not in repr(settings)
 
 
 def test_missing_explicit_config(tmp_path: Path):

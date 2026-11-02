@@ -15,6 +15,17 @@
     {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
     {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
 
+    {% with where = where_to_buy[item.id] %}
+    <details class="edit buy"{% if where.due %} hx-get="/wishlist/{{ item.id }}/links"
+             hx-trigger="toggle once" hx-target="find .mb-links" hx-swap="outerHTML"{% endif %}>
+      <summary>Where to buy</summary>
+      <p class="links"><span class="muted">Search:</span>
+        {% for link in where.searches %}<a href="{{ link.url }}" rel="noreferrer">{{ link.site }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+      </p>
+      {% include "_buy_links.html" %}
+    </details>
+    {% endwith %}
+
     <details class="edit">
       <summary>{% if item.notes or item.heard %}Edit notes{% else %}Add notes{% endif %}</summary>
       <form class="annotate" method="post" action="/wishlist/{{ item.id }}/notes"

@@ -1,0 +1,23 @@
+{# The links MusicBrainz has for a wishlist item (`where`: buy.WhereToBuy). Replaced by
+   GET /wishlist/<id>/links when *Where to buy* is opened and they haven't been fetched (or are due
+   a refresh). #}
+<div class="mb-links">
+  {% if error %}<p class="muted small">{{ error }}</p>{% endif %}
+  {% if where.links is none %}
+    {% if not error %}
+    <p class="muted small">Asking MusicBrainz for store links…
+      <noscript><a href="/wishlist/{{ item.id }}/links?next={{ here | urlencode }}">Ask MusicBrainz for store links</a></noscript>
+    </p>
+    {% endif %}
+  {% elif where.links %}
+    {% for label, links in (("Buy", where.buy), ("Stream", where.stream)) if links %}
+    <p class="links"><span class="muted">{{ label }}:</span>
+      {% for link in links %}<a href="{{ link.url }}" rel="noreferrer">{{ link.site }}</a>{% if link.note %} <span class="muted small">({{ link.note }})</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+    {% endfor %}
+    <p class="muted small">Links from <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}">MusicBrainz</a>.</p>
+  {% else %}
+    <p class="muted small">MusicBrainz has no purchase or streaming links for it yet; you can
+      <a href="{{ musicbrainz_web }}/release-group/{{ item.release_group_mbid }}">add them to a release</a>.</p>
+  {% endif %}
+</div>

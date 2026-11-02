@@ -9,6 +9,7 @@ Environment variables (handy in Docker compose):
     GROOVEHOUND_MUSICBRAINZ_INTERVAL  seconds between MusicBrainz requests; mirrors only
     GROOVEHOUND_LISTENBRAINZ_USER     your ListenBrainz username (for personal recommendations)
     GROOVEHOUND_LISTENBRAINZ_TOKEN    your ListenBrainz user token (optional)
+    GROOVEHOUND_QOBUZ_STORE           Qobuz store for search links, e.g. gb-en, fr-fr
 """
 
 from __future__ import annotations
@@ -39,6 +40,9 @@ class Settings:
     # these move to the users table). The token is optional and never logged.
     listenbrainz_user: str = ""
     listenbrainz_token: str = field(default="", repr=False)
+    # Which Qobuz store the wishlist's search links open: its country-language prefix, as in
+    # qobuz.com/gb-en/ (buy.QOBUZ_STORE checks it).
+    qobuz_store: str = "us-en"
 
 
 def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
@@ -46,6 +50,7 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
     brainz = data.get("brainz", {})
     musicbrainz = data.get("musicbrainz", {})
     listenbrainz = data.get("listenbrainz", {})
+    stores = data.get("stores", {})
     return replace(
         base,
         database_path=Path(database.get("path", base.database_path)),
@@ -58,6 +63,7 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
         ),
         listenbrainz_user=str(listenbrainz.get("user", base.listenbrainz_user)),
         listenbrainz_token=str(listenbrainz.get("token", base.listenbrainz_token)),
+        qobuz_store=str(stores.get("qobuz", base.qobuz_store)),
     )
 
 
@@ -96,6 +102,7 @@ def load_settings(
         "GROOVEHOUND_MUSICBRAINZ_INTERVAL": ("musicbrainz_interval", float),
         "GROOVEHOUND_LISTENBRAINZ_USER": ("listenbrainz_user", str),
         "GROOVEHOUND_LISTENBRAINZ_TOKEN": ("listenbrainz_token", str),
+        "GROOVEHOUND_QOBUZ_STORE": ("qobuz_store", str),
     }
     for var, (attr, convert) in env_map.items():
         if env.get(var):
