@@ -227,9 +227,17 @@ The core loop: hear something → find it → save it → buy it later.
     single new, and turning on live etc. later doesn't either (they were in the baseline).
   - **UI:** once singles are browsed, the artist page lists them (folded, like live and
     compilations); turning them on there reloads the page to show them.
-- 2c **Slow reconciliation.** The background trickle re-browses each followed artist every
+- 2c ✅ **Slow reconciliation.** The background trickle re-browses each followed artist every
   randomized 7–14 days (a few artists per wake-up), catching anything phase 3's feed missed.
   Release groups not seen before become *new* (with the date first seen).
+  - **Requests:** a thread started with the app (only once a contact is set) sleeps a random
+    20–60 min, drawn afresh each time (the first sleep too, so a restart asks nothing at once),
+    then re-browses at most 3 artists whose cached browse is due, longest due first: albums
+    and EPs, then singles for artists followed for them. Up to ~100 browses a day, against a
+    need of one per followed artist every 7–14 days. The same browse, cache and limiter as the
+    artist page, so a page opened in between counts. Nothing due, or MusicBrainz paused after
+    an error, asks nothing; an error stops the batch and starts the pause (`reconcile.py`).
+  - Shown nowhere yet: what's new appears with 2d.
 - 2d **Home page.** New and upcoming releases from followed artists, newest first, with
   *dismiss*, *wishlist*, and *open on MusicBrainz*.
 
