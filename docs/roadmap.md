@@ -332,15 +332,15 @@ The core loop: hear something → find it → save it → buy it later.
     The response is keyed by MBID and not ranked (checked 2026-11-02), so they're listed by
     name, a leading "The" aside. Offered on every artist page, followed or not: it's one
     request on an explicit click, like a search.
-- 4c CF recording recommendations (experimental endpoint), if they turn out useful.
+- 4c CF recording recommendations: moved to 5h, after the library (checked 2026-11-02).
 - Dismissed suggestions stay dismissed (per user).
 
 ### 5. Library awareness
 
 Know what's already in your music library, so Groovehound can say "you have this" instead of
 suggesting it again, and point you at what you own but haven't played. **No MusicBrainz
-requests**; ListenBrainz only for listening stats (5e). 5a and 5b need only phase 1 and could
-move earlier; 5d needs phase 2; 5f works best with phases 2–3.
+requests**; ListenBrainz only for listening stats (5e) and recommendations (5h). 5a and 5b need
+only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
 - 5a **Library scan.** Mount the music folder into the container read-only (e.g.
   `/music:ro`, `library.path` in config) and read the MusicBrainz tags Picard writes (via
@@ -381,12 +381,37 @@ move earlier; 5d needs phase 2; 5f works best with phases 2–3.
   (phases 2–3) by your most-played artists that you haven't played yet. *Shuffle* draws again
   (locally, no requests); *dismiss* stays dismissed. Fixed proportions on purpose: no tunable
   weights or saved mixes.
+  - *Open question:* the CF recommendations (5h) carry `latest_listened_at` for each recording,
+    so they could add "recommended for you, last played months ago" picks. They only cover
+    recommended recordings, though, and 5e's stats may be the better source. Decide when 5f is
+    built, maybe as its own item.
 - 5g **Open in your player.** *Open in Navidrome* on library items, linking to the album in
   Navidrome's web UI. That needs Navidrome's own album id, so it uses 5c's read-only connection
   to list albums with their MBIDs (your own server, no MetaBrainz requests), even when the file
   scan is the library source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
   has no links a web page can open (deep links are an open feature request on its forum, and
   its broadcast-intent API is for other Android apps). Revisit if it adds them.
+- 5h **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
+  recording recommendations (`/1/cf/recommendation/user/<name>/recording`, experimental), as the
+  albums those recordings are on, on the *Discover* page with *Add to wishlist*, *Follow* and
+  *Dismiss*. They don't depend on the generated playlists: checked 2026-11-02, the
+  recommendations came from a model of 2026-10-22 while the last Weekly Exploration was for the
+  week of 2026-09-14.
+  - **Requests:** the recommendations, the best 100 (`count=100`; the user has 1,000), and one
+    metadata request for the unheard ones (`/1/metadata/recording/?inc=release artist`), at most
+    50 recordings at a time: 100 at once got a 502 once, 59 worked. Both cached raw for a
+    randomized 22–26 hours, fetched by 2c's trickle after 4a; skip the metadata when
+    `last_updated` hasn't changed. About two requests a day, none to MusicBrainz. A 204 (no
+    recommendations) is cached like a response; a 502 waits for the next day rather than
+    pausing ListenBrainz.
+  - **What shows:** each entry has `recording_mbid`, `score` and `latest_listened_at`; 41 of the
+    best 100 had been played, so only those with `latest_listened_at` null count. Their albums,
+    ranked by the best score of their songs, each with those songs; left out if the album is in
+    the library (5b), on the wishlist or dismissed. Artists are **not** filtered out, followed
+    or in the library: an older album you haven't heard by an artist you know is worth seeing.
+    In the check, the 59 unheard songs were on 45 albums by 30 artists, all with a release
+    group, and mostly well-known pop (Sabrina Carpenter, Chappell Roan, Dua Lipa, ABBA): watch
+    whether that's useful once the library filter is in.
 
 ### 6. Notifications and polish
 
