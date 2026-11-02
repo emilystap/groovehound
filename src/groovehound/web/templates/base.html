@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Groovehound{% endblock %}</title>
+  {# Root-relative, not url_for(): behind a TLS-terminating proxy the app sees plain http, and
+     absolute http:// asset URLs on an https page are blocked as mixed content. #}
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Groovehound</a>
+    <nav>
+      <a href="/" {% if page == "home" %}aria-current="page"{% endif %}>Home</a>
+    </nav>
+  </header>
+
+  <main id="page">
+    {% block content %}{% endblock %}
+  </main>
+
+  {# MusicBrainz's tags, genres and ratings are CC BY-NC-SA and need credit; the rest of its data
+     and ListenBrainz's are CC0. Credit both on every page. #}
+  <footer class="footer muted">
+    Music data from <a href="{{ musicbrainz_web }}">MusicBrainz</a>
+    and <a href="{{ listenbrainz_web }}">ListenBrainz</a>, by the
+    <a href="https://metabrainz.org">MetaBrainz Foundation</a>
+    · cover art from the <a href="https://coverartarchive.org">Cover Art Archive</a>
+    · v{{ version }}
+  </footer>
+</body>
+</html>

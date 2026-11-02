@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+{% if contact_problem %}
+<section class="card notice">
+  <h2>Not connected to MusicBrainz yet</h2>
+  <p>{{ contact_problem }}</p>
+  <p class="muted small">MusicBrainz and ListenBrainz ask every client to say how its operator
+    can be reached. It's only sent to them, in the User-Agent.</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>New releases</h2>
+  <p class="muted">Follow artists to see their new releases here.</p>
+</section>
+
+<section class="card">
+  <h2>Wishlist</h2>
+  <p class="muted">Nothing on your wishlist yet.</p>
+</section>
+{% endblock %}

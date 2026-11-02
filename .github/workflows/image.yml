@@ -1,0 +1,95 @@
+name: Image
+
+# Builds and smoke-tests the container on every push and pull request. Publishes to GHCR from
+# main (tags: latest, sha-<short>) and from version tags v1.2.3 (tags: 1.2.3, 1.2, sha-<short>).
+# Docs-only changes skip the build, so merging them publishes no new image.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # A job skipped by its `if` still reports its check (as skipped, which counts as passing), so
+  # the required `build` check never blocks a docs-only merge. Version tags always build.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          IS_TAG: ${{ github.ref_type == 'tag' }}
+        run: |
+          if [ "$IS_TAG" = true ]; then code=true; else code=$(bash .github/scripts/code-changed.sh "$BASE"); fi
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: groovehound:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The container runs without network access, so the smoke test can't reach MusicBrainz or
+      # ListenBrainz even by mistake.
+      - name: Smoke test (serves /healthz and the home page, as its non-root user)
+        run: |
+          docker run -d --name gh --network none -e GROOVEHOUND_CONTACT=ci@example.com \
+            groovehound:test
+          for i in $(seq 1 30); do
+            if docker exec gh python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read().decode())"; then break; fi
+            sleep 1
+          done
+          docker exec gh python -c "import urllib.request; page = urllib.request.urlopen('http://127.0.0.1:8080/', timeout=5).read().decode(); assert 'New releases' in page, page" \
+            || { docker logs gh; exit 1; }
+          docker exec gh test -f /data/groovehound.db || { docker logs gh; exit 1; }
+          docker logs gh
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
