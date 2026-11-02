@@ -7,8 +7,9 @@ specific to ListenBrainz:
   only when configured, and never logged (it's kept out of `repr`);
 - recommendations and generated playlists change daily or weekly, so callers fetch them at most
   once a day (roadmap 3 and 4);
-- never page through a user's whole history with `/listens` (the docs ask clients not to); this
-  client deliberately has no such call;
+- `/listens` is for recent listens and bounded, incremental queries: the docs recommend it for
+  "roughly ten pages or fewer" and the export API beyond, so `history.py` stops at
+  `history.MAX_PAGES` and tops up with `min_ts`, and never pages through a longer history;
 - `labs.api.listenbrainz.org` has no published limits or stability promise, so it isn't used.
 """
 
@@ -25,6 +26,7 @@ WEB_ROOT = "https://listenbrainz.org"
 MAX_FRESH_DAYS = 90  # the API's maximum window
 MAX_RECORDINGS = 100  # recordings per metadata request (a generated playlist has 50), URL length
 MAX_STATS = 1000  # entries per stats request, the API's maximum (MAX_ITEMS_PER_GET)
+MAX_LISTENS = 1000  # listens per request, the same maximum
 
 # Shared by every client in the process.
 LIMITER = RateLimiter()
@@ -108,6 +110,18 @@ class ListenBrainzClient(JsonClient):
         return self.get_json(
             f"/1/stats/user/{_user(user)}/release-groups",
             {"range": "all_time", "count": MAX_STATS, "offset": offset or None},
+        )
+
+    def user_listens(
+        self, user: str, *, min_ts: int | None = None, max_ts: int | None = None
+    ) -> dict:
+        """Up to `MAX_LISTENS` of the user's listens, newest first (roadmap 5f): the newest
+        before `max_ts`, or the oldest after `min_ts` (not both). Public, no token needed."""
+        if min_ts is not None and max_ts is not None:
+            raise ValueError("min_ts and max_ts can't be combined")
+        return self.get_json(
+            f"/1/user/{_user(user)}/listens",
+            {"count": MAX_LISTENS, "min_ts": min_ts, "max_ts": max_ts},
         )
 
     def recording_metadata(self, mbids: list[str]) -> dict:

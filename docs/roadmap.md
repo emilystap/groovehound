@@ -369,8 +369,11 @@ The core loop: hear something → find it → save it → buy it later.
   - **Pasted track lists** (later, optional): a box for "Artist - Title" lines copied from
     anywhere, each matched by ListenBrainz's own matcher (`/1/metadata/lookup/`, the one it uses
     for listens) rather than a MusicBrainz search per line. Unmatched lines are listed, not
-    guessed. **Check first:** whether the lookup takes a batch, and its limits; a line per request
-    is fine for a dozen songs, not for a hundred.
+    guessed. **Needs the user's token:** the docs (checked 2026-11-02) say the lookup "now
+    requires an auth token" (abuse by AI scrapers), GET and POST alike, so without one the box
+    isn't offered; the rest of 4d needs none. **Check first:** the POST form takes a list of
+    recordings, up to `MAX_MAPPING_QUERY_LENGTH` (the docs don't give its value), so find the
+    limit; a line per request is fine for a dozen songs, not for a hundred.
   - **Wishlist items stay albums.** Each song picked adds the release group it's on (the one the
     metadata names; a song is often on several, and 1g picks the edition), with the songs wanted
     kept on the item ("for: *Song A*, *Song B*") and the playlist as its source. Several songs on
@@ -451,15 +454,30 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   dismissed. Fixed proportions on purpose: no tunable weights or saved mixes.
   - **Listen history, not just stats:** 5e's all-time counts have no dates, so they can't tell
     "played two years ago" from "played yesterday". 5f keeps your listens
-    (`/1/user/<name>/listens`, public, no token): raw pages in `api_cache`, and a per-user table
-    of recording → last played and play count, with the release group from each listen's
-    `mbid_mapping`. Listens ListenBrainz couldn't link have no MBIDs and don't count, as in 5e.
-    The history is an input to Rediscover only: no stats page (see "Decided against").
-  - **Requests:** up to 1,000 listens per request (`count=1000`), paged back with `max_ts`: the
-    first fill is listens ÷ 1,000 requests (3 for 2.2k listens, checked 2026-11-02), spread over
-    the trickle's wake-ups if it ever needs more than a few. After that, one a day with `min_ts`
-    from 2c's trickle. Listens imported late or deleted change history before `min_ts`, so the
-    whole history is fetched again every randomized 30–60 days. None to MusicBrainz.
+    (`/1/user/<name>/listens`, public, no token) in a per-user `listens` table: when, the
+    recording, and the album (release group), one row per listen, keyed by ListenBrainz's own
+    listen identity (`listened_at` and `recording_msid`), so a listen fetched twice counts once
+    (`history.py`). The album is the one the scrobbler sent (`additional_info`; Navidrome sends
+    your tags' ids, so it's the album you played, as in the library), else ListenBrainz's match
+    (`mbid_mapping`). Listens with neither are counted, not matched, as in 5e. The latest
+    response is kept in `api_cache` (it schedules the next request); the history is an input to
+    Rediscover only: no stats page (see "Decided against").
+  - **Requests:** up to 1,000 listens per request (`count=1000`). The first fill pages back with
+    `max_ts`, at most 3 requests per trickle wake-up and **10 in all**: ListenBrainz's docs
+    recommend the listens endpoint for "roughly ten pages or fewer" and their export for more,
+    and say not to page through a whole history otherwise. Past 10,000 listens only the newest
+    are kept; albums played before them still count as played through 5e's stats. (Checked
+    2026-11-02: 2.3k listens since June, about 16 a day, so 10 pages is about 20 months.) After
+    that, one a day with `min_ts` from 2c's trickle, a week before the newest listen kept, so
+    listens a player submits late (offline) are caught. With `min_ts` the API returns the
+    listens just after it (checked 2026-11-02), so a full page is followed by the next one. No
+    periodic re-fill: listens deleted or backdated on ListenBrainz may stay out of step.
+    None to MusicBrainz.
+  - **Later, if a history outgrows 10 pages:** fill from ListenBrainz's export instead
+    (`/1/export/`: needs the user's token; queue, poll, download a zip). Checked 2026-11-02 on a
+    real export: its `mbid_mapping` has no `release_group_mbid` (the API's does), so the album
+    would come from `additional_info` only (87% of listens for a Navidrome user), and
+    `listened_at` is a float.
   - **Tracks** (after 5k's scan, its own PR): songs you played before but not lately, on albums
     in the library, matched by recording, so a song owned on a compilation counts too. Each
     links to its album (5g is per album).

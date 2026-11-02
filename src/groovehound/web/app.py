@@ -28,6 +28,7 @@ from .. import (
     buy,
     covers,
     follows,
+    history,
     library,
     listens,
     new_releases,
@@ -725,6 +726,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "listenbrainz_user": lb_user,
                 "stats": listens.stats(store, lb_user),
                 "unplayed_artists": listens.unplayed_by_artist(store, user.id, lb_user),
+                "history": history.status(store, user.id, lb_user),
                 "here": "/library",
             },
         )

@@ -206,6 +206,31 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (user_id, release_group_mbid)
     );
     """,
+    # 12: the user's listen history from ListenBrainz (roadmap 5f): one row per listen, keyed by
+    # ListenBrainz's own identity for a listen (listened_at, recording_msid), so one fetched
+    # twice counts once. recording_mbid / release_group_mbid: NULL when not linked.
+    # listen_history: whose listens they are (a changed username starts again) and how far the
+    # first fill has got: `pages` fetched, `before` the max_ts of the next page (NULL: start
+    # from the newest), filled_at NULL until the fill is done.
+    """
+    CREATE TABLE listens (
+        user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        listened_at         INTEGER NOT NULL,
+        recording_msid      TEXT NOT NULL,
+        recording_mbid      TEXT,
+        release_group_mbid  TEXT,
+        PRIMARY KEY (user_id, listened_at, recording_msid)
+    );
+    CREATE INDEX listens_release_group ON listens(user_id, release_group_mbid);
+    CREATE TABLE listen_history (
+        user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        user_name   TEXT NOT NULL,
+        pages       INTEGER NOT NULL DEFAULT 0,
+        before      INTEGER,
+        started_at  TEXT NOT NULL,
+        filled_at   TEXT
+    );
+    """,
 ]
 
 
@@ -341,6 +366,37 @@ class LibrarySummary:
     files: int = 0
     untagged: int = 0  # files without an album id
     unreadable: int = 0
+
+
+@dataclass(frozen=True)
+class Listen:
+    listened_at: int  # UNIX seconds
+    recording_msid: str  # ListenBrainz's id for what was submitted, always there
+    recording_mbid: str | None = None
+    release_group_mbid: str | None = None
+
+
+@dataclass(frozen=True)
+class ListenHistory:
+    user_name: str  # whose listens are kept (as the cache key: stripped, lower case)
+    pages: int  # pages the first fill has fetched
+    before: int | None  # max_ts of the fill's next page (None: from the newest)
+    started_at: str
+    filled_at: str | None  # None while the first fill runs
+
+
+@dataclass(frozen=True)
+class ListenSummary:
+    listens: int = 0
+    with_album: int = 0  # listens with a release group
+    oldest: int | None = None  # UNIX seconds
+    newest: int | None = None
+
+
+@dataclass(frozen=True)
+class AlbumPlays:
+    listens: int
+    last_listened_at: int  # UNIX seconds
 
 
 @dataclass(frozen=True)
@@ -900,6 +956,84 @@ class Store:
             )
             found.update((r[0], r[1]) for r in rows)
         return found
+
+    # --- Listen history -------------------------------------------------------------------
+
+    def listen_history(self, user_id: int) -> ListenHistory | None:
+        row = self.conn.execute(
+            "SELECT user_name, pages, before, started_at, filled_at FROM listen_history "
+            "WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return ListenHistory(
+            row["user_name"], row["pages"], row["before"], row["started_at"], row["filled_at"]
+        )
+
+    def start_listen_history(self, user_id: int, user_name: str, now: str) -> None:
+        """Forget this user's listens and start filling them again, for `user_name`."""
+        with self.conn:
+            self.conn.execute("DELETE FROM listens WHERE user_id = ?", (user_id,))
+            self.conn.execute(
+                "INSERT INTO listen_history (user_id, user_name, started_at) VALUES (?, ?, ?) "
+                "ON CONFLICT (user_id) DO UPDATE SET user_name = excluded.user_name, pages = 0, "
+                "before = NULL, started_at = excluded.started_at, filled_at = NULL",
+                (user_id, user_name, now),
+            )
+
+    def listen_fill_progress(
+        self, user_id: int, pages: int, before: int | None, filled_at: str | None = None
+    ) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE listen_history SET pages = ?, before = ?, filled_at = ? WHERE user_id = ?",
+                (pages, before, filled_at, user_id),
+            )
+
+    def save_listens(self, user_id: int, listens: Iterable[Listen]) -> int:
+        """Add these listens, skipping those already kept; how many were new."""
+        before = self.conn.total_changes
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR IGNORE INTO listens (user_id, listened_at, recording_msid, "
+                "recording_mbid, release_group_mbid) VALUES (?, ?, ?, ?, ?)",
+                (
+                    (
+                        user_id,
+                        listen.listened_at,
+                        listen.recording_msid,
+                        listen.recording_mbid,
+                        listen.release_group_mbid,
+                    )
+                    for listen in listens
+                ),
+            )
+        return self.conn.total_changes - before
+
+    def newest_listen(self, user_id: int) -> int | None:
+        """When the newest listen kept was (UNIX seconds), or None if there are none."""
+        row = self.conn.execute(
+            "SELECT MAX(listened_at) FROM listens WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return row[0]
+
+    def listen_summary(self, user_id: int) -> ListenSummary:
+        row = self.conn.execute(
+            "SELECT COUNT(*), COUNT(release_group_mbid), MIN(listened_at), MAX(listened_at) "
+            "FROM listens WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return ListenSummary(row[0], row[1], row[2], row[3])
+
+    def album_plays(self, user_id: int) -> dict[str, AlbumPlays]:
+        """Each release group in this user's listen history: how many listens, and the last."""
+        rows = self.conn.execute(
+            "SELECT release_group_mbid, COUNT(*), MAX(listened_at) FROM listens "
+            "WHERE user_id = ? AND release_group_mbid IS NOT NULL GROUP BY release_group_mbid",
+            (user_id,),
+        )
+        return {r[0]: AlbumPlays(r[1], r[2]) for r in rows}
 
     # --- API cache ------------------------------------------------------------------------
 
