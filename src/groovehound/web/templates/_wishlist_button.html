@@ -1,7 +1,13 @@
 {# A search result's "Add to wishlist" form, or what replaces it once saved. Without JavaScript the
-   form posts normally and comes back to the results (`next`). #}
+   form posts normally and comes back to the results (`next`). Once a quick capture being looked
+   up is filed (`filed`), the banner showing it says so, out of band. #}
 {% if saved %}
 <span class="saved">✓ On your wishlist</span>
+{% if filed %}
+<section class="card looking-up" id="capture-banner" hx-swap-oob="true">
+  <p>Saved, with what you wrote down in its notes. <a href="/wishlist">Go to your wishlist</a></p>
+</section>
+{% endif %}
 {% else %}
 <form class="add" method="post" action="/wishlist" hx-post="/wishlist" hx-swap="outerHTML">
   <input type="hidden" name="release_group" value="{{ hit.mbid }}">
@@ -12,6 +18,7 @@
   <input type="hidden" name="secondary_types" value="{{ hit.secondary_types | join(',') }}">
   <input type="hidden" name="first_release_date" value="{{ hit.first_release_date }}">
   <input type="hidden" name="next" value="{{ here }}">
+  {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
   {% if hit.editions | length > 1 %}
   <select name="release" aria-label="Edition of {{ hit.title }}">
     <option value="">Any edition</option>

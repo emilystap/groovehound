@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from groovehound.brainz import musicbrainz
 from groovehound.config import Settings, load_settings
-from groovehound.db import OWNER_ID, Store
+from groovehound.db import OWNER_ID, Store, local_date
 from groovehound.web import create_app
 
 from .conftest import FakeOpener, settings_for
@@ -234,3 +234,102 @@ def test_home_links_to_the_whole_wishlist(tmp_path: Path, monkeypatch):
     assert "All 1 on your wishlist" not in client.get("/").text
     client.post("/wishlist", data={"release_group": R1, "title": "Other", "artist_credit": "x"})
     assert "All 2 on your wishlist" in client.get("/").text
+
+
+def test_quick_capture_and_remove(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
+    assert "Quick capture" in client.get("/").text and "To look up" not in client.get("/").text
+
+    saved = client.post("/captures", data={"text": "  sax song   at the café ", "next": "/"})
+    assert (saved.status_code, saved.headers["location"]) == (303, "/")
+    card = client.post(
+        "/captures", data={"text": "x" * 600, "next": "/wishlist"}, headers={"HX-Request": "1"}
+    )
+    assert card.text.lstrip().startswith("<section") and "To look up (2)" in card.text
+    assert 'value="/wishlist"' in card.text
+    assert client.post("/captures", data={"text": "   "}).status_code == 400
+
+    with Store(tmp_path / "groovehound.db") as store:
+        long, sax = store.captures(OWNER_ID)
+    assert sax.text == "sax song at the café" and len(long.text) == 500
+    assert "sax song at the café" in client.get("/wishlist").text
+    assert "sax song" not in client.get("/wishlist", params={"show": "bought"}).text
+
+    removed = client.post(f"/captures/{sax.id}/remove", data={"next": "/wishlist"})
+    assert (removed.status_code, removed.headers["location"]) == (303, "/wishlist")
+    assert client.post(f"/captures/{sax.id}/remove").status_code == 404
+    with Store(tmp_path / "groovehound.db") as store:
+        assert store.captures(OWNER_ID) == [long]
+        store.conn.execute("INSERT INTO users (id, name, created_at) VALUES (2, 'other', '')")
+        store.conn.commit()
+        assert store.captures(2) == [] and store.capture(2, long.id) is None
+        assert not store.remove_capture(2, long.id)
+
+
+def test_looking_up_a_capture_files_it_on_the_item(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RECORDINGS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    with Store(tmp_path / "groovehound.db") as store:
+        capture_id = store.add_capture(OWNER_ID, "sax song at the café")
+        other_id = store.add_capture(OWNER_ID, "something else")
+
+    page = client.get("/search", params={"capture": capture_id}).text
+    assert "Looking up what you wrote down" in page and "sax song at the café" in page
+    assert f'name="capture" value="{capture_id}"' in page and opener.requests == []
+
+    params = {"kind": "song", "title": "360", "capture": capture_id}
+    page = client.get("/search", params=params).text
+    assert page.count(f'name="capture" value="{capture_id}"') == 3  # the search and two results
+
+    form = {"release_group": RG, "title": "Brat", "artist_credit": "Charli xcx"}
+    added = client.post(
+        "/wishlist", data={**form, "capture": capture_id}, headers={"HX-Request": "1"}
+    )
+    assert "On your wishlist" in added.text and 'hx-swap-oob="true"' in added.text
+    with Store(tmp_path / "groovehound.db") as store:
+        (item,) = store.wishlist(OWNER_ID)
+        assert item.notes.startswith("sax song at the café (20")
+        assert [c.id for c in store.captures(OWNER_ID)] == [other_id]
+        # a second capture filed on the same item goes on a new line of its notes
+        assert store.file_capture(OWNER_ID, other_id, RG)
+        assert store.wishlist_item(OWNER_ID, item.id).notes.splitlines()[1].startswith("something")
+        assert not store.file_capture(OWNER_ID, other_id, RG)  # already filed
+
+    # once filed, the capture is gone: its id is ignored, and the page just searches
+    again = client.post("/wishlist", data={**form, "capture": capture_id})
+    assert again.status_code == 200
+    assert "Looking up" not in client.get("/search", params={"capture": capture_id}).text
+
+
+def test_a_capture_is_kept_if_the_item_is_not_saved(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        capture_id = store.add_capture(OWNER_ID, "sax song")
+        assert not store.file_capture(OWNER_ID, capture_id, RG)  # not on the wishlist
+        assert store.capture(OWNER_ID, capture_id).text == "sax song"
+
+
+def test_dates_are_shown_in_the_tz_time_zone(tmp_path: Path, monkeypatch):
+    late = "2026-11-02T03:45:29+00:00"  # still the evening of 1 November in New York
+    monkeypatch.setenv("TZ", "America/New_York")
+    assert local_date(late) == "2026-11-01" and local_date(None) == ""
+    monkeypatch.setenv("TZ", "Etc/UTC")
+    assert local_date(late) == "2026-11-02"
+    monkeypatch.setenv("TZ", "EST5EDT,M3.2.0,M11.1.0")  # not an IANA name: the system's zone
+    assert local_date(late) in ("2026-11-01", "2026-11-02")
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    client, item_id = wishlist_app(tmp_path)
+    with Store(tmp_path / "groovehound.db") as store:
+        store.conn.execute("UPDATE wishlist SET added_at = ?", (late,))
+        store.conn.execute(
+            "INSERT INTO captures (user_id, text, captured_at) VALUES (?, 'sax song', ?)",
+            (OWNER_ID, late),
+        )
+        store.conn.commit()
+        (capture,) = store.captures(OWNER_ID)
+    page = client.get("/wishlist").text
+    assert "Added 2026-11-01" in page and "sax song</span>\n      <span" in page
+    assert "2026-11-01</span>" in page and "2026-11-02" not in page
+    with Store(tmp_path / "groovehound.db") as store:
+        assert store.file_capture(OWNER_ID, capture.id, RG)
+        assert store.wishlist_item(OWNER_ID, item_id).notes == "sax song (2026-11-01)"
