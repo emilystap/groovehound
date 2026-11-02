@@ -1,5 +1,5 @@
 {# A release group's cover thumbnail (250 px, loaded lazily); a blank tile when it has none.
-   `cached`: from the server's cover cache (/cover, wishlist items only), which the browser can
-   keep; otherwise straight from the Cover Art Archive (search results, seen once). #}
+   `cached`: from the server's cover cache (/cover: wishlist items and new releases), which the
+   browser can keep; otherwise straight from the Cover Art Archive (search results, seen once). #}
 <span class="cover"><img src="{% if cached %}/cover/{{ mbid }}{% else %}https://coverartarchive.org/release-group/{{ mbid }}/front-250{% endif %}"
   alt="" width="64" height="64" loading="lazy" onerror="this.remove()"></span>
