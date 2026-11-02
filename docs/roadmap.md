@@ -342,17 +342,25 @@ suggesting it again, and point you at what you own but haven't played. **No Musi
 requests**; ListenBrainz only for listening stats (5e) and recommendations (5h). 5a and 5b need
 only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
-- 5a **Library scan.** Mount the music folder into the container read-only (e.g.
-  `/music:ro`, `library.path` in config) and read the MusicBrainz tags Picard writes (via
-  `mutagen`: FLAC/Ogg/Opus Vorbis comments, MP3 `TXXX`/`UFID`, MP4 freeform atoms):
-  *MusicBrainz Release Group Id*, *Album Id* (the release), *Album Artist Id* and *Artist Id*.
-  One row per release in a per-user `library` table (release group, release, album artist
-  MBIDs, folder, file count, last seen), plus a per-file mtime/size index so rescans only
-  re-read changed files. Files without MBID tags are counted and listed, not guessed at by name.
-  Scans run on demand (*Rescan* button, `groovehound scan`) and on the same randomized trickle
-  as other background work; it's local disk, but a big library still shouldn't be re-read all
-  at once. A release with an album id but no release group id is matched against wishlist
-  editions only; resolving it would cost a lookup per release, so it's left alone.
+- 5a ✅ **Library scan.** Mount the music folder into the container read-only (e.g.
+  `/music:ro`, `library.path` in config or `GROOVEHOUND_LIBRARY`) and read the MusicBrainz tags
+  Picard writes (via `mutagen`: FLAC/Ogg/Opus Vorbis comments, ID3 `TXXX` in MP3/AIFF/WAV, MP4
+  freeform atoms, APEv2, ASF, which all name them alike): *MusicBrainz Release Group Id*,
+  *Album Id* (the release), *Album Artist Id* (else *Artist Id*), plus the album title and album
+  artist name. One row per release in a per-user `library` table (release group, release,
+  album artist MBIDs, title, artist, folder, file count, first found, last seen), rebuilt after
+  each scan from a per-file index (`library_files`: mtime, size and tags), so rescans only
+  re-read changed files (`library.py`).
+  - **Files without an album id** are counted and listed by folder on a *Library* page, not
+    guessed at by name; unreadable files are listed with why. A release with an album id but no
+    release group id is listed too and will match wishlist editions only; resolving it would
+    cost a lookup per release, so it's left alone.
+  - **When:** on demand (*Rescan* on the Library page, a full scan in the background, the page
+    showing progress; `groovehound scan`) and on a trickle of its own (it runs without a
+    contact, unlike 2c's): a random 1-3 hours asleep, then a walk of the folder (a `stat` per
+    file) reading at most 2,000 changed files. A missing folder, or one with no audio files
+    where the index had some (an unmounted share), stops the scan and changes nothing. Hidden
+    files and folders are skipped; symlinked folders aren't followed.
 - 5b **"In your library".** Search results, wishlist items and new releases get a badge when
   their release group is in the library; owned ones sort after (or hide from) new-release lists. A
   wishlist item that appears in the library is offered as *bought* ("found in your library on

@@ -3,7 +3,8 @@
 Each request opens its own Store. Routes that act for a user get it from `current_user`, the
 only place that decides who that is: today always the owner (`db.OWNER_ID`); with accounts,
 the logged-in user from the session. While the app runs, `reconcile.Reconciler` re-browses
-followed artists in the background (roadmap 2c).
+followed artists in the background (roadmap 2c), and `library.LibraryScanner` scans the music
+folder, if there is one (roadmap 5a).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from .. import (
     buy,
     covers,
     follows,
+    library,
     new_releases,
     personal,
     playlists,
@@ -37,7 +39,7 @@ from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
-from ..db import OWNER_ID, Store, User, WishlistItem, local_date, utcnow
+from ..db import OWNER_ID, Store, User, WishlistItem, local_date, local_time, utcnow
 from ..reconcile import Reconciler
 from ..search import KINDS, clean, search
 from ..share import parse_share
@@ -82,21 +84,25 @@ def create_app(settings: Settings) -> FastAPI:
 
     # The slow re-browse of followed artists (roadmap 2c), only once MusicBrainz can be asked
     reconciler = None if _contact_problem(settings) else Reconciler(settings)
+    # The library scan (roadmap 5a): no requests, so it runs with or without a contact
+    scanner = library.LibraryScanner(settings) if settings.library_path else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if reconciler:
-            reconciler.start()
+        workers = [w for w in (reconciler, scanner) if w]
+        for worker in workers:
+            worker.start()
         try:
             yield
         finally:
-            if reconciler:
-                reconciler.shutdown()
+            for worker in workers:
+                worker.shutdown()
 
     app = FastAPI(
         title="Groovehound", version=__version__, docs_url=None, redoc_url=None, lifespan=lifespan
     )
     app.state.settings = settings
+    app.state.scanner = scanner
     with Store(settings.database_path):
         pass  # run migrations at startup, not on the first request
 
@@ -108,6 +114,7 @@ def create_app(settings: Settings) -> FastAPI:
         listenbrainz_web=listenbrainz.WEB_ROOT,
     )
     templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
+    templates.env.filters["local_time"] = local_time
     templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
     templates.env.globals.update(  # a follow's release group types (_follow_types.html)
         primary_types=follows.PRIMARY_TYPES,
@@ -672,6 +679,51 @@ def create_app(settings: Settings) -> FastAPI:
             {"mbid": mbid, "follow": follow, "error": error, "saved": not error, "here": here},
             headers=headers,
         )
+
+    @app.get("/library", response_class=HTMLResponse)
+    def library_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """What the library scan found (no requests to anyone)."""
+        untagged = store.library_files(user.id, tagged=False)
+        return templates.TemplateResponse(
+            request,
+            "library.html",
+            {
+                "page": "library",
+                **library_status(store, user),
+                "untagged": library.untagged_folders(untagged),
+                "unreadable": [f for f in untagged if f.problem],
+                "no_release_group": [r for r in store.library(user.id) if not r.release_group_mbid],
+                "here": "/library",
+            },
+        )
+
+    @app.get("/library/status", response_class=HTMLResponse)
+    def library_status_part(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """The Library page's status, which polls itself while a scan runs."""
+        return templates.TemplateResponse(
+            request, "_library_status.html", library_status(store, user)
+        )
+
+    @app.post("/library/scan")
+    async def rescan_library(request: Request, store: StoreDep, user: UserDep) -> Response:
+        """Scan the whole library folder now, in the background."""
+        if scanner is None or user.id != OWNER_ID:
+            raise HTTPException(404, "no library folder configured")
+        scanner.request()
+        if request.headers.get("HX-Request"):
+            return library_status_part(request, store, user)
+        return RedirectResponse("/library", status_code=303)
+
+    def library_status(store: Store, user: User) -> dict[str, object]:
+        """The library folder (the owner's, from config, until per-user settings exist), its
+        latest scan and what's in it."""
+        owner = user.id == OWNER_ID
+        return {
+            "library_path": settings.library_path if owner else None,
+            "scanning": bool(owner and scanner and scanner.scanning),
+            "scan": store.library_scan(user.id),
+            "summary": store.library_summary(user.id),
+        }
 
     @app.post("/captures")
     async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:

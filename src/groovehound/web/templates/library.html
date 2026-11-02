@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Library · Groovehound{% endblock %}
+{% block content %}
+{% include "_library_status.html" %}
+
+{% if untagged %}
+<section class="card">
+  <h2>Without MusicBrainz tags <span class="muted">({{ untagged | length }} folder{{ "" if untagged | length == 1 else "s" }})</span></h2>
+  <p class="muted small">Files with no <em>MusicBrainz Album Id</em> aren't matched by name: tag
+    them with <a href="https://picard.musicbrainz.org" rel="noopener" target="_blank">Picard</a>
+    and they're picked up on the next scan.</p>
+  <ul class="plain">
+    {% for folder, count in untagged %}
+    <li><code>{{ folder }}</code> <span class="muted small">{{ count }} file{{ "" if count == 1 else "s" }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if no_release_group %}
+<section class="card">
+  <h2>Without a release group <span class="muted">({{ no_release_group | length }})</span></h2>
+  <p class="muted small">These have an album id but no <em>MusicBrainz Release Group Id</em>, so
+    they only match wishlist items for that edition. Picard adds it when you save them again.</p>
+  <ul class="plain">
+    {% for release in no_release_group %}
+    <li>{{ release.artist or "?" }} – {{ release.title or "?" }} <code class="muted small">{{ release.folder }}</code></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if unreadable %}
+<section class="card">
+  <h2>Unreadable <span class="muted">({{ unreadable | length }})</span></h2>
+  <ul class="plain">
+    {% for file in unreadable %}
+    <li><code>{{ file.path }}</code> <span class="muted small">{{ file.problem }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

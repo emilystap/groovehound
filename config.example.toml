@@ -20,6 +20,11 @@ contact = "you@example.com"
 # user = "your-listenbrainz-name"
 # token = "..."  # https://listenbrainz.org/settings/ (optional; keep this file private)
 
+[library]
+# Your music folder, to know what you already have (from the MusicBrainz tags Picard writes).
+# Only ever read. In Docker, mount it read-only and give the path inside the container.
+# path = "/music"
+
 [stores]
 # The Qobuz store the wishlist's "Where to buy" search links open: the country-language part of
 # its address, as in https://www.qobuz.com/gb-en/ (us-en, gb-en, fr-fr, de-de, ...).

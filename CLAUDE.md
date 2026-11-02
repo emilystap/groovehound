@@ -52,7 +52,8 @@ reconciliation: the background re-browse, `reconcile.py`) and 2d (the home page'
 releases, `new_releases.py`) done; phase 3a (ListenBrainz's sitewide fresh releases, `fresh.py`)
 and 3b (personal fresh releases, `personal.py`) done; phase 4a ("Created for you" playlists on
 the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the artist page,
-`similar.py`) done. Next: phase 5 (library awareness; the CF recommendations, once 4c, are now 5h, after it). Links to other sites open in a new tab
+`similar.py`) done; phase 5a (the library scan, `library.py`) done. Next: 5b ("In your library"
+badges; the CF recommendations, once 4c, are now 5h). Links to other sites open in a new tab
 (`target="_blank"`).
 
 ## Commands

@@ -10,6 +10,7 @@ Environment variables (handy in Docker compose):
     GROOVEHOUND_LISTENBRAINZ_USER     your ListenBrainz username (for personal recommendations)
     GROOVEHOUND_LISTENBRAINZ_TOKEN    your ListenBrainz user token (optional)
     GROOVEHOUND_QOBUZ_STORE           Qobuz store for search links, e.g. gb-en, fr-fr
+    GROOVEHOUND_LIBRARY               your music folder (read-only), to know what you have
 """
 
 from __future__ import annotations
@@ -43,6 +44,9 @@ class Settings:
     # Which Qobuz store the wishlist's search links open: its country-language prefix, as in
     # qobuz.com/gb-en/ (buy.QOBUZ_STORE checks it).
     qobuz_store: str = "us-en"
+    # Your music folder, read (never written) for the MusicBrainz tags Picard writes, to know
+    # what you already have (library.py); None = no library. In Docker, mount it read-only.
+    library_path: Path | None = None
 
 
 def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
@@ -51,6 +55,7 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
     musicbrainz = data.get("musicbrainz", {})
     listenbrainz = data.get("listenbrainz", {})
     stores = data.get("stores", {})
+    library = data.get("library", {})
     return replace(
         base,
         database_path=Path(database.get("path", base.database_path)),
@@ -64,6 +69,7 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
         listenbrainz_user=str(listenbrainz.get("user", base.listenbrainz_user)),
         listenbrainz_token=str(listenbrainz.get("token", base.listenbrainz_token)),
         qobuz_store=str(stores.get("qobuz", base.qobuz_store)),
+        library_path=Path(library["path"]) if library.get("path") else base.library_path,
     )
 
 
@@ -103,6 +109,7 @@ def load_settings(
         "GROOVEHOUND_LISTENBRAINZ_USER": ("listenbrainz_user", str),
         "GROOVEHOUND_LISTENBRAINZ_TOKEN": ("listenbrainz_token", str),
         "GROOVEHOUND_QOBUZ_STORE": ("qobuz_store", str),
+        "GROOVEHOUND_LIBRARY": ("library_path", Path),
     }
     for var, (attr, convert) in env_map.items():
         if env.get(var):

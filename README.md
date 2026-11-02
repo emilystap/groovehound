@@ -6,6 +6,8 @@ A self-hosted companion for people who keep their own music library:
   find it later with links to buy it (Bandcamp, Qobuz, ...).
 - **Follow artists**: new releases from the artists you follow, on the home page.
 - **Discover**: artist and release suggestions from ListenBrainz.
+- **Library**: knows what's already in your music folder, from the MusicBrainz tags Picard
+  writes (read-only; it never changes a file).
 
 Status: early scaffolding. See [docs/roadmap.md](docs/roadmap.md) for the plan.
 
@@ -27,6 +29,12 @@ uv run groovehound serve                    # http://127.0.0.1:8080
 ```
 
 Or with Docker: see `compose.yaml`.
+
+To tell Groovehound what you already have, point `[library] path` (or `GROOVEHOUND_LIBRARY`) at
+your music folder, mounted read-only in Docker. It reads the *MusicBrainz Album Id* and
+*Release Group Id* tags Picard writes; untagged files are listed on the Library page, not
+guessed at. Scans run on their own every few hours, or now with *Rescan* or
+`uv run groovehound scan`.
 
 ### On your phone
 
