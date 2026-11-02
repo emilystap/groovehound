@@ -2,7 +2,8 @@
 
 Self-hosted wishlist, new-release tracker and recommender built on MusicBrainz and
 ListenBrainz. Python backend, one Docker container. Read `README.md` and `docs/roadmap.md`
-(the plan, and the **Ground rules** for both APIs) before changing behaviour. Personal setup
+(the plan, the **Non-goals**, and the **Ground rules** for both APIs) before changing behaviour;
+check new feature ideas against the Non-goals and "Decided against". Personal setup
 details, if present, are in the git-ignored `CLAUDE.local.md`.
 
 ## Firm rule: respect the MetaBrainz APIs
