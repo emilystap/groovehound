@@ -51,11 +51,15 @@ PAUSE_AFTER_ERROR = 3600.0  # a failed run stops new runs for this long (or as a
 
 class ServiceError(Exception):
     """A request failed in a way worth stopping for (rate limited, network, server error).
-    `retry_after`: seconds the service asked us to wait, if it said."""
+    `retry_after`: seconds the service asked us to wait, if it said; `status`: the HTTP status,
+    if it answered with an error."""
 
-    def __init__(self, message: str, *, retry_after: float | None = None) -> None:
+    def __init__(
+        self, message: str, *, retry_after: float | None = None, status: int | None = None
+    ) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        self.status = status
 
 
 class NotFound(Exception):
@@ -260,6 +264,7 @@ class JsonClient:
                     f"{self.service} answered {exc.code} for {path}"
                     + (f" (retry after {wait:.0f}s)" if wait else ""),
                     retry_after=wait,
+                    status=exc.code,
                 ) from exc
             except (urllib.error.URLError, OSError) as exc:
                 reason = getattr(exc, "reason", exc)

@@ -34,6 +34,7 @@ from .. import (
     new_releases,
     personal,
     playlists,
+    recommended,
     rediscover,
     releases,
     similar,
@@ -168,10 +169,13 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/discover", response_class=HTMLResponse)
     def discover(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
-        """The playlists ListenBrainz created for you, as albums (no requests)."""
+        """Albums ListenBrainz recommends, and the playlists it created for you, as albums (no
+        requests)."""
         lb_user = _listenbrainz_user(user)
         found = playlists.playlists(store, user.id, lb_user)
+        recommendations = recommended.recommended(store, user.id, lb_user)
         hits = [h for p in found for h in p.releases]
+        hits += recommendations.albums if recommendations else ()
         return templates.TemplateResponse(
             request,
             "discover.html",
@@ -180,6 +184,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "user": user,
                 "listenbrainz_user": lb_user,
                 "playlists": found,
+                "recommended": recommendations,
                 "followed": store.followed(user.id, (a for h in hits for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
                 **owned_context(store, user, (h.mbid for h in hits)),
@@ -255,9 +260,9 @@ def create_app(settings: Settings) -> FastAPI:
         """A cover thumbnail from the cover cache (made from your library's files if they have
         art, else one request to the Cover Art Archive the first time, or when due for a
         refresh). Only for release groups on your wishlist, by artists you follow, in your
-        ListenBrainz fresh releases (the home page), in the playlists it created for you
-        (Discover) or in your library, so this isn't a way to make the server fetch anything
-        else."""
+        ListenBrainz fresh releases (the home page), in the playlists it created for you or its
+        recommendations (Discover) or in your library, so this isn't a way to make the server
+        fetch anything else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
             store.wishlisted(user.id, [mbid])
@@ -265,6 +270,7 @@ def create_app(settings: Settings) -> FastAPI:
             or store.in_library(user.id, [mbid])
             or personal.listed(store, _listenbrainz_user(user), mbid)
             or playlists.listed(store, _listenbrainz_user(user), mbid)
+            or recommended.listed(store, _listenbrainz_user(user), mbid)
         ):
             raise HTTPException(404, "not on your wishlist, home page, Discover or in your library")
         client = None if _contact_problem(settings) else coverart.client_for(settings)

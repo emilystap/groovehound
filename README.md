@@ -5,7 +5,8 @@ A self-hosted companion for people who keep their own music library:
 - **Wishlist**: heard something great out in the wild? Look it up on MusicBrainz, save it, and
   find it later with links to buy it (Bandcamp, Qobuz, ...).
 - **Follow artists**: new releases from the artists you follow, on the home page.
-- **Discover**: artist and release suggestions from ListenBrainz.
+- **Discover**: artist and release suggestions from ListenBrainz: albums it recommends that
+  you haven't played or don't have, and the albums on the playlists it makes for you.
 - **Library**: knows what's already in your music folder, from the MusicBrainz tags Picard
   writes (read-only; it never changes a file), so albums you have are marked *In your library*
   and a wishlist item you've since got is offered as bought. Their covers come from your files

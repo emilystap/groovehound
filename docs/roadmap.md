@@ -511,23 +511,28 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
   has no links a web page can open (deep links are an open feature request on its forum, and
   its broadcast-intent API is for other Android apps). Revisit if it adds them.
-- 5h **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
+- 5h ✅ **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
   recording recommendations (`/1/cf/recommendation/user/<name>/recording`, experimental), as the
   albums those recordings are on, on the *Discover* page with *Add to wishlist*, *Follow* and
-  *Dismiss*. They don't depend on the generated playlists: checked 2026-11-02, the
-  recommendations came from a model of 2026-10-22 while the last Weekly Exploration was for the
-  week of 2026-09-14.
+  *Dismiss* (`recommended.py`). They don't depend on the generated playlists: checked
+  2026-11-02, the recommendations came from a model of 2026-10-22 while the last Weekly
+  Exploration was for the week of 2026-09-14. They come first on the page, open.
   - **Requests:** the recommendations, the best 100 (`count=100`; the user has 1,000), and one
     metadata request for the unheard ones (`/1/metadata/recording/?inc=release artist`), at most
     50 recordings at a time: 100 at once got a 502 once, 59 worked. Both cached raw for a
-    randomized 22–26 hours, fetched by 2c's trickle after 4a; skip the metadata when
-    `last_updated` hasn't changed. About two requests a day, none to MusicBrainz. A 204 (no
+    randomized 22–26 hours, fetched by 2c's trickle after the rest of ListenBrainz's (and on
+    their own: their errors don't hold the others up). The metadata asks `inc=artist release`
+    (the artists' MBIDs, for *Follow*), only for recordings not fetched for the same
+    `last_updated`, so none while it hasn't changed; recordings it doesn't know are remembered as
+    such, not asked about again. About two requests a day, none to MusicBrainz. A 204 (no
     recommendations) is cached like a response; a 502 waits for the next day rather than
-    pausing ListenBrainz.
+    pausing ListenBrainz, keeping what's cached (and, for the metadata, what the batches before
+    it found).
   - **What shows:** each entry has `recording_mbid`, `score` and `latest_listened_at`; 41 of the
     best 100 had been played, so only those with `latest_listened_at` null count. Their albums,
     ranked by the best score of their songs, each with those songs; left out if the album is in
-    the library (5b), on the wishlist or dismissed. Artists are **not** filtered out, followed
+    the library (5b), played (5e/5f: songs of it you did play), on the wishlist or dismissed
+    (shared with the home page); the best 20 are shown. Artists are **not** filtered out, followed
     or in the library: an older album you haven't heard by an artist you know is worth seeing.
     In the check, the 59 unheard songs were on 45 albums by 30 artists, all with a release
     group, and mostly well-known pop (Sabrina Carpenter, Chappell Roan, Dua Lipa, ABBA): watch

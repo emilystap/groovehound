@@ -4,10 +4,29 @@
 <section class="card">
   <h2>Discover</h2>
   <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> in
-    <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see the albums on
-    the playlists ListenBrainz makes for you here.</p>
+    <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see the albums
+    ListenBrainz recommends and those on the playlists it makes for you here.</p>
 </section>
 {% else %}
+{% if recommended %}
+<section class="card">
+  <details class="playlist" open>
+    <summary><h2>Recommended for you</h2></summary>
+    {% if recommended.albums %}
+    <p class="muted small">Albums with songs ListenBrainz recommends that you haven't played, best first.</p>
+    <ul class="hits">
+      {% for hit in recommended.albums %}{% with row_prefix = "recommended" %}{% include "_discover_release.html" %}{% endwith %}{% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Nothing to show yet.</p>
+    {% endif %}
+    <p class="muted small more">
+      {%- if recommended.left_out %}{{ recommended.left_out }} more album{% if recommended.left_out != 1 %}s{% endif %} left out: in your library, played, on your wishlist or dismissed.{% endif %}
+      {% if recommended.unmatched %}{{ recommended.unmatched }} song{% if recommended.unmatched != 1 %}s{% endif %} not matched to an album.{% endif %}
+      From ListenBrainz's recommendations (experimental){% if recommended.last_updated %}, made {{ recommended.last_updated | local_date }}{% endif %}.</p>
+  </details>
+</section>
+{% endif %}
 {% for playlist in playlists %}
 <section class="card">
   {# the first playlist (Weekly Exploration, when there is one) open, the rest folded #}
@@ -15,7 +34,7 @@
     <summary><h2>{{ playlist.title }}</h2></summary>
     {% if playlist.releases %}
     <ul class="hits">
-      {% for hit in playlist.releases %}{% include "_playlist_release.html" %}{% endfor %}
+      {% for hit in playlist.releases %}{% with row_prefix = "playlist-" ~ playlist.mbid[:8] %}{% include "_discover_release.html" %}{% endwith %}{% endfor %}
     </ul>
     {% else %}
     <p class="muted">Nothing left to show.</p>
@@ -26,11 +45,13 @@
   </details>
 </section>
 {% else %}
+{% if not recommended %}
 <section class="card">
   <h2>Discover</h2>
-  <p class="muted">Nothing yet. The playlists ListenBrainz creates for you (Weekly Exploration
-    and the like) show up here within a day or so of being made.</p>
+  <p class="muted">Nothing yet. The albums ListenBrainz recommends, and the playlists it creates
+    for you (Weekly Exploration and the like), show up here within a day or so.</p>
 </section>
+{% endif %}
 {% endfor %}
 {% if playlists %}
 <p class="muted small">From the playlists
