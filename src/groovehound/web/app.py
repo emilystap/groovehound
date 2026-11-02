@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers, follows, new_releases, personal, releases
+from .. import __version__, buy, covers, follows, new_releases, personal, playlists, releases
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
@@ -142,6 +142,26 @@ def create_app(settings: Settings) -> FastAPI:
             },
         )
 
+    @app.get("/discover", response_class=HTMLResponse)
+    def discover(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """The playlists ListenBrainz created for you, as albums (no requests)."""
+        lb_user = _listenbrainz_user(user)
+        found = playlists.playlists(store, user.id, lb_user)
+        hits = [h for p in found for h in p.releases]
+        return templates.TemplateResponse(
+            request,
+            "discover.html",
+            {
+                "page": "discover",
+                "user": user,
+                "listenbrainz_user": lb_user,
+                "playlists": found,
+                "followed": store.followed(user.id, (a for h in hits for a in h.artist_mbids)),
+                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                "here": "/discover",
+            },
+        )
+
     def _listenbrainz_user(user: User) -> str:
         """The user's ListenBrainz username: from config, for the owner only, until per-user
         settings are editable (roadmap "Users")."""
@@ -165,15 +185,17 @@ def create_app(settings: Settings) -> FastAPI:
     def cover(mbid: str, store: StoreDep, user: UserDep) -> Response:
         """A cover thumbnail from the cover cache (one request to the Cover Art Archive the first
         time, or when due for a refresh). Only for release groups on your wishlist, by artists
-        you follow, or in your ListenBrainz fresh releases (the home page), so this isn't a way
-        to make the server fetch anything else."""
+        you follow, in your ListenBrainz fresh releases (the home page) or in the playlists it
+        created for you (Discover), so this isn't a way to make the server fetch anything
+        else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
             store.wishlisted(user.id, [mbid])
             or store.followed_release_group(user.id, mbid)
             or personal.listed(store, _listenbrainz_user(user), mbid)
+            or playlists.listed(store, _listenbrainz_user(user), mbid)
         ):
-            raise HTTPException(404, "not on your wishlist or on your home page")
+            raise HTTPException(404, "not on your wishlist, home page or Discover")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
         try:
             found = covers.cover(store, client, coverart.PAUSE, mbid)

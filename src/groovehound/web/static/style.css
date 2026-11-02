@@ -161,6 +161,8 @@ button.chip.on { background: transparent; color: var(--muted); border-color: var
 .follow-types form > button { margin-right: 8px; }
 .more-groups { margin-top: 12px; }
 .more-groups summary { color: var(--accent); cursor: pointer; width: fit-content; }
+.playlist > summary { cursor: pointer; }
+.playlist > summary h2 { display: inline; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
@@ -179,6 +181,8 @@ button.chip.on { background: transparent; color: var(--muted); border-color: var
 /* Phones: bigger touch targets, and the cover doesn't take room from the text. */
 @media (max-width: 480px) {
   main { padding: 8px; }
+  .topbar { flex-wrap: wrap; row-gap: 8px; }  /* the links go under the name when they don't fit */
+  .topbar nav { flex-wrap: wrap; gap: 6px 14px; }
   .card { padding: 12px; }
   .cover { width: 48px; height: 48px; }
   button, a.button, .wish .edit summary { min-height: 40px; }

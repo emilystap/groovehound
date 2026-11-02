@@ -16,7 +16,7 @@ The same wake-ups fetch ListenBrainz's fresh releases (`fresh.py`, roadmap 3a) w
 about once a day: since the worker wakes at random, the fetch drifts around the clock. Its
 errors pause ListenBrainz only, and don't stop the MusicBrainz batch. With a ListenBrainz
 username configured, they fetch that user's own fresh releases the same way (`personal.py`,
-roadmap 3b).
+roadmap 3b), and the playlists ListenBrainz created for them (`playlists.py`, roadmap 4a).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from . import follows, fresh, personal
+from . import follows, fresh, personal, playlists
 from .brainz import listenbrainz, musicbrainz
 from .brainz.http import ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
@@ -132,9 +132,9 @@ class Reconciler:
         try:
             new = fresh.fetch(store, client, listenbrainz.PAUSE)
             # the configured user's own, for user 1 (per-user settings aren't editable yet)
-            listed = personal.fetch(
-                store, client, listenbrainz.PAUSE, self.settings.listenbrainz_user
-            )
+            user_name = self.settings.listenbrainz_user
+            listed = personal.fetch(store, client, listenbrainz.PAUSE, user_name)
+            asked = playlists.fetch(store, client, listenbrainz.PAUSE, user_name)
         except ServiceError as exc:
             log.info("ListenBrainz fresh releases not fetched: %s", exc)
             return
@@ -142,6 +142,8 @@ class Reconciler:
             log.info("Fetched ListenBrainz fresh releases, %d new release group(s)", new)
         if listed is not None:
             log.info("Fetched your ListenBrainz fresh releases, %d release(s)", listed)
+        if asked is not None:
+            log.info("Fetched your ListenBrainz playlists (%d request(s))", asked)
 
     def _loop(self) -> None:
         while not self._stop.wait(random.uniform(*self.interval)):

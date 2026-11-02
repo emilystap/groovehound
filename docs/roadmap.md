@@ -299,9 +299,25 @@ The core loop: hear something → find it → save it → buy it later.
 
 ### 4. Discovery
 
-- 4a "Created for you" playlists (Weekly Exploration etc., via
-  `/1/user/<name>/playlists/createdfor` then the playlist): their recordings grouped by release,
-  with *Wishlist* and *Follow artist*. Daily at most.
+- 4a ✅ "Created for you" playlists: the ones ListenBrainz generates for the configured user
+  (Weekly Exploration, Weekly Jams, Daily Jams) on a *Discover* page, as the albums their
+  recordings are on, with *Add to wishlist*, *Follow* for each artist, and *Dismiss* (shared
+  with the home page's) (`playlists.py`).
+  - **Requests:** the list (`/1/user/<name>/playlists/createdfor`) is cached raw for a
+    randomized 22–26 hours and fetched by 2c's trickle, after 3b's feed. Shown: the newest of
+    each recurring kind that hasn't expired. Each is fetched once (`/1/playlist/<mbid>`): a
+    generated playlist doesn't change, and the next one has a new MBID. Its tracks name the
+    album only (and a release for its cover), so one more request
+    (`/1/metadata/recording/?recording_mbids=…&inc=release`, the whole playlist at once) gives
+    each recording's release group, which is what the wishlist saves. Both are cached until the
+    playlist expires, then dropped. About three requests a day, none to MusicBrainz. Yearly
+    playlists (Top Discoveries of 2025 etc.) have no expiry and aren't regenerated: left out.
+    Errors and 404s as in 3b. (Response shapes checked 2026-11-02.)
+  - **What shows:** per playlist, its albums in playlist order (one row per release group, not
+    per release: that's what the wishlist keeps), each with the playlist's songs on it and the
+    artists of those songs. The metadata has no type or release group date, so neither is
+    shown. Weekly Exploration (new to you) comes first and open; the others are folded.
+    Recordings without a known release group, and dismissed albums, are counted, not shown.
 - 4b Similar artists for an artist you follow, via LB Radio's artist endpoint
   (`/1/lb-radio/artist/<mbid>`), only on request, cached for weeks.
 - 4c CF recording recommendations (experimental endpoint), if they turn out useful.

@@ -89,10 +89,12 @@ def fetch_into_cache(
     *,
     now: datetime,
     rng: random.Random | None = None,
+    refresh_after: str = "",
 ) -> dict | None:
     """Make one ListenBrainz request (`call`) unless paused, and cache its response for a
-    randomized `TTL`. A 404 is cached as None (nothing for this key; no pause). Raises
-    ServiceError if ListenBrainz failed (starting the pause) or is paused."""
+    randomized `TTL` (or until `refresh_after`, if given). A 404 is cached as None (nothing for
+    this key; no pause). Raises ServiceError if ListenBrainz failed (starting the pause) or is
+    paused."""
     waiting = pause.remaining()
     if waiting:
         raise ServiceError(
@@ -105,8 +107,9 @@ def fetch_into_cache(
     except ServiceError as exc:
         pause.start(exc.retry_after)
         raise
-    low, high = TTL
-    refresh_after = _iso(now + low + (high - low) * (rng or random).random())
+    if not refresh_after:
+        low, high = TTL
+        refresh_after = _iso(now + low + (high - low) * (rng or random).random())
     store.save_cached(SERVICE, kind, key, data, refresh_after, fetched_at=_iso(now))
     return data
 
