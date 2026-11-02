@@ -77,10 +77,11 @@ UserDep = Annotated[User, Depends(current_user)]
 
 def create_app(settings: Settings) -> FastAPI:
     """Build the app. Raises ValueError for invalid MusicBrainz settings (a bad api_root, or an
-    interval below the limit for musicbrainz.org)."""
+    interval below the limit for musicbrainz.org), a bad Qobuz store or follow types."""
     if settings.contact:
         musicbrainz.client_for(settings)  # validates contact, api_root and interval at startup
     buy.check_qobuz_store(settings.qobuz_store)
+    new_follow_types = follows.clean_types(list(settings.follow_types))
 
     # The slow re-browse of followed artists (roadmap 2c), only once MusicBrainz can be asked
     reconciler = None if _contact_problem(settings) else Reconciler(settings)
@@ -581,16 +582,22 @@ def create_app(settings: Settings) -> FastAPI:
     async def follow_artist(
         request: Request, mbid: str, store: StoreDep, user: UserDep
     ) -> Response:
-        """Follow an artist: the first time, one browse of their albums and EPs (unless cached),
-        so what's already out isn't reported as new. HTMX gets every *Follow* button for them
-        on the page updated; a plain form post goes back to `next`."""
+        """Follow an artist for the configured types: the first time, one browse of their albums
+        and EPs (unless cached), and one of their singles if those are followed by default, so
+        what's already out isn't reported as new. HTMX gets every *Follow* button for them on
+        the page updated; a plain form post goes back to `next`."""
         mbid = _artist_mbid(mbid)
         form = await _form(request)
         error = _contact_problem(settings)
         if not error:
             try:
                 follows.follow(
-                    store, musicbrainz.client_for(settings), musicbrainz.PAUSE, user.id, mbid
+                    store,
+                    musicbrainz.client_for(settings),
+                    musicbrainz.PAUSE,
+                    user.id,
+                    mbid,
+                    new_follow_types,
                 )
             except NotFound as exc:
                 raise HTTPException(404, "no such artist on MusicBrainz") from exc

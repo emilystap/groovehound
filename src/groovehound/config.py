@@ -11,6 +11,8 @@ Environment variables (handy in Docker compose):
     GROOVEHOUND_LISTENBRAINZ_TOKEN    your ListenBrainz user token (optional)
     GROOVEHOUND_QOBUZ_STORE           Qobuz store for search links, e.g. gb-en, fr-fr
     GROOVEHOUND_LIBRARY               your music folder (read-only), to know what you have
+    GROOVEHOUND_FOLLOW_TYPES          release group types a new follow is for, comma-separated
+                                      (e.g. album,ep,single)
 """
 
 from __future__ import annotations
@@ -47,6 +49,13 @@ class Settings:
     # Your music folder, read (never written) for the MusicBrainz tags Picard writes, to know
     # what you already have (library.py); None = no library. In Docker, mount it read-only.
     library_path: Path | None = None
+    # The release group types a new follow is for (follows.TYPES; follows.clean_types checks
+    # them at startup). Each follow can be changed afterwards on the artist pages.
+    follow_types: tuple[str, ...] = ("album", "ep")
+
+
+def _types(value: str) -> tuple[str, ...]:
+    return tuple(t.strip().lower() for t in value.split(",") if t.strip())
 
 
 def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
@@ -56,6 +65,7 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
     listenbrainz = data.get("listenbrainz", {})
     stores = data.get("stores", {})
     library = data.get("library", {})
+    follows = data.get("follows", {})
     return replace(
         base,
         database_path=Path(database.get("path", base.database_path)),
@@ -70,6 +80,11 @@ def _from_toml(data: Mapping[str, Any], base: Settings) -> Settings:
         listenbrainz_token=str(listenbrainz.get("token", base.listenbrainz_token)),
         qobuz_store=str(stores.get("qobuz", base.qobuz_store)),
         library_path=Path(library["path"]) if library.get("path") else base.library_path,
+        follow_types=(
+            tuple(str(t).strip().lower() for t in follows["types"])
+            if "types" in follows
+            else base.follow_types
+        ),
     )
 
 
@@ -110,6 +125,7 @@ def load_settings(
         "GROOVEHOUND_LISTENBRAINZ_TOKEN": ("listenbrainz_token", str),
         "GROOVEHOUND_QOBUZ_STORE": ("qobuz_store", str),
         "GROOVEHOUND_LIBRARY": ("library_path", Path),
+        "GROOVEHOUND_FOLLOW_TYPES": ("follow_types", _types),
     }
     for var, (attr, convert) in env_map.items():
         if env.get(var):

@@ -219,7 +219,9 @@ The core loop: hear something → find it → save it → buy it later.
     rarer secondary types, and any MusicBrainz adds later). A release group counts if its
     primary type is chosen and so is each of its secondary types. Set under *For Albums, EPs*
     on the artist page and on `/artists` (`follows.types`, migration 7). Unfollowing and
-    following again starts over from the default.
+    following again starts over from the default, which is `[follows] types` in the config
+    (or `GROOVEHOUND_FOLLOW_TYPES`; albums and EPs if unset). A default with singles browses
+    them when following, before the follow is saved, so a failed browse follows no one.
   - **Requests:** secondary types cost nothing: the album and EP browse returns them anyway.
     Singles get a browse of their own (`type=single`, cached as `artist-singles` like the
     other), made when someone turns singles on (unless cached) and kept fresh by the artist
@@ -340,7 +342,8 @@ The core loop: hear something → find it → save it → buy it later.
 
 Know what's already in your music library, so Groovehound can say "you have this" instead of
 suggesting it again, and point you at what you own but haven't played. **No MusicBrainz
-requests**; ListenBrainz only for listening stats (5e) and recommendations (5h). 5a and 5b need
+requests** (except the artist page browses 5j's links open, as today); ListenBrainz only for
+listening stats (5e) and recommendations (5h). 5a and 5b need
 only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases 2–3.
 
 - 5a ✅ **Library scan.** Mount the music folder into the container read-only (e.g.
@@ -432,6 +435,36 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   (Pillow) and cached in `covers` with where it came from, so a rescan that sees the folder or
   file change can drop it; `/cover/<mbid>` also allows release groups in the library. Fewer
   requests, and covers for releases the archive doesn't have.
+- 5j **Library artists** (needs 5a/5b): every album artist in the library, followed or not, so
+  any of them can be opened to see what you're missing. *Artists* gets two tabs: *Following*
+  (today's `/artists`) and *In your library* (`/artists/library`), built from the `library`
+  table's album artist MBIDs, sorted by sort name, each with how many of their release groups
+  you have, a *Follow* button and a link to their artist page. Files with no album artist id
+  aren't listed (they're already on the Library page).
+  - **Missing releases:** the artist page already lists every album and EP with *In your
+    library* badges (5b); for an artist in the library it adds a *Missing only* toggle (local,
+    no requests) and a count, "You have 7 of 12".
+  - **Which types count:** for a followed artist, the follow's own types; for one you don't
+    follow, the default for new follows (`[follows] types`, `GROOVEHOUND_FOLLOW_TYPES`). Only
+    release groups of those types count as missing (`follows.wanted`), so with the default a
+    compilation you don't have isn't "missing". What you have always shows, whatever its type:
+    an owned compilation or single is listed and counted in "7 of 12" even when its type isn't
+    followed. If the types include singles and they haven't been browsed, opening the page
+    browses them too (one more request, on that page view only, cached like a follow's).
+  - **Owned but not in the browse:** a release group in the library under this album artist
+    that the browse didn't return (promotional or bootleg only, a Broadcast or Other primary
+    type, past the 300 cap, or credited to the artist differently) is listed anyway, under
+    "Also in your library", from the `library` table's title (no lookup), linking to
+    MusicBrainz. Compilations filed under Various Artists aren't the artist's, so they show
+    under neither.
+  - **Requests:** the list itself makes none. Opening an artist page is the browse it costs
+    today (one, cached 7-14 days and shared with following), plus the singles browse above if
+    the types include singles. Nothing browses library artists in
+    the background: a library can have hundreds, and the trickle (2c) is for follows. So the
+    list's "missing" counts appear only for artists whose browse is cached ("not checked yet"
+    otherwise), never fetched to fill the column.
+  - **With 5d:** the suggested follows (library artists with N+ release groups you don't
+    follow) can be a section at the top of this tab rather than a page of their own.
 
 ### 6. Notifications and polish
 

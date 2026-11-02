@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from groovehound import follows
 from groovehound.brainz.http import ServiceError, ServicePause
+from groovehound.config import load_settings
 from groovehound.db import OWNER_ID, Follow, Store
 from groovehound.search import Hit
 from groovehound.web import create_app
@@ -116,6 +117,32 @@ def test_a_failed_singles_browse_leaves_the_follow_alone(tmp_path: Path):
     assert follow.types == ("album", "ep") and follow.singles_since is None
 
 
+def test_following_with_singles_by_default_browses_them_as_already_out(tmp_path: Path):
+    opener = FakeOpener(BROWSE, SINGLES)
+    types = ("album", "ep", "single")
+    with store_at(tmp_path) as store:
+        client, pause = mb_client(opener), ServicePause()
+        follow = follows.follow(store, client, pause, OWNER_ID, ARTIST, types, now=NOW)
+        assert params(opener.requests[1])["type"] == ["single"]
+        assert follow.types == types and follow.singles_since == NOW.isoformat()
+        first_seen = store.release_groups_seen(ARTIST)[SINGLE]
+        assert not follows.is_new(follow, hit("Single"), first_seen)
+        # already following: its types are kept, nothing asked
+        again = follows.follow(store, client, pause, OWNER_ID, ARTIST, ("album",), now=NOW)
+        assert again.types == types
+    assert len(opener.requests) == 2
+
+
+def test_a_failed_singles_browse_follows_no_one(tmp_path: Path):
+    opener = FakeOpener(BROWSE, 500, 500, 500)
+    with store_at(tmp_path) as store:
+        with pytest.raises(ServiceError):
+            follows.follow(
+                store, mb_client(opener), ServicePause(), OWNER_ID, ARTIST, ("album", "single")
+            )
+        assert store.follow_of(OWNER_ID, ARTIST) is None
+
+
 def test_set_types_for_someone_not_followed(tmp_path: Path):
     opener = FakeOpener()
     with store_at(tmp_path) as store:
@@ -170,6 +197,31 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
     )
     assert "HX-Refresh" not in again.headers
     assert "For Albums, Singles + Live" in again.text
+
+
+def test_follow_types_from_the_config(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, BROWSE, SINGLES)
+    settings = settings_for(tmp_path, follow_types=("album", "ep", "single"))
+    client = TestClient(create_app(settings))
+    followed = client.post(
+        f"/artists/{ARTIST}/follow", data={"next": "/artists"}, headers={"HX-Request": "true"}
+    )
+    assert "For Albums, EPs, Singles" in followed.text
+    assert len(opener.requests) == 2
+    with pytest.raises(ValueError, match="at least one"):
+        create_app(settings_for(tmp_path, follow_types=("live",)))
+    with pytest.raises(ValueError, match="unknown"):
+        create_app(settings_for(tmp_path, follow_types=("album", "singles")))
+
+
+def test_follow_types_in_toml_and_env(tmp_path: Path):
+    config = tmp_path / "config.toml"
+    config.write_text('[follows]\ntypes = ["Album", "single"]\n', encoding="utf-8")
+    assert load_settings(config, env={}).follow_types == ("album", "single")
+    env = {"GROOVEHOUND_FOLLOW_TYPES": "album, ep ,single"}
+    assert load_settings(config, env=env).follow_types == ("album", "ep", "single")
+    config.write_text("", encoding="utf-8")
+    assert load_settings(config, env={}).follow_types == ("album", "ep")
 
 
 def test_types_without_javascript_and_when_not_following(tmp_path: Path, monkeypatch):
