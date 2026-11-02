@@ -39,6 +39,21 @@
   {% endif %}
 </section>
 
+{% if listenbrainz_user %}
+<section class="card">
+  <h2>You might care about</h2>
+  {% if suggested %}
+  <ul class="hits">
+    {% for hit in suggested %}{% include "_suggestion.html" %}{% endfor %}
+  </ul>
+  {% endif %}
+  <p class="muted small{% if suggested %} more{% endif %}">{% if not suggested %}Nothing yet. {% endif %}New and upcoming
+    releases by artists you listen to but don't follow, from
+    <a href="{{ listenbrainz_web }}/user/{{ listenbrainz_user | urlencode }}/" rel="noopener" target="_blank">your ListenBrainz</a>
+    fresh releases, checked every day.</p>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Wishlist{% if wishlist_count %} <span class="muted">({{ wishlist_count }})</span>{% endif %}</h2>
   {% if wishlist %}

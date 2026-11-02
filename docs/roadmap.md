@@ -279,9 +279,23 @@ The core loop: hear something → find it → save it → buy it later.
     date, all types): a reissue in the feed of an album from 2024 isn't new. The feed only
     fills the gap until the next browse. Its responses (checked 2026-11-02) carry no secondary
     type, so a live album found this way shows as an album until the browse catches up.
-- 3b With a ListenBrainz username configured: the personal fresh-releases feed
+- 3b ✅ With a ListenBrainz username configured: the personal fresh-releases feed
   (`/1/user/<name>/fresh_releases`) as a "you might care about" section (artists you listen to
-  but don't follow), with *Follow*.
+  but don't follow), with *Follow* (`personal.py`).
+  - **Requests:** one, `days=14` (past and future), cached raw for a randomized 22–26 hours and
+    fetched by the same wake-up as 3a's feed, right after it. No username asks nothing. A 404
+    (no such user, or no data yet) is cached like a response, so it's asked again only the next
+    day; any other error pauses ListenBrainz. The username comes from config and applies to
+    user 1 until per-user settings are editable.
+  - **What shows:** each release group once, dated by its earliest release in the feed, if
+    none of its credited artists is followed (followed ones are 2d's and 3a's) and it isn't
+    dismissed. Various Artists only: not shown. Ranked by the feed's `confidence` (how much you
+    listen to the artists), then newest; the best 10.
+  - **UI:** a home page section under *New releases*, each with *Follow* for every credited
+    artist, *Add to wishlist* and *Dismiss* (shared with 2d's). The feed has only the credit
+    for names, so several artists' names are read by splitting it at " & ", ", ", " feat. "
+    etc., when that gives one name per artist; otherwise they show as "artist 2". Covers go
+    through the cover cache (`/cover` allows release groups in the cached feed).
 
 ### 4. Discovery
 

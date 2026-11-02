@@ -22,12 +22,12 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, buy, covers, follows, new_releases, releases
+from .. import __version__, buy, covers, follows, new_releases, personal, releases
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
-from ..db import OWNER_ID, Store, User, WishlistItem, local_date
+from ..db import OWNER_ID, Store, User, WishlistItem, local_date, utcnow
 from ..reconcile import Reconciler
 from ..search import KINDS, clean, search
 from ..share import parse_share
@@ -117,7 +117,9 @@ def create_app(settings: Settings) -> FastAPI:
     def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
         """The home page (no requests); with `draft`, the quick capture form is filled in."""
         feed = new_releases.feed(store, user.id)
-        hits = [r.hit for r in (*feed.upcoming, *feed.new)]
+        lb_user = _listenbrainz_user(user)
+        suggested = personal.suggestions(store, user.id, lb_user)
+        hits = [r.hit for r in (*feed.upcoming, *feed.new)] + suggested
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -130,11 +132,20 @@ def create_app(settings: Settings) -> FastAPI:
                 "captures": store.captures(user.id),
                 "follow_count": len(store.follows(user.id)),
                 "feed": feed,
+                "listenbrainz_user": lb_user,
+                "suggested": suggested,
+                "today": local_date(utcnow()),  # upcoming suggestions say "out <date>"
+                "followed": store.followed(user.id, (a for h in suggested for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
                 "draft": draft,
                 "here": "/",
             },
         )
+
+    def _listenbrainz_user(user: User) -> str:
+        """The user's ListenBrainz username: from config, for the owner only, until per-user
+        settings are editable (roadmap "Users")."""
+        return settings.listenbrainz_user.strip() if user.id == OWNER_ID else ""
 
     @app.post("/new/{mbid}/dismiss")
     async def dismiss_new_release(
@@ -153,14 +164,16 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/cover/{mbid}")
     def cover(mbid: str, store: StoreDep, user: UserDep) -> Response:
         """A cover thumbnail from the cover cache (one request to the Cover Art Archive the first
-        time, or when due for a refresh). Only for release groups on your wishlist or by artists
-        you follow (the home page's new releases), so this isn't a way to make the server fetch
-        anything else."""
+        time, or when due for a refresh). Only for release groups on your wishlist, by artists
+        you follow, or in your ListenBrainz fresh releases (the home page), so this isn't a way
+        to make the server fetch anything else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
-            store.wishlisted(user.id, [mbid]) or store.followed_release_group(user.id, mbid)
+            store.wishlisted(user.id, [mbid])
+            or store.followed_release_group(user.id, mbid)
+            or personal.listed(store, _listenbrainz_user(user), mbid)
         ):
-            raise HTTPException(404, "not on your wishlist or by an artist you follow")
+            raise HTTPException(404, "not on your wishlist or on your home page")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
         try:
             found = covers.cover(store, client, coverart.PAUSE, mbid)
