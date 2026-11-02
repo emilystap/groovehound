@@ -24,6 +24,7 @@ API_ROOT = "https://api.listenbrainz.org"
 WEB_ROOT = "https://listenbrainz.org"
 MAX_FRESH_DAYS = 90  # the API's maximum window
 MAX_RECORDINGS = 100  # recordings per metadata request (a generated playlist has 50), URL length
+MAX_STATS = 1000  # entries per stats request, the API's maximum (MAX_ITEMS_PER_GET)
 
 # Shared by every client in the process.
 LIMITER = RateLimiter()
@@ -98,6 +99,15 @@ class ListenBrainzClient(JsonClient):
                 "pop_begin": 0,
                 "pop_end": 100,
             },
+        )
+
+    def user_release_group_stats(self, user: str, *, offset: int = 0) -> dict:
+        """The user's all-time listen counts per release group, most played first, a page of
+        `MAX_STATS` from `offset` (roadmap 5e). Public, no token needed. An empty dict (a 204)
+        means the stats haven't been calculated yet."""
+        return self.get_json(
+            f"/1/stats/user/{_user(user)}/release-groups",
+            {"range": "all_time", "count": MAX_STATS, "offset": offset or None},
         )
 
     def recording_metadata(self, mbids: list[str]) -> dict:

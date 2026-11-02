@@ -3,6 +3,45 @@
 {% block content %}
 {% include "_library_status.html" %}
 
+{% if summary.release_groups %}
+<section class="card">
+  <h2>Never played</h2>
+  {% if not listenbrainz_user %}
+  <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> or
+    <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see which albums you've never played.</p>
+  {% elif not stats %}
+  <p class="muted">Your ListenBrainz stats haven't been fetched yet (or ListenBrainz hasn't
+    calculated them): they're fetched in the background about once a day.</p>
+  {% else %}
+  {% set never = unplayed_artists | sum(attribute="unplayed") %}
+  <p>{{ never }} of your {{ summary.release_groups }} album{{ "" if summary.release_groups == 1 else "s" }}
+    never played{% if unplayed_artists %}, by {{ unplayed_artists | length }} artist{{ "" if unplayed_artists | length == 1 else "s" }}{% endif %}.</p>
+  <p class="muted small">From your all-time
+    <a href="https://listenbrainz.org/user/{{ listenbrainz_user | urlencode }}/stats/?range=all_time" rel="noopener" target="_blank">ListenBrainz stats</a>{% if stats.last_updated %}
+    as of {{ stats.last_updated | local_time }}{% endif %}, matched by MusicBrainz id: listens
+    ListenBrainz couldn't link to MusicBrainz{% if stats.unlinked %} ({{ stats.unlinked }}
+    album{{ "" if stats.unlinked == 1 else "s" }} in your stats){% endif %}, or linked to the
+    song on another album (a compilation, a single), don't count, so a few of these may be
+    albums you have played.</p>
+  {% if unplayed_artists %}
+  <ul class="plain unplayed-artists">
+    {% for artist in unplayed_artists %}
+    <li>
+      <details>
+        <summary>{% if artist.mbid %}<a href="/artists/{{ artist.mbid }}">{{ artist.name or "?" }}</a>{% else %}{{ artist.name or "?" }}{% endif %}
+          <span class="muted small">{{ artist.unplayed }} of {{ artist.owned }} never played</span></summary>
+        <ul class="small">
+          {% for title in artist.never_played %}<li>{{ title or "?" }}</li>{% endfor %}
+        </ul>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
 {% if untagged %}
 <section class="card">
   <h2>Without MusicBrainz tags <span class="muted">({{ untagged | length }} folder{{ "" if untagged | length == 1 else "s" }})</span></h2>

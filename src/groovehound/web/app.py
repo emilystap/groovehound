@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -29,6 +29,7 @@ from .. import (
     covers,
     follows,
     library,
+    listens,
     new_releases,
     personal,
     playlists,
@@ -156,7 +157,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "today": local_date(utcnow()),  # upcoming suggestions say "out <date>"
                 "followed": store.followed(user.id, (a for h in suggested for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                "owned": store.in_library(user.id, (h.mbid for h in hits)),
+                **owned_context(store, user, (h.mbid for h in hits)),
                 "found": library.found(store, user.id, wishlist),
                 "draft": draft,
                 "here": "/",
@@ -179,10 +180,19 @@ def create_app(settings: Settings) -> FastAPI:
                 "playlists": found,
                 "followed": store.followed(user.id, (a for h in hits for a in h.artist_mbids)),
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                "owned": store.in_library(user.id, (h.mbid for h in hits)),
+                **owned_context(store, user, (h.mbid for h in hits)),
                 "here": "/discover",
             },
         )
+
+    def owned_context(store: Store, user: User, mbids: Iterable[str]) -> dict[str, object]:
+        """Which of these release groups are in the library (5b), and which of those were never
+        played (5e), for `_owned.html`."""
+        owned = store.in_library(user.id, mbids)
+        return {
+            "owned": owned,
+            "unplayed": listens.never_played(store, user.id, _listenbrainz_user(user), owned),
+        }
 
     def _listenbrainz_user(user: User) -> str:
         """The user's ListenBrainz username: from config, for the owner only, until per-user
@@ -315,7 +325,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "contact_problem": contact_problem,
                 "capture": store.capture(user.id, capture) if capture is not None else None,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
-                "owned": store.in_library(user.id, (h.mbid for h in hits or ())),
+                **owned_context(store, user, (h.mbid for h in hits or ())),
                 "followed": store.followed(
                     user.id, (a for h in hits or () for a in h.artist_mbids)
                 ),
@@ -523,7 +533,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "error": error,
                 "contact_problem": contact_problem,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                "owned": store.in_library(user.id, (h.mbid for h in hits)),
+                **owned_context(store, user, (h.mbid for h in hits)),
                 **similar_context(store, user, mbid),
                 "here": f"/artists/{mbid}",
             },
@@ -700,8 +710,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/library", response_class=HTMLResponse)
     def library_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
-        """What the library scan found (no requests to anyone)."""
+        """What the library scan found, and what of it was never played (no requests)."""
         untagged = store.library_files(user.id, tagged=False)
+        lb_user = _listenbrainz_user(user)
         return templates.TemplateResponse(
             request,
             "library.html",
@@ -711,6 +722,9 @@ def create_app(settings: Settings) -> FastAPI:
                 "untagged": library.untagged_folders(untagged),
                 "unreadable": [f for f in untagged if f.problem],
                 "no_release_group": [r for r in store.library(user.id) if not r.release_group_mbid],
+                "listenbrainz_user": lb_user,
+                "stats": listens.stats(store, lb_user),
+                "unplayed_artists": listens.unplayed_by_artist(store, user.id, lb_user),
                 "here": "/library",
             },
         )

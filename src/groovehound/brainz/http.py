@@ -198,8 +198,11 @@ class JsonClient:
 
     def get_json(self, path: str, params: Mapping[str, object] | None = None) -> dict:
         """GET `api_root + path` with query `params` (None values dropped). Raises NotFound
-        for a 404, ServiceError when the caller should stop."""
+        for a 404, ServiceError when the caller should stop. An empty reply (a 204: nothing
+        yet) is an empty dict."""
         body, _ = self._request(path, params, "application/json")
+        if not body.strip():
+            return {}
         try:
             return json.loads(body)
         except ValueError as exc:
