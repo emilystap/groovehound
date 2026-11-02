@@ -34,6 +34,7 @@ from .. import (
     new_releases,
     personal,
     playlists,
+    rediscover,
     releases,
     similar,
 )
@@ -185,6 +186,41 @@ def create_app(settings: Settings) -> FastAPI:
                 "here": "/discover",
             },
         )
+
+    @app.get("/rediscover", response_class=HTMLResponse)
+    def rediscover_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """Albums to put on next, drawn again on every load (no requests)."""
+        lb_user = _listenbrainz_user(user)
+        drawn = rediscover.draw(store, user.id, lb_user)
+        picks = drawn.picks if drawn else ()
+        return templates.TemplateResponse(
+            request,
+            "rediscover.html",
+            {
+                "page": "rediscover",
+                "user": user,
+                "listenbrainz_user": lb_user,
+                "draw": drawn,
+                "library_count": store.library_summary(user.id).release_groups,
+                "saved_ids": store.wishlisted(user.id, (p.mbid for p in picks)),
+                **owned_context(store, user, (p.mbid for p in picks)),
+                "here": "/rediscover",
+            },
+        )
+
+    @app.post("/rediscover/{mbid}/dismiss")
+    async def dismiss_rediscover(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Stop drawing a release group for Rediscover. HTMX gets an empty swap, removing it
+        from the page; a plain form post goes back to `next`."""
+        if not is_mbid(mbid):
+            raise HTTPException(404, "not a release group MBID")
+        form = await _form(request)
+        store.dismiss(user.id, rediscover.DISMISSED_KIND, mbid.strip().lower())
+        if request.headers.get("HX-Request"):
+            return HTMLResponse("")
+        return RedirectResponse(_local_path(form.get("next", "/rediscover")), status_code=303)
 
     def owned_context(store: Store, user: User, mbids: Iterable[str]) -> dict[str, object]:
         """Which of these release groups are in the library (5b), and which of those were never

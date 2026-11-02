@@ -177,6 +177,8 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 .more-groups summary { color: var(--accent); cursor: pointer; width: fit-content; }
 .playlist > summary { cursor: pointer; }
 .playlist > summary h2 { display: inline; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-head h2 { margin: 0; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }

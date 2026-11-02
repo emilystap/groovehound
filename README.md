@@ -10,6 +10,8 @@ A self-hosted companion for people who keep their own music library:
   writes (read-only; it never changes a file), so albums you have are marked *In your library*
   and a wishlist item you've since got is offered as bought. Their covers come from your files
   (`cover.jpg` and the like, or the art embedded in them) before the Cover Art Archive.
+- **Rediscover**: with your ListenBrainz listens, albums from your library to put on next:
+  never played, not played lately, and new ones from the artists you play most.
 
 Status: early scaffolding. See [docs/roadmap.md](docs/roadmap.md) for the plan.
 

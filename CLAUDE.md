@@ -53,9 +53,9 @@ releases, `new_releases.py`) done; phase 3a (ListenBrainz's sitewide fresh relea
 and 3b (personal fresh releases, `personal.py`) done; phase 4a ("Created for you" playlists on
 the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the artist page,
 `similar.py`) done; phase 5a (the library scan, `library.py`), 5b ("In your library"
-badges), 5e (unplayed, `listens.py`) and 5i (covers from the library, `covers.py` /
-`library.cover_art`) done. Next: 5f (rediscover), on 5e's listening stats and its listen history
-(`history.py`, done: `/listens`, at most 10 pages, then daily top-ups), the page still to do; the CF recommendations, once 4c, are now 5h. Links to other sites open in a new tab (`target="_blank"`).
+badges), 5e (unplayed, `listens.py`), 5f (rediscover: the listen history, `history.py`, and the
+page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) done.
+The CF recommendations, once 4c, are now 5h. Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 
