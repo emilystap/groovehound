@@ -19,18 +19,20 @@ index had some (a share that isn't mounted), stops the scan without changing any
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import random
 import re
 import threading
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import mutagen
+from mutagen.flac import Picture
 
 from .config import Settings
 from .db import OWNER_ID, LibraryFile, LibraryRelease, Store, WishlistItem
@@ -342,6 +344,114 @@ def untagged_folders(files: Iterable[LibraryFile]) -> list[tuple[str, int]]:
             folder = str(PurePosixPath(f.path).parent)
             counts[folder] = counts.get(folder, 0) + 1
     return sorted(counts.items(), key=lambda c: c[0].casefold())
+
+
+# --- Cover art (roadmap 5i) -------------------------------------------------------------
+
+# Image files beside the music that hold the front cover, best first (matched ignoring case)
+COVER_NAMES = ("cover", "folder", "front", "albumart", "album")
+COVER_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+MAX_ART_BYTES = 30_000_000  # an image file bigger than this isn't read
+FRONT_COVER = 3  # the picture type ID3 APIC and FLAC pictures give the front cover
+
+
+@dataclass(frozen=True)
+class Art:
+    """Cover art found in the library: the image as stored, and the file it came from."""
+
+    image: bytes
+    source: str  # relative to the library folder, "/"-separated
+    mtime_ns: int
+
+
+def cover_art(store: Store, user_id: int, root: Path, release_group_mbid: str) -> Iterator[Art]:
+    """Cover art for a release group in the user's library, best first: an image file in the
+    folder of one of its editions (`cover.jpg`, `folder.jpg`, `front.png` and the like), then
+    the art embedded in their files (the front cover if one is marked). Lazy, so a caller
+    that takes the first one reads no more than it needs. Nothing for a release group that
+    isn't in the library."""
+    editions = [
+        (e.folder, store.library_paths(user_id, e.release_mbid))
+        for e in store.library_editions(user_id, release_group_mbid)
+    ]
+    seen: set[str] = set()
+    for folder, paths in editions:
+        # the edition's folder, then those of its files (a disc's subfolder)
+        for where in dict.fromkeys([folder, *(str(PurePosixPath(p).parent) for p in paths)]):
+            if where not in seen:
+                seen.add(where)
+                yield from _art_files(root, "" if where == "." else where)
+    for _, paths in editions:
+        for path in paths[:2]:  # an album's tracks usually all carry the same art
+            art = _embedded(root, path)
+            if art is not None:
+                yield art
+
+
+def _art_files(root: Path, folder: str) -> Iterator[Art]:
+    try:
+        with os.scandir(root / folder if folder else root) as entries:
+            names = {e.name.lower(): e.name for e in entries if e.is_file()}
+    except OSError:
+        return
+    for stem in COVER_NAMES:
+        for suffix in COVER_SUFFIXES:
+            name = names.get(stem + suffix)
+            if name is None:
+                continue
+            path = f"{folder}/{name}" if folder else name
+            try:
+                stat = (root / path).stat()
+                if stat.st_size > MAX_ART_BYTES:
+                    continue
+                image = (root / path).read_bytes()
+            except OSError:
+                continue
+            if image:
+                yield Art(image, path, stat.st_mtime_ns)
+
+
+def _embedded(root: Path, path: str) -> Art | None:
+    """The art embedded in an audio file, if any: the front cover, else the first picture."""
+    try:
+        mtime_ns = (root / path).stat().st_mtime_ns
+        audio = mutagen.File(root / path)
+    except (OSError, mutagen.MutagenError):
+        return None
+    if audio is None:
+        return None
+    pictures = sorted(_pictures(audio), key=lambda p: not p[0])  # front covers first
+    return Art(pictures[0][1], path, mtime_ns) if pictures else None
+
+
+def _pictures(audio: Any) -> Iterator[tuple[bool, bytes]]:
+    """(is the front cover, image) for each picture in a mutagen file: FLAC pictures, Vorbis
+    METADATA_BLOCK_PICTURE (Ogg, Opus), ID3 APIC (MP3, AIFF, WAV), MP4 covr (unmarked) and
+    APEv2 *Cover Art (Front)*."""
+    for picture in getattr(audio, "pictures", None) or ():
+        yield picture.type == FRONT_COVER, picture.data
+    tags = audio.tags
+    if not tags:
+        return
+    if hasattr(tags, "getall"):  # ID3
+        for frame in tags.getall("APIC"):
+            yield frame.type == FRONT_COVER, frame.data
+        return
+    for key, values in tags.items():
+        key = str(key).lower()
+        if key == "metadata_block_picture":
+            for value in values:
+                try:
+                    picture = Picture(base64.b64decode(value))
+                except (ValueError, mutagen.MutagenError):
+                    continue
+                yield picture.type == FRONT_COVER, picture.data
+        elif key == "covr":
+            for value in values:
+                yield False, bytes(value)
+        elif key == "cover art (front)":
+            # APEv2 binary: the file name, NUL, the image
+            yield True, bytes(getattr(values, "value", b"")).partition(b"\0")[2]
 
 
 # --- The background trickle ----------------------------------------------------------------
