@@ -1,0 +1,14 @@
+# Real shares from Pixel Now Playing's history (Android share sheet text), one per block.
+# For roadmap 1f (share to search). Lines starting with # are comments.
+
+What You Waiting For? by Gwen Stefani
+https://www.google.com/search?q=What+You+Waiting+For?+by+Gwen+Stefani
+
+DARE by Gorillaz
+https://www.google.com/search?q=DARE+by+Gorillaz
+
+In This Bih' by Chris Lorenzo
+https://www.google.com/search?q=In+This+Bih'+by+Chris+Lorenzo
+
+Danger by Unloved
+https://www.google.com/search?q=Danger+by+Unloved

@@ -113,12 +113,20 @@ The core loop: hear something → find it → save it → buy it later.
   over HTTPS (or `localhost`), so it needs the reverse proxy. No offline mode: everything
   lives on the server.
 - 1f **Share to search** (needs 1e): a `share_target` in the manifest, so Groovehound shows up
-  in Android's share sheet. Sharing a song from a song ID app (Pixel's Now Playing history,
-  Shazam, SoundHound) opens the search form pre-filled with a best guess at title and artist,
-  parsed locally from the shared text. You still press *Search*, so it's one request as
-  usual, and you can fix a bad guess first. A share with nothing usable (only a link) lands in
-  quick capture (1d). Parsing comes from real shared text recorded as test fixtures; links
-  are never fetched to work out what they point at.
+  in Android's share sheet, aimed at Pixel's Now Playing (*Share* on a song in its history;
+  the live recognition screen has no share). Its share is two lines, recorded in
+  `tests/fixtures/now_playing_shares.txt`:
+
+      DARE by Gorillaz
+      https://www.google.com/search?q=DARE+by+Gorillaz
+
+  Split the first line at the **last** " by " (a title can contain one: "Stand by Me by
+  Ben E. King"); if the text is missing, read the same words from the link's `q` parameter,
+  locally (links are never fetched). The result opens a *song* search pre-filled with title and
+  artist; you still press *Search*, so it's one request as usual and you can fix a bad guess
+  first. The share names only the main artist, not featured artists, which is fine: the
+  artist field matches part of a credit ("Gwen Stefani" finds "Gwen Stefani feat. Eve").
+  A share that doesn't parse lands in quick capture (1d) as free text.
 
 ### 2. Follow artists
 
