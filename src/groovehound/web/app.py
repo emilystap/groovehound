@@ -611,12 +611,17 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post("/captures")
     async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:
         """Save free text to look up later. HTMX gets the quick capture card back (an empty
-        form and the updated list); a plain form post goes back to `next`."""
+        form and the updated list), or, from the search page (`from=search`), a note that it's
+        saved; a plain form post goes back to `next`."""
         form = await _form(request)
         text = " ".join(form.get("text", "").split())[:MAX_CAPTURE]
         if not text:
             raise HTTPException(400, "nothing to save")
         store.add_capture(user.id, text)
+        if request.headers.get("HX-Request") and form.get("from") == "search":
+            return templates.TemplateResponse(
+                request, "_capture_search.html", {"saved": True, "text": text}
+            )
         return captures_or_back(request, store, user, form)
 
     @app.post("/captures/{capture_id}/remove")

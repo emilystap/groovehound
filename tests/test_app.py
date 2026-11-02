@@ -351,6 +351,31 @@ def test_looking_up_a_capture_files_it_on_the_item(tmp_path: Path, monkeypatch):
     assert "Looking up" not in client.get("/search", params={"capture": capture_id}).text
 
 
+def test_a_search_can_be_saved_as_a_quick_capture(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RECORDINGS)
+    client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
+    assert "Not what you were looking for" not in client.get("/search").text  # nothing searched
+
+    params = {"kind": "song", "title": "360", "artist": "Charli xcx"}
+    page = client.get("/search", params=params).text
+    assert "Not what you were looking for" in page
+    assert 'value="360 by Charli xcx (song)"' in page
+
+    form = {"text": "360 by Charli xcx (song)", "from": "search", "next": "/search?title=360"}
+    saved = client.post("/captures", data=form, headers={"HX-Request": "1"})
+    assert 'id="capture-search"' in saved.text and "Saved “" in saved.text
+    back = client.post("/captures", data={**form, "text": "360 (album)"})  # without JavaScript
+    assert (back.status_code, back.headers["location"]) == (303, "/search?title=360")
+    with Store(tmp_path / "groovehound.db") as store:
+        album, song = store.captures(OWNER_ID)
+    assert (song.text, album.text) == ("360 by Charli xcx (song)", "360 (album)")
+    assert len(opener.requests) == 1  # saving asks MusicBrainz nothing
+
+    # looking up a capture already keeps the text, so there's nothing to save
+    params["capture"] = song.id
+    assert "Not what you were looking for" not in client.get("/search", params=params).text
+
+
 def test_a_capture_is_kept_if_the_item_is_not_saved(tmp_path: Path):
     with Store(tmp_path / "db.sqlite") as store:
         capture_id = store.add_capture(OWNER_ID, "sax song")

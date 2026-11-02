@@ -1,0 +1,20 @@
+{# The search as a quick capture (roadmap 1d), for when the results aren't what you were after:
+   the query, editable, saved to look up later. With HTMX the form is replaced by a note that
+   it's saved; without JavaScript it posts normally and comes back to the search (`next`). #}
+<section class="card" id="capture-search">
+  {% if saved %}
+  <p class="saved">Saved “{{ text }}” for later: it's under
+    <a href="/#captures">Quick capture</a> on the home page.</p>
+  {% else %}
+  <h2>Not what you were looking for?</h2>
+  <p class="muted small">Save the search to look up later.</p>
+  <form class="capture" method="post" action="/captures"
+        hx-post="/captures" hx-target="#capture-search" hx-swap="outerHTML">
+    <input type="text" name="text" required maxlength="500" autocomplete="off" aria-label="What you heard"
+           value="{{ title }}{% if artist %} by {{ artist }}{% endif %} ({{ 'song' if kind == 'song' else 'album' }})">
+    <input type="hidden" name="from" value="search">
+    <input type="hidden" name="next" value="{{ here }}">
+    <button type="submit" class="secondary">Save for later</button>
+  </form>
+  {% endif %}
+</section>

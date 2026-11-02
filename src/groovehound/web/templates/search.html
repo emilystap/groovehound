@@ -71,4 +71,9 @@
   {% endif %}
 </section>
 {% endif %}
+
+{# Already looking up a capture: it's saved, and saving a result files it. #}
+{% if title and (hits is not none or error) and not capture %}
+{% include "_capture_search.html" %}
+{% endif %}
 {% endblock %}
