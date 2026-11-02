@@ -2,14 +2,16 @@
 
 Each request opens its own Store. Routes that act for a user get it from `current_user`, the
 only place that decides who that is: today always the owner (`db.OWNER_ID`); with accounts,
-the logged-in user from the session.
+the logged-in user from the session. While the app runs, `reconcile.Reconciler` re-browses
+followed artists in the background (roadmap 2c).
 """
 
 from __future__ import annotations
 
 import json
 import mimetypes
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
@@ -26,6 +28,7 @@ from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
 from ..db import OWNER_ID, Store, User, WishlistItem, local_date
+from ..reconcile import Reconciler
 from ..search import KINDS, clean, search
 from ..share import parse_share
 
@@ -67,7 +70,22 @@ def create_app(settings: Settings) -> FastAPI:
         musicbrainz.client_for(settings)  # validates contact, api_root and interval at startup
     buy.check_qobuz_store(settings.qobuz_store)
 
-    app = FastAPI(title="Groovehound", version=__version__, docs_url=None, redoc_url=None)
+    # The slow re-browse of followed artists (roadmap 2c), only once MusicBrainz can be asked
+    reconciler = None if _contact_problem(settings) else Reconciler(settings)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if reconciler:
+            reconciler.start()
+        try:
+            yield
+        finally:
+            if reconciler:
+                reconciler.shutdown()
+
+    app = FastAPI(
+        title="Groovehound", version=__version__, docs_url=None, redoc_url=None, lifespan=lifespan
+    )
     app.state.settings = settings
     with Store(settings.database_path):
         pass  # run migrations at startup, not on the first request

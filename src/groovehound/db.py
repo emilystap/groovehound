@@ -437,6 +437,20 @@ class Store:
                 ((artist_mbid, mbid, when) for mbid in dict.fromkeys(release_group_mbids)),
             )
 
+    def follows_due(self, kind: str, now: str, limit: int, *, singles: bool = False) -> list[str]:
+        """Artists someone follows (with singles on, for `singles`) whose cached browse of
+        `kind` is due a refresh, or missing: longest due first, missing ones before them."""
+        rows = self.conn.execute(
+            "SELECT f.artist_mbid FROM (SELECT DISTINCT artist_mbid FROM follows"
+            f"{' WHERE singles_since IS NOT NULL' if singles else ''}) f "
+            "LEFT JOIN api_cache c ON c.service = 'musicbrainz' AND c.kind = ? "
+            "AND c.key = f.artist_mbid "
+            "WHERE c.refresh_after IS NULL OR c.refresh_after <= ? "
+            "ORDER BY COALESCE(c.refresh_after, ''), f.artist_mbid LIMIT ?",
+            (kind, now, limit),
+        )
+        return [r[0] for r in rows]
+
     def release_groups_seen(self, artist_mbid: str) -> dict[str, str]:
         """Release group MBID -> when it was first seen, for one artist."""
         rows = self.conn.execute(

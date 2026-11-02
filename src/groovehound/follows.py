@@ -6,9 +6,9 @@ EPs, official releases only, at most `MAX_BROWSE_PAGES` requests), cached for a 
 `TTL`: opening the artist's page and then following costs one browse, not two. Every browse
 records the release groups it returned in `release_groups_seen` with the date first seen, so
 what was already out when someone followed is never reported as new; the slow re-browse that
-finds new ones is phase 2c. The artist's name comes from the browse's artist credits, so the
-artist lookup is only made when there are none (an artist with no albums or EPs). All of it is
-CC0.
+finds new ones (`refresh`, roadmap 2c) runs in the background (`reconcile.py`). The artist's
+name comes from the browse's artist credits, so the artist lookup is only made when there are
+none (an artist with no albums or EPs). All of it is CC0.
 
 Each follow is for some release group types (roadmap 2b, `TYPES`): albums and EPs by default,
 singles if asked for, and live, compilations, remixes etc. only if asked for, since they're
@@ -229,6 +229,25 @@ def discography(
     data, fetched_at = _browse(store, client, pause, CACHE_KIND, mbid, DEFAULT_TYPES, now, rng)
     artist = _artist_in_credits(data, mbid) or _looked_up(store, client, pause, mbid, now, rng)
     return _discography(artist, data, fetched_at, cached_singles(store, mbid))
+
+
+def refresh(
+    store: Store,
+    client: MusicBrainzClient,
+    pause: ServicePause,
+    kind: str,
+    mbid: str,
+    *,
+    now: datetime | None = None,
+    rng: random.Random | None = None,
+) -> int:
+    """Browse the artist's albums and EPs (`CACHE_KIND`) or singles (`SINGLES_KIND`) again if
+    the cached browse is due (roadmap 2c), and how many release groups that saw for the first
+    time: new to whoever follows them. Raises ServiceError as `discography`."""
+    before = store.release_groups_seen(mbid)
+    types = ("single",) if kind == SINGLES_KIND else DEFAULT_TYPES
+    data, _ = _browse(store, client, pause, kind, mbid, types, now, rng)
+    return len({g.get("id") for g in data["release-groups"]} - set(before) - {None})
 
 
 def _browse(
