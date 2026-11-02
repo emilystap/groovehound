@@ -3,7 +3,7 @@
 <li class="hit wish" id="wish-{{ item.id }}">
   {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
-    <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}">{{ item.title }}</a>
+    <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}" rel="noopener" target="_blank">{{ item.title }}</a>
     <div>{{ item.artist_credit }}</div>
     <div class="muted small">
       {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
@@ -30,7 +30,7 @@
              hx-trigger="toggle once" hx-target="find .mb-links" hx-swap="outerHTML"{% endif %}>
       <summary>Where to buy</summary>
       <p class="links"><span class="muted">Search:</span>
-        {% for link in where.searches %}<a href="{{ link.url }}" rel="noreferrer">{{ link.site }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+        {% for link in where.searches %}<a href="{{ link.url }}" rel="noreferrer" target="_blank">{{ link.site }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
       </p>
       {% include "_buy_links.html" %}
     </details>

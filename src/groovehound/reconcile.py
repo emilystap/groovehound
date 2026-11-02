@@ -11,6 +11,10 @@ Nothing due means no requests. An error stops the batch and pauses MusicBrainz f
 
 Browses go through `follows.refresh`, the same cache and `brainz/http.py` limiter as a click
 on an artist's page, so a page opened in between counts: a fresh browse isn't made again.
+
+The same wake-ups fetch ListenBrainz's fresh releases (`fresh.py`, roadmap 3a) when that's due,
+about once a day: since the worker wakes at random, the fetch drifts around the clock. Its
+errors pause ListenBrainz only, and don't stop the MusicBrainz batch.
 """
 
 from __future__ import annotations
@@ -21,8 +25,8 @@ import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from . import follows
-from .brainz import musicbrainz
+from . import follows, fresh
+from .brainz import listenbrainz, musicbrainz
 from .brainz.http import ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
 from .config import Settings
@@ -105,6 +109,7 @@ class Reconciler:
 
     def run_once(self) -> Result:
         with Store(self.settings.database_path) as store:
+            self._fetch_fresh(store)
             result = reconcile_once(
                 store,
                 musicbrainz.client_for(self.settings),
@@ -119,6 +124,15 @@ class Reconciler:
                 f"; stopped: {result.error}" if result.error else "",
             )
         return result
+
+    def _fetch_fresh(self, store: Store) -> None:
+        try:
+            new = fresh.fetch(store, listenbrainz.client_for(self.settings), listenbrainz.PAUSE)
+        except ServiceError as exc:
+            log.info("ListenBrainz fresh releases not fetched: %s", exc)
+            return
+        if new is not None:
+            log.info("Fetched ListenBrainz fresh releases, %d new release group(s)", new)
 
     def _loop(self) -> None:
         while not self._stop.wait(random.uniform(*self.interval)):

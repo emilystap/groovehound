@@ -435,6 +435,10 @@ class Store:
         )
         return {r[0] for r in rows}
 
+    def followed_artists(self) -> set[str]:
+        """Every artist someone follows."""
+        return {r[0] for r in self.conn.execute("SELECT DISTINCT artist_mbid FROM follows")}
+
     def see_release_groups(
         self, artist_mbid: str, release_group_mbids: Iterable[str], when: str | None = None
     ) -> None:
