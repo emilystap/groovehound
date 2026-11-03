@@ -471,5 +471,6 @@ Gathered from the "Check first" notes above; settle each before the phase that n
 - **Before the artist photos (with 5g):** whether `getArtistInfo2`'s image URLs point at
   Navidrome or straight at Deezer; how an artist is found by MusicBrainz id; the biographies'
   licence (Last.fm's are CC BY-SA, as far as known) and the credit to show.
-- **5k, already noted there:** the edition chosen by default for albums not in the library or
-  on the wishlist (5k's rule) looks right in practice.
+- **With U2:** that 5k's default edition (the earliest official one with the most common track
+  count), used for albums not in the library or on the wishlist, gives sensible track lists in
+  practice.
