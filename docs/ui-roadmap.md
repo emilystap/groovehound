@@ -251,6 +251,10 @@ second box. Two kinds of results:
 - **As you type, locally:** the library (albums and album artists) and the wishlist, matched by
   title and artist name in the database (no requests), so an album you already have shows
   before you'd look it up again. A short debounce, HTMX `hx-trigger="input changed delay:300ms"`.
+- **As you type, from your own mirror** (added 2026-11-03; phase 7b in `docs/roadmap.md`): only
+  with a MusicBrainz mirror opted in (`search_as_you_type`), never musicbrainz.org. Albums and
+  artists from the mirror, under the local matches and without repeating them; covers only
+  where Groovehound already has them. Without a mirror this row isn't there.
 - **On Enter, MusicBrainz:** one search per press, as today, cached as today. What's sent
   depends on what was typed:
   1. **"title by artist"**, split at the last " by " as the share target does (`share.py`):
@@ -280,7 +284,8 @@ wider.
 
 Search results are seen once, so they keep the archive's 250 px covers, linked directly.
 *Not what you were looking for?* (save as a capture) and the capture banner stay. This
-changes 1a's form, not its requests: still one search per press, never as you type.
+changes 1a's form, not its requests: still one search per press, never as you type (on
+musicbrainz.org; a mirror of your own may, see above).
 
 ## Design language
 
@@ -450,7 +455,8 @@ needs something new (the album page's header) gets a function outside `web/`.
   starts, from the tile, shelf and grid as built by then.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
-  capture box at its top. Then a last pass for anything still on the old CSS.
+  capture box at its top. Then a last pass for anything still on the old CSS. The mirror's
+  as-you-type row (7b) comes after U6, on the same bar.
 
 5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
 the artist photos and biographies (above) come with it or just after, on the same connection.
