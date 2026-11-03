@@ -58,7 +58,7 @@ badges), 5e (unplayed, `listens.py`), 5f (rediscover: the listen history, `histo
 page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) and 5h (recommended albums,
 the CF recommendations once 4c, `recommended.py`) and 5j (library artists, with 5d's suggested
 follows, `library_artists.py`) done; 5k (tracks, `tracks.py`) has its backend, its UI waits
-for the UI overhaul (a separate UI roadmap, planned next). Links to other sites open in a new tab (`target="_blank"`).
+for the UI overhaul (planned in `docs/ui-roadmap.md`). Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 
