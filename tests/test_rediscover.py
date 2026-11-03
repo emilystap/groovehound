@@ -147,7 +147,8 @@ def test_the_page(tmp_path: Path):
     assert "Not played in six months" in page and "2 listens · last" in page
     assert "5 listens · none since" in page
     assert "New from artists you play most" not in page  # nothing followed
-    assert 'href="/rediscover" aria-current="page"' in page
+    assert '<a href="/" aria-current="page">' in page  # Rediscover belongs to Home
+    assert '<a class="button" href="/rediscover">Shuffle</a>' in page
 
     response = client.post(
         f"/rediscover/{rg(2)}/dismiss", data={"next": "/rediscover"}, follow_redirects=False

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ name or "Artist" }} · Groovehound{% endblock %}
+{% block heading %}{{ name or "Unknown artist" }}{% endblock %}
 {# Covers come from the server's cover cache for an artist you follow (/cover serves their
    release groups); otherwise straight from the Cover Art Archive, as you may look only once. #}
 {% macro release_groups(hits) %}
@@ -32,7 +33,6 @@
 {% endif %}
 
 <section class="card">
-  <h2>{{ name or "Unknown artist" }}</h2>
   {% if found and (found.artist.disambiguation or found.artist.type) %}
   <p class="muted small">{{ [found.artist.type, found.artist.disambiguation] | select | join(" · ") }}</p>
   {% endif %}

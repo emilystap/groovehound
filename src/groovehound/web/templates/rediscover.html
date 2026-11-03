@@ -1,29 +1,25 @@
 {% extends "base.html" %}
+{% block title %}Rediscover · Groovehound{% endblock %}
+{% block heading %}Rediscover{% endblock %}
+{% block actions %}{% if listenbrainz_user and draw is not none and library_count %}<a class="button" href="/rediscover">Shuffle</a>{% endif %}{% endblock %}
 {% block content %}
 {% if not listenbrainz_user %}
 <section class="card">
-  <h2>Rediscover</h2>
   <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> in
     <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to get albums from
     your library to put on next, from what you have and haven't played.</p>
 </section>
 {% elif draw is none %}
 <section class="card">
-  <h2>Rediscover</h2>
   <p class="muted">Waiting for your ListenBrainz stats, which are fetched in the background
     within a day or so. Until then nothing is called unplayed.</p>
 </section>
 {% elif not library_count %}
 <section class="card">
-  <h2>Rediscover</h2>
   <p class="muted">Nothing in your library yet: <a href="/library">scan it</a> first.</p>
 </section>
 {% else %}
 <section class="card">
-  <div class="card-head">
-    <h2>Rediscover</h2>
-    <a class="button secondary" href="/rediscover">Shuffle</a>
-  </div>
   <p class="muted small">Drawn at random from your library and your
     <a href="{{ listenbrainz_web }}/user/{{ listenbrainz_user | urlencode }}/" rel="noopener" target="_blank">listens</a>.
     Dismissed albums aren't drawn again.</p>

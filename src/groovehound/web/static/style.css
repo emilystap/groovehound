@@ -1,31 +1,49 @@
+/* Direction A (docs/ui-roadmap.md): dark first, near-black, one bright accent. Contrast checked
+   to WCAG AA in both themes (text, muted and accent on --bg and --surface, --on-accent on
+   --accent, nav labels on their bars). */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --border: #e2e5ea;
-  --text: #1c2026;
-  --muted: #66707d;
-  --accent: #3b5bdb;
-  --accent-text: #ffffff;
+  --bg: #ffffff;
+  --surface: #f3f3f3;      /* cards, inputs */
+  --surface-2: #ebebeb;    /* raised: sheets, menus */
+  --text: #111111;
+  --muted: #5e5e5e;
+  --divider: #e3e3e3;
+  --accent: #c8401f;       /* one primary button per page, links, ticks */
+  --on-accent: #ffffff;
+  --badge-bg: #efefef;
+  --badge-fg: #222222;
+  --button-bg: #e3e3e3;    /* quiet buttons: a step past --surface, as they sit on cards */
+  --owned: #237a36;
   --warning: #a35a00;
   --warning-bg: #fff3e0;
-  --owned: #2b8a3e;
-  --radius: 8px;
+  --nav-bg: #ffffff;       /* the phone's tab bar */
+  --nav-idle: #5e5e5e;
+  --frame: #e9e9e9;        /* behind the sidebar and the page, from 768 px */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --tabbar-height: 64px;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14171c;
-    --surface: #1c2027;
-    --border: #2d333c;
-    --text: #e6e9ee;
-    --muted: #9aa4b1;
-    --accent: #748ffc;
-    --accent-text: #0d1117;
+    --bg: #121212;
+    --surface: #1f1f1f;
+    --surface-2: #282828;
+    --text: #f4f4f4;
+    --muted: #ababab;
+    --divider: #2a2a2a;
+    --accent: #ff7a59;
+    --on-accent: #1a0d08;
+    --badge-bg: #2a2a2a;
+    --badge-fg: #ededed;
+    --button-bg: #383838;
+    --owned: #69db7c;
     --warning: #ffc078;
     --warning-bg: #3a2c17;
-    --owned: #69db7c;
+    --nav-bg: #0b0b0b;     /* the manifest's theme_color: the gesture bar right below matches */
+    --nav-idle: #9a9a9a;
+    --frame: #000000;
   }
 }
 
@@ -35,56 +53,170 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 15px/1.5 var(--font);
 }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font-family: var(--mono); font-size: 0.92em; }
-h2 { font-size: 1rem; margin: 0 0 12px; }
+h1, h2 { font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: 21px; margin: 0 0 12px; }
+h2 .muted { font-weight: 400; letter-spacing: 0; }
 .subhead { font-size: 0.9rem; color: var(--muted); margin: 16px 0 8px; }
 .new-group:first-of-type .subhead { margin-top: 0; }
 .new-group:not(:has(li)) { display: none; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
+.icon { flex: none; }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+/* The shell. On a phone: the page, its footer, and the tab bar fixed at the bottom; the
+   sidebar's box disappears (display: contents) and only its parts are placed. */
+body { display: flex; flex-direction: column; min-height: 100vh; }
+.sidebar { display: contents; }
+.brand { display: none; }
+main { order: 1; flex: 1; width: 100%; padding: env(safe-area-inset-top) 16px 8px; }
+.footer {
+  order: 2;
+  padding: 16px 16px calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 16px);
+  font-size: 11px;
 }
-.brand { font-weight: 600; color: var(--text); }
-.topbar nav { display: flex; gap: 16px; }
-.topbar nav a[aria-current="page"] { font-weight: 600; }
+.footer a { color: inherit; text-decoration: underline; }
 
-main { max-width: 960px; margin: 0 auto; padding: 16px; }
+.nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 8px env(safe-area-inset-bottom);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--divider);
+}
+.nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 72px;
+  min-height: 52px;
+  color: var(--nav-idle);
+  font-size: 12px;
+  font-weight: 500;
+}
+.nav a:hover { text-decoration: none; color: var(--text); }
+.nav a[aria-current="page"] { color: var(--text); font-weight: 700; }
+
+.appbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 20px 0 16px;
+}
+.appbar h1 { margin: 0; font-size: 30px; min-width: 0; overflow-wrap: anywhere; }
+.appbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* From 768 px: the sidebar on the left, the page beside it, both on the frame colour. */
+@media (min-width: 768px) {
+  body {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 8px;
+    background: var(--frame);
+  }
+  .sidebar {
+    position: sticky;
+    top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: calc(100vh - 16px);
+    overflow-y: auto;
+    padding: 20px 12px;
+    border-radius: 10px;
+    background: var(--bg);
+  }
+  .brand {
+    display: block;
+    padding: 4px 12px 20px;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .brand:hover { text-decoration: none; }
+  .nav {
+    position: static;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+  .nav a {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .nav a[aria-current="page"] { background: var(--badge-bg); }
+  .footer { margin-top: auto; padding: 24px 12px 0; line-height: 1.5; }
+  main {
+    min-height: calc(100vh - 16px);
+    padding: 16px 32px 40px;
+    border-radius: 10px;
+    background: var(--bg);
+  }
+  main > * { max-width: 960px; }
+  .appbar { padding-top: 12px; }
+  .appbar h1 { font-size: 34px; }
+  h2 { font-size: 23px; }
+}
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   padding: 16px;
   margin-bottom: 16px;
 }
 .card p { margin: 0 0 8px; }
 .card p:last-child { margin-bottom: 0; }
-.notice { background: var(--warning-bg); border-color: var(--warning); }
-
-.footer { max-width: 960px; margin: 0 auto; padding: 16px; font-size: 0.85rem; }
+.notice { background: var(--warning-bg); }
 
 button, select, input[type="search"], input[type="text"], textarea {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--divider);
   border-radius: 6px;
   padding: 6px 10px;
 }
-button { background: var(--accent); color: var(--accent-text); border-color: var(--accent); cursor: pointer; }
-button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+/* Buttons are quiet pills; .primary (one per page at most) takes the accent. */
+button, a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 16px;
+  border: 1px solid var(--button-bg);
+  border-radius: 999px;
+  background: var(--button-bg);
+  color: var(--badge-fg);
+  font-weight: 600;
+  cursor: pointer;
+}
+a.button:hover { text-decoration: none; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary, a.button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.secondary, a.button.secondary { background: transparent; color: var(--text); border-color: var(--button-bg); }
 select { max-width: 100%; }
 
 .search { display: grid; gap: 10px; max-width: 480px; }
@@ -95,25 +227,41 @@ select { max-width: 100%; }
 .search button { justify-self: start; }
 
 .hits { list-style: none; margin: 0; padding: 0; }
-.hit { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.hit { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--divider); }
 .hit:first-child { border-top: 0; padding-top: 0; }
 .hit-body { min-width: 0; flex: 1; }
-.hit-title { font-weight: 600; }
+.hit-title { font-weight: 600; color: var(--text); }
 .cover {
   flex: none;
   width: 64px;
   height: 64px;
   border-radius: 4px;
   overflow: hidden;
-  background: var(--border);
+  background: var(--divider);
 }
 .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .saved { display: inline-block; margin-top: 8px; color: var(--muted); }
 .more { margin-top: 12px; }
 
-.tabs { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
-.tabs a[aria-current="page"] { font-weight: 600; color: var(--text); }
+/* Two-way tabs (Following / In your library, Still to buy / Bought), as segments. */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+.tabs a:hover { text-decoration: none; }
+.tabs a .muted { font-weight: 400; }
+.tabs a[aria-current="page"] { background: var(--text); color: var(--bg); }
+.tabs a[aria-current="page"] .muted { color: inherit; }
 
 .wish .heard, .wish .notes { margin: 6px 0 0; overflow-wrap: anywhere; }
 .wish .notes { white-space: pre-line; }
@@ -130,31 +278,21 @@ select { max-width: 100%; }
 .capture input { flex: 1 1 16em; min-width: 0; }
 #captures h3 { font-weight: normal; margin: 12px 0 0; }
 .captures { list-style: none; margin: 0; padding: 0; }
-.captures li { padding: 8px 0; border-top: 1px solid var(--border); }
+.captures li { padding: 8px 0; border-top: 1px solid var(--divider); }
 .captures li:first-child { border-top: 0; }
 .capture-text { overflow-wrap: anywhere; margin-right: 6px; }
 .looking-up .capture-text { font-weight: 600; }
-a.button {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-text);
-}
-a.button:hover { text-decoration: none; }
-a.button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
 
 /* An artist's Follow button (search results, wishlist items, artist pages). */
 .follows { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
 .follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.follow > a { color: var(--text); }
 .follow form { margin: 0; }
-button.chip { padding: 2px 10px; border-radius: 999px; font-size: 0.85rem; }
-button.chip.on { background: transparent; color: var(--muted); border-color: var(--border); }
+button.chip { min-height: 28px; padding: 2px 12px; font-size: 0.85rem; }
+button.chip.on { background: transparent; color: var(--muted); border-color: var(--button-bg); }
 .follow-error { color: var(--warning); flex-basis: 100%; }
 .artists { list-style: none; margin: 0; padding: 0; }
-.artists li { padding: 8px 0; border-top: 1px solid var(--border); }
+.artists li { padding: 8px 0; border-top: 1px solid var(--divider); }
 .artists li:first-child { border-top: 0; }
 
 .plain { list-style: none; margin: 0; padding: 0; }
@@ -177,8 +315,6 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 .more-groups summary { color: var(--accent); cursor: pointer; width: fit-content; }
 .playlist > summary { cursor: pointer; }
 .playlist > summary h2 { display: inline; }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.card-head h2 { margin: 0; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
@@ -187,7 +323,7 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
   align-items: baseline;
   gap: 8px;
   padding: 6px 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -196,12 +332,13 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 
 /* Phones: bigger touch targets, and the cover doesn't take room from the text. */
 @media (max-width: 480px) {
-  main { padding: 8px; }
-  .topbar { flex-wrap: wrap; row-gap: 8px; }  /* the links go under the name when they don't fit */
-  .topbar nav { flex-wrap: wrap; gap: 6px 14px; }
   .card { padding: 12px; }
   .cover { width: 48px; height: 48px; }
   button, a.button, .wish .edit summary { min-height: 40px; }
   button.chip { min-height: 32px; }
   .wish .edit summary { display: flex; align-items: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

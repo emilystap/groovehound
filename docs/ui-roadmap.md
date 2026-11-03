@@ -403,7 +403,13 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U1 Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
   four destinations, the app bar, the footer's new place. Pages keep their current content under
   the new shell; Discover, Rediscover and Artists get links from Home and Library until U3 and
-  U5 place them. The shared components arrive here, used first by the shell.
+  U5 place them (as app bar buttons). Of the shared components, those the shell uses arrive
+  here (icons, app bar, tab bar / sidebar, footer, and today's cards, buttons, chips and tabs
+  on the new tokens); the album tile, row, shelf, grid, ⋯ menu and sheet come with their
+  first users in U2 and U3. On desktop the footer sits at the bottom of the sidebar, as
+  mocked up; on a phone it ends the content. The desktop search bar waits for U6. Decided in
+  place: buttons are quiet pills on `--button-bg` (a step past `--surface`, as they sit on
+  cards), `.primary` takes the accent, and light `--owned` is `#237a36` (AA on `--surface`).
 - **U2 The album page, with 5k's tracks.** `/albums/<mbid>`, the track list, *8 of 12 tracks*
   badges, and every album title linking to it. The wishlist item keeps its sections for now;
   the album page shows them too. Tracks ahead (above) is its own backend PR, before or after

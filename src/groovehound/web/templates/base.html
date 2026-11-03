@@ -1,8 +1,11 @@
+{% from "_icons.html" import icon -%}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# viewport-fit=cover: the installed app draws under Android's gesture bar, and the tab bar
+     keeps clear of it with env(safe-area-inset-bottom). #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Groovehound{% endblock %}</title>
   {# Root-relative, not url_for(): behind a TLS-terminating proxy the app sees plain http, and
      absolute http:// asset URLs on an https page are blocked as mixed content. #}
@@ -12,39 +15,51 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  {# The status bar above the app's window: the top bar's colour in each theme. The installed
-     app's gesture bar takes the manifest's theme_color instead (one colour: the dark one). #}
+  {# The status bar above the app's window: the page's background in each theme. The installed
+     app's gesture bar takes the manifest's theme_color instead (one colour: the dark tab bar's). #}
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1c2027" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
   <script src="/static/htmx.min.js" defer></script>
 </head>
+{# The four destinations; a page belongs to one of them (Discover and Rediscover to Home, the
+   artist pages to Library). URLs don't change, so bookmarks and the share target still work. #}
+{% set tab = {"discover": "home", "rediscover": "home", "artists": "library"}.get(page, page) %}
 <body>
-  <header class="topbar">
+  {# On a phone the sidebar's parts are laid out separately (display: contents): the nav is the
+     bottom tab bar and the footer ends the content; from 768 px wide they're the sidebar. #}
+  <aside class="sidebar">
     <a class="brand" href="/">Groovehound</a>
-    <nav>
-      <a href="/" {% if page == "home" %}aria-current="page"{% endif %}>Home</a>
-      <a href="/wishlist" {% if page == "wishlist" %}aria-current="page"{% endif %}>Wishlist</a>
-      <a href="/artists" {% if page == "artists" %}aria-current="page"{% endif %}>Artists</a>
-      <a href="/discover" {% if page == "discover" %}aria-current="page"{% endif %}>Discover</a>
-      <a href="/rediscover" {% if page == "rediscover" %}aria-current="page"{% endif %}>Rediscover</a>
-      <a href="/library" {% if page == "library" %}aria-current="page"{% endif %}>Library</a>
-      <a href="/search" {% if page == "search" %}aria-current="page"{% endif %}>Search</a>
+    <nav class="nav" aria-label="Main">
+      {% for key, href, label, glyph in [
+        ("home", "/", "Home", "home"),
+        ("search", "/search", "Search", "search"),
+        ("library", "/library", "Library", "library"),
+        ("wishlist", "/wishlist", "Wishlist", "bookmark"),
+      ] %}
+      <a href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ label }}</span></a>
+      {% endfor %}
     </nav>
-  </header>
+
+    {# Links to other sites open in a new tab (target="_blank"), so the app stays where it was. #}
+    {# MusicBrainz's tags, genres and ratings are CC BY-NC-SA and need credit; the rest of its data
+       and ListenBrainz's are CC0. Credit both on every page. #}
+    <footer class="footer muted">
+      Music data from <a href="{{ musicbrainz_web }}" rel="noopener" target="_blank">MusicBrainz</a>
+      and <a href="{{ listenbrainz_web }}" rel="noopener" target="_blank">ListenBrainz</a>, by the
+      <a href="https://metabrainz.org" rel="noopener" target="_blank">MetaBrainz Foundation</a>
+      · cover art from the <a href="https://coverartarchive.org" rel="noopener" target="_blank">Cover Art Archive</a>
+      · v{{ version }}
+    </footer>
+  </aside>
 
   <main id="page">
+    <header class="appbar">
+      <h1>{% block heading %}Groovehound{% endblock %}</h1>
+      {# a page's one or two actions (Shuffle, links to its other pages), when it has any #}
+      {% set actions = self.actions() %}
+      {% if actions | trim %}<div class="appbar-actions">{% block actions %}{% endblock %}</div>{% endif %}
+    </header>
     {% block content %}{% endblock %}
   </main>
-
-  {# Links to other sites open in a new tab (target="_blank"), so the app stays where it was. #}
-  {# MusicBrainz's tags, genres and ratings are CC BY-NC-SA and need credit; the rest of its data
-     and ListenBrainz's are CC0. Credit both on every page. #}
-  <footer class="footer muted">
-    Music data from <a href="{{ musicbrainz_web }}" rel="noopener" target="_blank">MusicBrainz</a>
-    and <a href="{{ listenbrainz_web }}" rel="noopener" target="_blank">ListenBrainz</a>, by the
-    <a href="https://metabrainz.org" rel="noopener" target="_blank">MetaBrainz Foundation</a>
-    · cover art from the <a href="https://coverartarchive.org" rel="noopener" target="_blank">Cover Art Archive</a>
-    · v{{ version }}
-  </footer>
 </body>
 </html>
