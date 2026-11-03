@@ -415,6 +415,8 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   artist page and Discover get an *In your library* badge when their release group is in the
   library (`Store.in_library`, matching a release MBID too, for files without a release group
   id); owned ones sort after the rest of the new-release and suggestion lists, rather than hiding.
+  Except (decided 2026-11-02): in the home page's *Out now*, owned ones never played (5e) come
+  first, since that list is also for what to listen to next; owned and played ones stay last.
   A wishlist item that appears in the library is offered as *bought* ("Found in your library on
   2026-…", *Mark bought*), never changed for you; an item for one edition, with another in the
   library, says "Another edition" (`library.found`).

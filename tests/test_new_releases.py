@@ -4,12 +4,15 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from groovehound import follows, new_releases
+from groovehound import follows, listens, new_releases
+from groovehound.brainz.http import ServicePause
 from groovehound.db import OWNER_ID, Follow, LibraryRelease, Store
 from groovehound.web import create_app
 
-from .conftest import settings_for
+from .conftest import FakeOpener, settings_for
+from .test_brainz import lb_client
 from .test_follows import BROWSE, RG_OLD, group, store_at
+from .test_listens import entry, stats
 from .test_search import ARTIST, RG, RG_COMP
 
 NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
@@ -84,6 +87,35 @@ def test_ones_in_the_library_come_last(tmp_path: Path):
         )
         feed = new_releases.feed(store, OWNER_ID, now=NOW)
         assert mbids(feed.new) == [RG_RECENT, RG_UNDATED, RG_NEW]
+
+
+def test_owned_and_never_played_come_first(tmp_path: Path):
+    """Out now: owned and never played, then not owned, then owned and played. Without stats
+    nothing counts as never played, so owned ones all come last."""
+    with store_at(tmp_path) as store:
+        followed(store)
+        store.replace_library(
+            OWNER_ID,
+            [
+                LibraryRelease(RG_NEW + "-r", RG_NEW, (), "New One", "", "", 1),
+                LibraryRelease(RG_UNDATED + "-r", RG_UNDATED, (), "Undated", "", "", 1),
+            ],
+            LATER,
+        )
+        assert mbids(new_releases.feed(store, OWNER_ID, "Rob", now=NOW).new) == [
+            RG_RECENT,
+            RG_NEW,
+            RG_UNDATED,
+        ]
+        opener = FakeOpener(stats(entry(RG_UNDATED, 3)))
+        listens.fetch(store, lb_client(opener), ServicePause(), OWNER_ID, "Rob", now=NOW)
+        feed = new_releases.feed(store, OWNER_ID, "Rob", now=NOW)
+        assert mbids(feed.new) == [RG_NEW, RG_RECENT, RG_UNDATED]
+        assert mbids(new_releases.feed(store, OWNER_ID, now=NOW).new) == [
+            RG_RECENT,
+            RG_NEW,
+            RG_UNDATED,
+        ]  # no username: no stats to go by
 
 
 def test_new_for_a_while_then_not(tmp_path: Path):
