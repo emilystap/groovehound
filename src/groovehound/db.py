@@ -1,5 +1,5 @@
 """SQLite persistence: users, their wishlists and follows, and the shared caches of MusicBrainz /
-ListenBrainz responses and cover thumbnails.
+ListenBrainz responses and covers (their images as files, `Store.covers_dir`).
 
 Plain `sqlite3` keeps the dependency list short. Schema changes go in MIGRATIONS (append
 only); `PRAGMA user_version` records which have run.
@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 import zlib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from .tint import main_colour
 
 OWNER_ID = 1  # the single user until accounts exist (roadmap: "Users")
 
@@ -240,6 +243,20 @@ MIGRATIONS: list[str] = [
     UPDATE library_files SET mtime_ns = -1;
     CREATE INDEX library_files_recording ON library_files(user_id, recording_mbid);
     """,
+    # 14: covers as files at 500 px, with their tint (docs/ui-roadmap.md, "Covers at 500 px, as
+    # files"). file: the image under the covers folder (`Store.covers_dir`), relative to it;
+    # '' = no cover. size: the px it was made at (the archive's front-N, or the library's
+    # resize), so smaller ones can be made again. tint: its main colour (tint.py), '' = none.
+    # image is left only for covers not yet written out, which 15 does.
+    """
+    ALTER TABLE covers ADD COLUMN file TEXT NOT NULL DEFAULT '';
+    ALTER TABLE covers ADD COLUMN size INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE covers ADD COLUMN tint TEXT NOT NULL DEFAULT '';
+    UPDATE covers SET size = 250 WHERE image IS NOT NULL;
+    """,
+    # 15: the covers' images written out of the database into files, with their tints (local,
+    # no requests). Python, so a function of the Store (`Store._write_out_covers`).
+    "write_out_covers",
 ]
 
 
@@ -425,12 +442,26 @@ class CachedCover:
     refresh_after: str
     source: str = ""  # the library file it was made from; "" = the Cover Art Archive
     source_mtime_ns: int = 0
+    size: int = 0  # px it was made at (the longer side); 0 = no cover
+    tint: str = ""  # its main colour, "#rrggbb" (tint.py); "" = none
+
+
+# The extension a cover's file gets, by its type (covers.IMAGE_TYPES)
+COVER_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
 
 
 class Store:
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, *, covers_dir: Path | None = None) -> None:
+        """Open (and migrate) the database at `path`. Covers are kept as files in `covers_dir`,
+        by default the folder `covers` beside the database."""
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self.covers_dir = covers_dir or Path(path).parent / "covers"
         # check_same_thread=False: the web app opens one Store per request, and FastAPI may run
         # a request's dependency and handler on different threadpool threads.
         self.conn = sqlite3.connect(str(path), check_same_thread=False)
@@ -450,10 +481,32 @@ class Store:
 
     def _migrate(self) -> None:
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
+        vacuum = False
         for index, script in enumerate(MIGRATIONS[version:], start=version + 1):
             with self.conn:
-                self.conn.executescript(script)
+                if script == "write_out_covers":
+                    vacuum = self._write_out_covers()
+                else:
+                    self.conn.executescript(script)
                 self.conn.execute(f"PRAGMA user_version = {index}")
+        if vacuum:
+            self.conn.execute("VACUUM")  # give back the space the images took
+
+    def _write_out_covers(self) -> bool:
+        """Migration 15: each cover still in the database written to its file, with its tint,
+        and its image dropped (in the migration's transaction; the files are written first, so
+        a second try after a crash just writes them again). True if any were."""
+        rows = self.conn.execute(
+            "SELECT release_group_mbid, image, content_type FROM covers WHERE image IS NOT NULL"
+        ).fetchall()
+        for row in rows:
+            image = bytes(row["image"])
+            file = self._write_cover(row["release_group_mbid"], image, row["content_type"])
+            self.conn.execute(
+                "UPDATE covers SET image = NULL, file = ?, tint = ? WHERE release_group_mbid = ?",
+                (file, main_colour(image), row["release_group_mbid"]),
+            )
+        return bool(rows)
 
     # --- Users ----------------------------------------------------------------------------
 
@@ -1144,7 +1197,7 @@ class Store:
         )
         return [r["key"] for r in rows]
 
-    # --- Cover thumbnails -----------------------------------------------------------------
+    # --- Covers ---------------------------------------------------------------------------
 
     def save_cover(
         self,
@@ -1156,42 +1209,77 @@ class Store:
         fetched_at: str | None = None,
         source: str = "",
         source_mtime_ns: int = 0,
+        size: int = 0,
+        tint: str = "",
     ) -> None:
+        """Keep a cover (`image` None: the release group has none), its image as a file in
+        `covers_dir`; a file it had before under another name is removed."""
+        old = self.conn.execute(
+            "SELECT file FROM covers WHERE release_group_mbid = ?", (release_group_mbid,)
+        ).fetchone()
+        file = "" if image is None else self._write_cover(release_group_mbid, image, content_type)
         with self.conn:
             self.conn.execute(
                 "INSERT INTO covers (release_group_mbid, image, content_type, fetched_at, "
-                "refresh_after, source, source_mtime_ns) VALUES (?, ?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT (release_group_mbid) DO UPDATE SET image = excluded.image, "
+                "refresh_after, source, source_mtime_ns, file, size, tint) "
+                "VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (release_group_mbid) DO UPDATE SET image = NULL, "
                 "content_type = excluded.content_type, fetched_at = excluded.fetched_at, "
                 "refresh_after = excluded.refresh_after, source = excluded.source, "
-                "source_mtime_ns = excluded.source_mtime_ns",
+                "source_mtime_ns = excluded.source_mtime_ns, file = excluded.file, "
+                "size = excluded.size, tint = excluded.tint",
                 (
                     release_group_mbid,
-                    image,
                     content_type,
                     fetched_at or utcnow(),
                     refresh_after,
                     source,
                     source_mtime_ns,
+                    file,
+                    size,
+                    tint,
                 ),
             )
+        if old and old["file"] and old["file"] != file:
+            (self.covers_dir / old["file"]).unlink(missing_ok=True)
 
     def cover(self, release_group_mbid: str) -> CachedCover | None:
+        """The cached cover, its image read from its file; None if there's none, or its file
+        has gone (so it's made or fetched again)."""
         row = self.conn.execute(
-            "SELECT image, content_type, fetched_at, refresh_after, source, source_mtime_ns "
-            "FROM covers WHERE release_group_mbid = ?",
+            "SELECT image, content_type, fetched_at, refresh_after, source, source_mtime_ns, "
+            "file, size, tint FROM covers WHERE release_group_mbid = ?",
             (release_group_mbid,),
         ).fetchone()
         if row is None:
             return None
+        image = None
+        if row["file"]:
+            try:
+                image = (self.covers_dir / row["file"]).read_bytes()
+            except OSError:
+                return None
         return CachedCover(
-            row["image"],
+            image,
             row["content_type"],
             row["fetched_at"],
             row["refresh_after"],
             row["source"],
             row["source_mtime_ns"],
+            row["size"],
+            row["tint"],
         )
+
+    def _write_cover(self, release_group_mbid: str, image: bytes, content_type: str) -> str:
+        """Write a cover's image to its file (whole or not at all); its path in `covers_dir`."""
+        extension = COVER_EXTENSIONS.get(content_type, ".jpg")
+        file = f"{release_group_mbid[:2]}/{release_group_mbid}{extension}"
+        path = self.covers_dir / file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.part")
+        partial.write_bytes(image)
+        os.replace(partial, path)
+        return file
 
     def covers_due(self, release_group_mbids: Iterable[str], now: str) -> set[str]:
         """Which of these release groups have no cached cover (or "no cover"), or one whose

@@ -1,4 +1,4 @@
-"""Cover Art Archive client: release group thumbnails, for the cover cache (`covers.py`).
+"""Cover Art Archive client: release group covers, for the cover cache (`covers.py`).
 
 The archive is run by MetaBrainz with the Internet Archive and publishes no rate limit of its
 own; it gets the same treatment as MusicBrainz anyway (a shared `RateLimiter`, the
@@ -14,7 +14,7 @@ from .http import JsonClient, RateLimiter, ServicePause
 from .musicbrainz import _mbid
 
 API_ROOT = "https://coverartarchive.org"
-THUMBNAIL = 250  # px; the archive also has 500 and 1200
+COVER_SIZE = 500  # px; the archive also has 250 (linked directly by search results) and 1200
 
 LIMITER = RateLimiter()  # shared by every client in the process
 PAUSE = ServicePause()
@@ -26,8 +26,8 @@ class CoverArtClient(JsonClient):
     def __init__(self, *, api_root: str = API_ROOT, limiter: RateLimiter = LIMITER, **kwargs):
         super().__init__(api_root=api_root, limiter=limiter, **kwargs)
 
-    def release_group_front(self, mbid: str, size: int = THUMBNAIL) -> tuple[bytes, str]:
-        """The release group's front cover thumbnail and its Content-Type. Raises NotFound when
+    def release_group_front(self, mbid: str, size: int = COVER_SIZE) -> tuple[bytes, str]:
+        """The release group's front cover at `size` px and its Content-Type. Raises NotFound when
         it has no cover art."""
         return self.get_bytes(f"/release-group/{_mbid(mbid)}/front-{size}", "image/*")
 

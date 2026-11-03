@@ -13,7 +13,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # SQLite database (wishlist, follows, cached MusicBrainz responses). Back this up.
+      # SQLite database (wishlist, follows, cached MusicBrainz responses) and the cached covers
+      # (covers/, which can be made again). Back up the database.
       - /path/to/groovehound/data:/data
       # Optional: a config.toml instead of the environment variables below.
       # - /path/to/groovehound/config:/config:ro
