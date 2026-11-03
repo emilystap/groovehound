@@ -153,13 +153,30 @@ daily turnover).
 
 ### Artist pages
 
-Same route. A header with the name, *Follow* and the release types (in the ⋯ menu or a sheet,
-not inline); *You have 7 of 12* with *Missing only* as a toggle chip; the discography as a grid
-of tiles (albums and EPs, then singles and live etc. as their own shelves, folded only when
-long); *Also in your library*; similar artists as a shelf of artist tiles, still behind *Find
-similar artists*. MusicBrainz and the Cover Art Archive have no artist photos, and Groovehound
-fetches nothing from elsewhere, so an artist tile is a monogram or a mosaic of their cached
-covers (no requests).
+Same route. A header with the name, *Follow*, *MusicBrainz* (opens the artist there) and ⋯,
+with the release types under it as one line ("New releases: albums and EPs · *Change*", which
+opens a sheet); *You have 7 of 12* with *Missing only* as a toggle chip; the discography as a
+grid of tiles (albums and EPs, then singles and live etc. as rows that open their lists);
+*Also in your library*; similar artists as a shelf of artist tiles, still behind *Find similar
+artists*.
+
+**The header's picture** (decided 2026-11-02): MusicBrainz and the Cover Art Archive have no
+artist photos, and Groovehound fetches nothing from other services itself, so:
+
+1. **A photo and a short biography from Navidrome**, for artists in the library, once 5g's
+   Subsonic connection exists: `getArtistInfo2` gives `biography` and small, medium and large
+   image URLs. Navidrome gets them itself (Deezer by default, no key; Last.fm with a key;
+   `artist.*` files in the music folder first), so Groovehound only asks your own server. The
+   photo goes through Groovehound's cover cache like a cover; the biography is shown with a
+   credit ("From Navidrome (Last.fm)"). **Check first:** whether the image URLs point at
+   Navidrome or straight at Deezer, how an artist is found by MusicBrainz id, and the
+   biographies' licence (Last.fm's are CC BY-SA, as far as known).
+2. **Otherwise a mosaic of four of their cached covers**, in a header tinted from the newest:
+   every artist with albums, and the only header until 5g.
+3. **A monogram** (initials on a colour from their newest cover, or a neutral one) for an
+   artist with no covers at all.
+
+Artist tiles (similar artists, the Library's artist list) follow the same order, in a circle.
 
 ### Library: the albums that want attention, not a library browser
 
@@ -264,6 +281,10 @@ One template partial or Jinja macro each, replacing the five album rows:
 - **Action menu (⋯):** the actions a row no longer shows (*Dismiss*, *Follow* each artist,
   *Open on MusicBrainz*), using the `popover` attribute with `popovertarget`, so no script;
   each item is today's form, so it still posts without JavaScript.
+- **Links to MusicBrainz** (decided 2026-11-02): everything shown has a MusicBrainz id, and
+  MusicBrainz is where to read more or fix the data, so each album and artist page has a visible
+  *MusicBrainz* link (album and artist), every ⋯ menu has *Open on MusicBrainz*, and an
+  edition's line links to that release. They open in a new tab, as every external link does.
 - **Sheet / dialog:** for release types, editions and notes on a phone (`popover` as well;
   `hx-confirm` stays for confirming).
 - **App bar, tab bar / sidebar, empty state, notice, footer.** The footer's attribution stays
@@ -311,7 +332,8 @@ needs something new (the album page's header) gets a function outside `web/`.
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
   capture box at its top. Then a last pass for anything still on the old CSS.
 
-5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action.
+5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
+the artist photos and biographies (above) come with it or just after, on the same connection.
 
 ## Decisions
 
@@ -333,3 +355,7 @@ Decided 2026-11-02:
    Chosen from mockups of three directions.
 9. Search is one bar: local matches as you type, MusicBrainz on Enter, as "title by artist",
    with the artist box, or as free text (see Search).
+10. Shelves are one sideways row on every screen size, with ‹ › buttons on wide screens.
+11. Artist headers: a photo and biography from Navidrome (5g) for library artists, else a
+    mosaic of their covers, else a monogram (see Artist pages).
+12. A visible *MusicBrainz* link on every album and artist page, and in every ⋯ menu.

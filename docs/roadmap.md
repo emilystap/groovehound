@@ -519,7 +519,8 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   config`): it lists albums with their MBIDs (your own server, no MetaBrainz requests) and maps
   each Navidrome album id to a `library` row by release MBID, which the tags already give, so
   the release-group question that holds up 5c doesn't arise. The file scan stays the library
-  source. *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
+  source. The same connection gives artist pages a photo and biography for library artists
+  (`getArtistInfo2`; see `docs/ui-roadmap.md`, "Artist pages"). *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
   has no links a web page can open (deep links are an open feature request on its forum, and
   its broadcast-intent API is for other Android apps). Revisit if it adds them.
 - 5h ✅ **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
