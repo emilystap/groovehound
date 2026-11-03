@@ -10,6 +10,20 @@ Planned 2026-11-02, after 5k's backend and 2e (emilystap/groovehound#38). The vi
 was chosen from mockups of three: A, close to the streaming apps and dark first (see
 "Decisions").
 
+## Start here
+
+For a session starting on this work:
+
+1. **Read** this doc, the roadmap's Non-goals and Ground rules (`docs/roadmap.md`), and, if you
+   can, the mockups' *Direction A (the design)* page (see "Direction A, as mocked up"). Where
+   the doc and the mockups disagree, the doc wins.
+2. **Take the next phase not marked ✅** under "Phases", starting with U0. Each phase is its own
+   branch from `main` and its own squash-merged PR (or several); mark it ✅ here, and in
+   `CLAUDE.md`'s status, when it merges.
+3. **Check "Still to check"** at the end of this doc for anything the phase depends on, and
+   settle it first.
+4. **Preview** with a copy of a real database, never the original, and test as "Testing" says.
+
 ## What "streaming-like" means here
 
 **Layout and browsing, not playback.** Groovehound doesn't play music (Non-goals), so there is
@@ -259,7 +273,12 @@ All in `:root` custom properties, redefined for dark under `prefers-color-scheme
 - **Colour:** `--bg`, `--surface`, `--surface-2` (raised: sheets, menus), `--text`, `--muted`,
   `--divider`, `--accent`, `--on-accent`, `--owned`, `--warning`, `--warning-bg`. Badge
   colours derived from these. Contrast checked to WCAG AA in both themes.
-- **Type:** the system font stack, a five-step scale (12, 14, 16, 20, 28 px), two weights.
+- **Type:** the system font stack (decided 2026-11-02: `system-ui, -apple-system, "Segoe UI",
+  Roboto, sans-serif`, so Roboto on Android): nothing downloaded, nothing loaded from another
+  site (the mockups' Google Fonts link is the mockups' only), and native on the phone. Sizes as
+  under "Direction A, as mocked up", two weights.
+- **Breakpoint:** one, at 768 px. Narrower: the bottom tab bar, phone layouts. 768 px and
+  wider: the sidebar, desktop layouts. A tablet held upright gets the phone layout.
 - **Space:** a 4 px scale (4, 8, 12, 16, 24, 32). **Radius:** 6 (badges, buttons), 10 (tiles),
   16 (sheets). **Covers:** row 56 px, tile ~150 px on a phone (two and a bit per screen width,
   so the next one peeks), 180 px wide, hero 240–300 px.
@@ -292,7 +311,8 @@ point for U1's tokens, to be checked for contrast in place.
 | `--badge-bg` / `--badge-fg` | `#2a2a2a` / `#ededed` | `#efefef` / `#222222` |
 | tab bar / sidebar frame | `#0b0b0b` / `#000000` | `#ffffff` / `#e9e9e9` |
 
-- **Type:** Inter (or the system sans), 700 for headings with -0.02em tracking: page titles
+- **Type:** the system sans (the mockups show Inter, which is close), 700 for headings with
+  -0.02em tracking: page titles
   30 px on a phone, 34 px on desktop; album titles 30 / 64 px; shelf headings 21 / 23 px; body
   14–15 px; badges 11–12 px, 600.
 - **Shapes:** covers and tiles 6 px radius (4 px at row size), badges 4 px, buttons and the
@@ -302,6 +322,12 @@ point for U1's tokens, to be checked for contrast in place.
   `#dfe9f0` for a blue cover: a darkened or lightened tone of the cover's main colour). On
   desktop, the cover sits left of a left-aligned title. A photo header puts the name over the
   photo's bottom edge, centred, with a fade into `--bg` behind it.
+- **The tint:** worked out once, when a cover is cached, not per page view: the cover's main
+  colour (Pillow, reduced to a few colours, the most common one that isn't near black or white),
+  stored with the cover in the `covers` table, in `covers.py` (outside `web/`). The page turns it
+  into the dark band (that colour darkened until `--text` on it passes WCAG AA) or the light one
+  (lightened until `#111111` passes). No cover, or no usable colour: `--surface`. Added with U0's
+  migration, so every cover made or refreshed from then on has one.
 
 ### Shared components
 
@@ -332,6 +358,17 @@ One template partial or Jinja macro each, replacing the five album rows:
   `hx-confirm` stays for confirming).
 - **App bar, tab bar / sidebar, empty state, notice, footer.** The footer's attribution stays
   on every page, at the end of the content above the tab bar.
+- **Icons:** a few simple line icons (home, search, library, bookmark, ⋯, back, tick, plus,
+  open externally, chevrons), drawn as inline SVG from one macro file (`_icons.html`,
+  `icon("home")`), using `currentColor`, `aria-hidden` beside a text label or with an
+  `aria-label` when alone. No icon font, nothing from another site.
+
+### Navigation
+
+Plain page loads between pages: no HTMX `hx-boost` (which swaps pages in place) in U1, so the
+back button, scroll position and the installed app behave as browsers do. HTMX stays for the
+parts of a page that change (follow, dismiss, the lazily loaded sections). Try `hx-boost` later
+only if switching tabs feels slow.
 
 ## Covers at 500 px, as files
 
@@ -357,7 +394,8 @@ in alongside the old CSS, and each PR deletes what it leaves unused. Routes don'
 the logic for each page stays where it is (`new_releases.py`, `rediscover.py`, …); a page that
 needs something new (the album page's header) gets a function outside `web/`.
 
-- **U0 Covers at 500 px, as files** (backend only; above). Sharper covers, nothing else changes.
+- **U0 Covers at 500 px, as files** (backend only; above), with each cover's tint. Sharper
+  covers, nothing else changes.
 - **U1 Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
   four destinations, the app bar, the footer's new place. Pages keep their current content under
   the new shell; Discover, Rediscover and Artists get links from Home and Library until U3 and
@@ -378,6 +416,20 @@ needs something new (the album page's header) gets a function outside `web/`.
 5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
 the artist photos and biographies (above) come with it or just after, on the same connection.
 
+### Testing
+
+- `tests/test_app.py` checks the pages' HTML: each phase updates it for what it changes, and
+  keeps checking what the old tests promised (the attribution footer, `target="_blank"` on
+  external links, root-relative URLs).
+- **Every action still works without JavaScript:** each form posts normally and comes back
+  (`next`). A test per new form or menu item posts it without HTMX headers and follows the
+  redirect.
+- New logic outside `web/` (the album page's header, tracks ahead, the tint, local search
+  matching, re-ranking) gets its own tests, with recorded responses only; never the network.
+- **Previews:** run the app on a copy of a real database (never the original), with no contact
+  set so nothing reaches MetaBrainz, and check each page at phone width and at desktop width, in
+  dark and light.
+
 ## Decisions
 
 Decided 2026-11-02:
@@ -392,7 +444,6 @@ Decided 2026-11-02:
 6. Covers at 500 px, stored as files under the data folder.
 7. No full library browser for now: the Library tab shows what wants attention. Easy to add
    later (see Library).
-
 8. The look: direction A, "streaming, dark first" (near-black, big covers, one bright accent,
    the album page's header tinted from its cover), with a light theme of the same design.
    Chosen from mockups of three directions.
@@ -402,3 +453,23 @@ Decided 2026-11-02:
 11. Artist headers: a photo and biography from Navidrome (5g) for library artists, else a
     mosaic of their covers, else a monogram (see Artist pages).
 12. A visible *MusicBrainz* link on every album and artist page, and in every ⋯ menu.
+13. System fonts, one breakpoint at 768 px, inline SVG icons from one macro file, plain page
+    loads (no `hx-boost`), and the header tint computed when a cover is cached (see Design
+    language).
+
+## Still to check
+
+Gathered from the "Check first" notes above; settle each before the phase that needs it.
+
+- **Before U0:** that a cover's main colour, picked as "Design language" says, gives a pleasant
+  band for typical covers (try it on a few dozen cached ones in a preview).
+- **Before tracks ahead (with U2):** the trickle's real volume against the estimate (~800
+  requests of backlog, then ~30–60 a day), from its first days' logs.
+- **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
+  case: the album should come first), and whether free-text song searches need more than the
+  hint to add the artist.
+- **Before the artist photos (with 5g):** whether `getArtistInfo2`'s image URLs point at
+  Navidrome or straight at Deezer; how an artist is found by MusicBrainz id; the biographies'
+  licence (Last.fm's are CC BY-SA, as far as known) and the credit to show.
+- **5k, already noted there:** the edition chosen by default for albums not in the library or
+  on the wishlist (5k's rule) looks right in practice.
