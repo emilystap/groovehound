@@ -144,6 +144,14 @@ editions, buy links, track counts, and so the default edition) and 5k's track lo
 edition. The edition is the one in the library, else the wishlist item's chosen one, else 5k's
 default from the browse.
 
+- **Track lists from your files**: an edition in the library with a file for every track needs
+  neither request. Picard writes its tags from MusicBrainz, so the scan reads them too (title,
+  track artist, track and disc numbers with their totals, length, medium format, disc title)
+  and keeps each library release's track count and whether every track is there
+  (`library.coverage`); `tracks.local_track_list` builds the list from them. A cached lookup
+  still comes first; an edition you have only part of still needs the lookup, to show what's
+  missing. The same counts give *8 of 12 tracks* for any library album whose tags say how
+  many, with no browse cached.
 - **Tracks ahead** (a trickle like 2e's, its own thread beside `covers_ahead.py`): fetches
   those responses in the background for, in this order, the wishlist; the albums on Home's
   shelves (new and upcoming releases, recommendations, personal fresh releases, the generated
@@ -152,9 +160,9 @@ default from the browse.
   then the lookup. A random 20–60 min asleep, then at most ~10 requests; refreshed after the
   same randomized 30–60 days; nothing without a contact or while MusicBrainz is paused.
   Estimated for a library of ~600 albums: ~800 requests of backlog (2–3 days at that pace),
-  then ~30–60 a day, mostly the playlists' and recommendations' turnover. A side effect: exact
-  *8 of 12 tracks* for every library album, which today shows only when a browse happens to be
-  cached.
+  then ~30–60 a day, mostly the playlists' and recommendations' turnover. The library tier
+  skips editions listed from their files, so most of its ~600 go: only partial albums, and
+  files whose tags don't give the counts, are left.
 - **On view**, for an album the trickle hasn't reached or never will (a search result, a
   non-followed artist's album): the browse and then the lookup, loaded after the page has shown
   (HTMX, `hx-trigger="load"`) with a placeholder track list, about 2.5–4 s behind the limiter.
@@ -163,8 +171,8 @@ default from the browse.
   (`inc=release-groups artist-credits`) for the header.
 
 This replaces 5k's "only when *Tracks* is opened". If the trickle's volume ever seems too much,
-the first things to trim are the library tier (~600 of the backlog) and Daily Jams (most of the
-daily turnover).
+the first things to trim are what's left of the library tier and Daily Jams (most of the daily
+turnover).
 
 ### Artist pages
 
@@ -440,6 +448,9 @@ needs something new (the album page's header) gets a function outside `web/`.
     nothing stored knows gets its header from the browse the track list needs anyway (one
     request, not a release group lookup and then the browse; checked against musicbrainz.org
     2026-11-03). The ⋯ menu waits for U3's tile, its first other user.
+  - ✅ **Track lists from your files** (above): decided after the page landed, to take most of
+    the library tier out of tracks ahead before it starts. Migration 16 reads every file once
+    more (local only).
   - **Tracks ahead**: the trickle, next.
 - **U3 Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
   become *See all* grids. The five album rows become the tile and row components.
@@ -451,6 +462,20 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
   capture box at its top. Then a last pass for anything still on the old CSS.
+- **Later, only with a mirror of your own: MusicBrainz as you type.** Not a phase until you
+  decide to run musicbrainz-docker; without one, nothing changes (the Ground rules: search
+  musicbrainz.org only on Enter). With `musicbrainz_api_root` set to a server that isn't
+  musicbrainz.org (`musicbrainz.is_public_server`), Search adds an *On MusicBrainz* group
+  under U6's local matches as you type, on the same debounce, re-ranked as U6's results are.
+  - **Needs the mirror's search containers** (Solr and the indexer that keeps it current), not
+    just its database and web service, which don't answer `?query=` searches. That's most of
+    the cost (tens of GB, a good deal of RAM); the Groovehound side is small.
+  - **Searches while typing aren't cached**: every prefix would fill `api_cache`. Only the
+    search on Enter is, as now.
+  - **Prefixes**: MusicBrainz search (Lucene) matches whole words, so the word being typed gets
+    a `*` ("demon da*").
+  - The mirror's shorter `interval` could also speed up the trickles; that's a separate
+    decision.
 
 5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
 the artist photos and biographies (above) come with it or just after, on the same connection.
@@ -479,7 +504,8 @@ Decided 2026-11-02:
 4. Track lists are fetched ahead of time for the wishlist, Home's albums and the library (a
    trickle); anything else loads on view (the editions browse, then the track lookup).
 5. 5k's track list goes on the album page; *8 of 12 tracks* on library albums' tiles and rows
-   (Library's *Partial* shelf, the artist page, the album page), from the cached responses.
+   (Library's *Partial* shelf, the artist page, the album page), from the cached responses or
+   the files' tags. An edition you have whole is listed from its files, with no request.
 6. Covers at 500 px, stored as files under the data folder.
 7. No full library browser for now: the Library tab shows what wants attention. Easy to add
    later (see Library). *Changed 2026-11-03:* *All albums* added (see All albums), as a grid

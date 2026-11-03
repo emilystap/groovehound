@@ -257,6 +257,27 @@ MIGRATIONS: list[str] = [
     # 15: the covers' images written out of the database into files, with their tints (local,
     # no requests). Python, so a function of the Store (`Store._write_out_covers`).
     "write_out_covers",
+    # 16: track lists from your files (docs/ui-roadmap.md). Each library file's title, track
+    # artist, track and disc numbers with their totals, length, medium format and disc title,
+    # from its tags (numbers NULL when the tags don't say); each library release's track count
+    # as its files' tags give it (NULL unless they do for every disc) and whether there's a file
+    # for every track. mtime_ns = -1 makes the next scans read every file once more, to fill
+    # them in (local only, no requests).
+    """
+    ALTER TABLE library_files ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    ALTER TABLE library_files ADD COLUMN artist TEXT NOT NULL DEFAULT '';
+    ALTER TABLE library_files ADD COLUMN track_number INTEGER;
+    ALTER TABLE library_files ADD COLUMN track_total INTEGER;
+    ALTER TABLE library_files ADD COLUMN disc_number INTEGER;
+    ALTER TABLE library_files ADD COLUMN disc_total INTEGER;
+    ALTER TABLE library_files ADD COLUMN length_ms INTEGER;
+    ALTER TABLE library_files ADD COLUMN media TEXT NOT NULL DEFAULT '';
+    ALTER TABLE library_files ADD COLUMN disc_title TEXT NOT NULL DEFAULT '';
+    UPDATE library_files SET mtime_ns = -1;
+    CREATE INDEX library_files_release ON library_files(user_id, release_mbid);
+    ALTER TABLE library ADD COLUMN tracks INTEGER;
+    ALTER TABLE library ADD COLUMN complete INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 
@@ -356,6 +377,15 @@ class LibraryFile:
     problem: str = ""  # why it couldn't be read, if it couldn't
     recording_mbid: str | None = None  # the song (roadmap 5k)
     track_mbid: str | None = None  # the track on this release
+    title: str = ""  # the track's
+    artist: str = ""  # the track's artist credit
+    track_number: int | None = None  # on its disc
+    track_total: int | None = None  # tracks on its disc
+    disc_number: int | None = None
+    disc_total: int | None = None
+    length_ms: int | None = None
+    media: str = ""  # its disc's format ("CD", "Digital Media")
+    disc_title: str = ""  # its disc's own title, if it has one
 
 
 @dataclass(frozen=True)
@@ -371,6 +401,8 @@ class LibraryRelease:
     files: int
     added_at: str = ""  # when it was first found
     last_seen: str = ""
+    tracks: int | None = None  # its track count as the files' tags give it, if they do
+    complete: bool = False  # a file for every one of those tracks (`library.coverage`)
 
 
 @dataclass(frozen=True)
@@ -838,7 +870,9 @@ class Store:
             self.conn.executemany(
                 "INSERT OR REPLACE INTO library_files (user_id, path, mtime_ns, size, "
                 "release_mbid, release_group_mbid, album_artist_mbids, album, album_artist, "
-                "problem, recording_mbid, track_mbid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "problem, recording_mbid, track_mbid, title, artist, track_number, track_total, "
+                "disc_number, disc_total, length_ms, media, disc_title) "
+                f"VALUES ({', '.join('?' * 21)})",
                 (
                     (
                         user_id,
@@ -853,6 +887,15 @@ class Store:
                         f.problem,
                         f.recording_mbid,
                         f.track_mbid,
+                        f.title,
+                        f.artist,
+                        f.track_number,
+                        f.track_total,
+                        f.disc_number,
+                        f.disc_total,
+                        f.length_ms,
+                        f.media,
+                        f.disc_title,
                     )
                     for f in files
                 ),
@@ -872,22 +915,15 @@ class Store:
         rows = self.conn.execute(
             f"SELECT * FROM library_files WHERE user_id = ?{where} ORDER BY path", (user_id,)
         )
-        return [
-            LibraryFile(
-                path=r["path"],
-                mtime_ns=r["mtime_ns"],
-                size=r["size"],
-                release_mbid=r["release_mbid"],
-                release_group_mbid=r["release_group_mbid"],
-                album_artist_mbids=tuple(json.loads(r["album_artist_mbids"])),
-                album=r["album"],
-                album_artist=r["album_artist"],
-                problem=r["problem"],
-                recording_mbid=r["recording_mbid"],
-                track_mbid=r["track_mbid"],
-            )
-            for r in rows
-        ]
+        return [_library_file(r) for r in rows]
+
+    def library_release_files(self, user_id: int, release_mbid: str) -> list[LibraryFile]:
+        """The files of a release in the user's library, by path."""
+        rows = self.conn.execute(
+            "SELECT * FROM library_files WHERE user_id = ? AND release_mbid = ? ORDER BY path",
+            (user_id, release_mbid),
+        )
+        return [_library_file(r) for r in rows]
 
     def replace_library(self, user_id: int, releases: Iterable[LibraryRelease], now: str) -> None:
         """Make these the user's library: releases already there keep the date they were first
@@ -896,12 +932,14 @@ class Store:
         with self.conn:
             self.conn.executemany(
                 "INSERT INTO library (user_id, release_mbid, release_group_mbid, "
-                "album_artist_mbids, title, artist, folder, files, added_at, last_seen) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, release_mbid) "
+                "album_artist_mbids, title, artist, folder, files, added_at, last_seen, tracks, "
+                "complete) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (user_id, release_mbid) "
                 "DO UPDATE SET release_group_mbid = excluded.release_group_mbid, "
                 "album_artist_mbids = excluded.album_artist_mbids, title = excluded.title, "
                 "artist = excluded.artist, folder = excluded.folder, files = excluded.files, "
-                "last_seen = excluded.last_seen",
+                "last_seen = excluded.last_seen, tracks = excluded.tracks, "
+                "complete = excluded.complete",
                 (
                     (
                         user_id,
@@ -914,6 +952,8 @@ class Store:
                         r.files,
                         now,
                         now,
+                        r.tracks,
+                        r.complete,
                     )
                     for r in releases
                 ),
@@ -1353,6 +1393,33 @@ def _library_release(row: sqlite3.Row) -> LibraryRelease:
         files=row["files"],
         added_at=row["added_at"],
         last_seen=row["last_seen"],
+        tracks=row["tracks"],
+        complete=bool(row["complete"]),
+    )
+
+
+def _library_file(row: sqlite3.Row) -> LibraryFile:
+    return LibraryFile(
+        path=row["path"],
+        mtime_ns=row["mtime_ns"],
+        size=row["size"],
+        release_mbid=row["release_mbid"],
+        release_group_mbid=row["release_group_mbid"],
+        album_artist_mbids=tuple(json.loads(row["album_artist_mbids"])),
+        album=row["album"],
+        album_artist=row["album_artist"],
+        problem=row["problem"],
+        recording_mbid=row["recording_mbid"],
+        track_mbid=row["track_mbid"],
+        title=row["title"],
+        artist=row["artist"],
+        track_number=row["track_number"],
+        track_total=row["track_total"],
+        disc_number=row["disc_number"],
+        disc_total=row["disc_total"],
+        length_ms=row["length_ms"],
+        media=row["media"],
+        disc_title=row["disc_title"],
     )
 
 
