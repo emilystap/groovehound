@@ -16,8 +16,10 @@ A release group shows if the follow is for its types (`follows.wanted`) and it i
   released more than `CATALOGUE` before it was first seen is an old record MusicBrainz only
   just got.
 
-Dismissed ones stay dismissed (per user), and ones already in the library (roadmap 5b) come
-after the rest of their list. All of it is CC0.
+Dismissed ones stay dismissed (per user). Ones already in the library (roadmap 5b) come after
+the rest of their list, except in *Out now* those never played (5e), which come first: the list
+is also for what to listen to next. Without ListenBrainz stats nothing counts as never played,
+so they all come last. All of it is CC0.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from . import follows, fresh, library
+from . import follows, fresh, library, listens
 from .db import Follow, Store, local_date
 from .search import Hit, release_group_hits
 
@@ -51,8 +53,9 @@ class Feed:
         return bool(self.upcoming or self.new)
 
 
-def feed(store: Store, user_id: int, *, now: datetime | None = None) -> Feed:
-    """What's new and upcoming from the artists this user follows, from the cache only."""
+def feed(store: Store, user_id: int, user_name: str = "", *, now: datetime | None = None) -> Feed:
+    """What's new and upcoming from the artists this user follows, from the cache only.
+    `user_name`: their ListenBrainz username, for what they've never played."""
     now = now or datetime.now(UTC)
     today = local_date(_iso(now))
     dismissed = store.dismissed(user_id, DISMISSED_KIND)
@@ -78,18 +81,31 @@ def feed(store: Store, user_id: int, *, now: datetime | None = None) -> Feed:
         upcoming=_owned_last(
             sorted(upcoming.values(), key=lambda r: r.hit.first_release_date), owned
         ),
-        new=_owned_last(
+        new=_unplayed_first(
             (
                 *(r for r in reversed(newest) if r.hit.first_release_date),
                 *(r for r in reversed(newest) if not r.hit.first_release_date),
             ),
             owned,
+            listens.never_played(store, user_id, user_name, owned),
         ),
     )
 
 
 def _owned_last(releases: Iterable[NewRelease], owned: Iterable[str]) -> tuple[NewRelease, ...]:
     return tuple(library.owned_last(releases, owned, lambda r: r.hit.mbid))
+
+
+def _unplayed_first(
+    releases: Iterable[NewRelease], owned: Iterable[str], unplayed: set[str]
+) -> tuple[NewRelease, ...]:
+    """In the same order, but owned and never played first, then not owned, then owned and
+    played."""
+    ordered = _owned_last(releases, owned)
+    return (
+        *(r for r in ordered if r.hit.mbid in unplayed),
+        *(r for r in ordered if r.hit.mbid not in unplayed),
+    )
 
 
 def _cached_hits(store: Store, follow: Follow) -> list[Hit]:

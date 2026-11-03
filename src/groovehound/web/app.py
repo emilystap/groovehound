@@ -139,8 +139,8 @@ def create_app(settings: Settings) -> FastAPI:
 
     def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
         """The home page (no requests); with `draft`, the quick capture form is filled in."""
-        feed = new_releases.feed(store, user.id)
         lb_user = _listenbrainz_user(user)
+        feed = new_releases.feed(store, user.id, lb_user)
         suggested = personal.suggestions(store, user.id, lb_user)
         hits = [r.hit for r in (*feed.upcoming, *feed.new)] + suggested
         wishlist = store.wishlist(user.id, limit=HOME_WISHLIST)
