@@ -52,8 +52,10 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
 
 **MusicBrainz specifics**
 
-- Prefer **lookups and browses** (by MBID) over **search**. Search is only ever run when the user
-  presses *Search*, never as-you-type.
+- Prefer **lookups and browses** (by MBID) over **search**. On musicbrainz.org, search is only
+  ever run when the user presses *Search*, never as-you-type. The one exception is a mirror of
+  your own that you've opted in (phase 7b); musicbrainz.org never gets search as you type, and
+  the code refuses it, not just the UI.
 - Browse with `limit=100` (the maximum) and stop after a fixed number of pages.
 - Releases on new-release pages come from **one browse per followed artist**, refreshed on a slow
   randomized schedule, not by polling. Day-to-day "what's new" comes from ListenBrainz's fresh
@@ -61,7 +63,9 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
 - MusicBrainz doesn't publish change notifications; its docs ask clients not to poll for changes.
   So nothing here re-checks a release or artist faster than every few days.
 - An optional `api_root` lets you point at a mirror of your own (musicbrainz-docker) with a
-  shorter interval. musicbrainz.org itself never gets less than 1.5 s.
+  shorter interval. musicbrainz.org itself never gets less than 1.5 s. A mirror covers
+  MusicBrainz only: the Cover Art Archive and ListenBrainz are still the public servers, with
+  their limits (see phase 7).
 
 **ListenBrainz specifics**
 
@@ -630,6 +634,49 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
 - Later: ntfy / webhooks, an RSS/Atom feed of new releases, export/import of follows and the
   wishlist (JSON / CSV), MusicBrainz collections sync (needs OAuth; would let the wishlist live
   in a MusicBrainz collection too).
+
+### 7. A MusicBrainz mirror of your own
+
+Optional, for anyone running musicbrainz-docker beside Groovehound (planned 2026-11-03). The
+mirror is the operator's to set up and keep running; Groovehound only talks to its web service
+(`/ws/2`), like any MusicBrainz server, and never to its database. Without a mirror nothing here
+changes.
+
+- 7a **Setting it up** (`docs/mirror.md`, written from a real build): what musicbrainz-docker
+  needs (with indexed search its README recommends 16 threads, 16 GB of RAM and 350 GB of disk;
+  4 GB and 100 GB without), the pre-built search indexes (about 60 GB to download) rather than
+  a reindex, replication with a MetaBrainz access token, live indexing (marked experimental
+  upstream, checked 2026-11-03), and the two settings (`api_root`, `interval`), with notes for
+  running it in an LXC on TrueNAS. Also what happens
+  when the mirror is down: a failed run pauses MusicBrainz for an hour, as now, and the page
+  says the mirror couldn't be reached rather than musicbrainz.org.
+  **No automatic fallback** to musicbrainz.org: work paced for a mirror at interval 0 would land
+  on the public server, so going back to it is a settings change the operator makes.
+- 7b **Search as you type, from the mirror** (needs U6's one bar, `docs/ui-roadmap.md`). As
+  well as the local matches, the bar asks the mirror while you type: albums (release groups)
+  and artists, the small search indexes, so they can stay in the mirror's memory; songs stay
+  on Enter (the recording index is many times larger). They show as an *On MusicBrainz* group
+  under the local matches, re-ranked as U6's results are.
+  - **Needs the mirror's search containers** (Solr, and the indexer that keeps it current), not
+    just its database and web service, which don't answer `?query=` searches. That's most of
+    the mirror's cost; the Groovehound side is small.
+  - **Only with a mirror you've opted in:** a separate setting (`[musicbrainz]
+    search_as_you_type = true`), refused at startup unless `api_root` is set to a server that
+    isn't musicbrainz.org (`musicbrainz.is_public_server`). Setting `api_root` alone isn't
+    enough: it could be someone else's server, which deserves the public rules.
+  - **Prefixes:** MusicBrainz search (Lucene) matches whole words, so the word being typed gets
+    a `*` ("demon da*").
+  - **Requests:** after a short pause in typing (HTMX `delay:300ms`), from 3 characters, a small
+    `limit` (10), through `JsonClient` as always; a newer keystroke replaces a request still
+    waiting (`hx-sync="this:replace"`). Best with `interval = 0`; at 1.5 s it works but lags.
+  - **Not cached:** every prefix of every query would fill `api_cache`. Enter's search is
+    cached as today.
+  - **Covers:** the rows show a cover only when Groovehound already has it (library, wishlist,
+    the cover cache); otherwise a blank tile. Loading the archive's thumbnails for every
+    keystroke's results would put the load on the Cover Art Archive instead. Enter's results
+    link the archive as today.
+  - The mirror's shorter `interval` could also speed up the trickles; that's a separate
+    decision.
 
 ## Decided against
 

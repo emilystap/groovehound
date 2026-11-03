@@ -259,6 +259,10 @@ second box. Two kinds of results:
 - **As you type, locally:** the library (albums and album artists) and the wishlist, matched by
   title and artist name in the database (no requests), so an album you already have shows
   before you'd look it up again. A short debounce, HTMX `hx-trigger="input changed delay:300ms"`.
+- **As you type, from your own mirror** (added 2026-11-03; phase 7b in `docs/roadmap.md`): only
+  with a MusicBrainz mirror opted in (`search_as_you_type`), never musicbrainz.org. Albums and
+  artists from the mirror, under the local matches and without repeating them; covers only
+  where Groovehound already has them. Without a mirror this row isn't there.
 - **On Enter, MusicBrainz:** one search per press, as today, cached as today. What's sent
   depends on what was typed:
   1. **"title by artist"**, split at the last " by " as the share target does (`share.py`):
@@ -288,7 +292,8 @@ wider.
 
 Search results are seen once, so they keep the archive's 250 px covers, linked directly.
 *Not what you were looking for?* (save as a capture) and the capture banner stay. This
-changes 1a's form, not its requests: still one search per press, never as you type.
+changes 1a's form, not its requests: still one search per press, never as you type (on
+musicbrainz.org; a mirror of your own may, see above).
 
 ## Design language
 
@@ -462,20 +467,10 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
   capture box at its top. Then a last pass for anything still on the old CSS.
-- **Later, only with a mirror of your own: MusicBrainz as you type.** Not a phase until you
-  decide to run musicbrainz-docker; without one, nothing changes (the Ground rules: search
-  musicbrainz.org only on Enter). With `musicbrainz_api_root` set to a server that isn't
-  musicbrainz.org (`musicbrainz.is_public_server`), Search adds an *On MusicBrainz* group
-  under U6's local matches as you type, on the same debounce, re-ranked as U6's results are.
-  - **Needs the mirror's search containers** (Solr and the indexer that keeps it current), not
-    just its database and web service, which don't answer `?query=` searches. That's most of
-    the cost (tens of GB, a good deal of RAM); the Groovehound side is small.
-  - **Searches while typing aren't cached**: every prefix would fill `api_cache`. Only the
-    search on Enter is, as now.
-  - **Prefixes**: MusicBrainz search (Lucene) matches whole words, so the word being typed gets
-    a `*` ("demon da*").
-  - The mirror's shorter `interval` could also speed up the trickles; that's a separate
-    decision.
+- **Later, only with a mirror of your own: MusicBrainz as you type** (phase 7b in
+  `docs/roadmap.md`, which has the details): an *On MusicBrainz* group under U6's local matches,
+  on the same bar and debounce, re-ranked as U6's results are. Without a mirror, nothing
+  changes.
 
 5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
 the artist photos and biographies (above) come with it or just after, on the same connection.

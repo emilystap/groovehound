@@ -14,7 +14,8 @@ service, ≥1.5 s from each response to the next request, a User-Agent with the 
 (required), backoff on 503/429 honouring `Retry-After` / `X-RateLimit-Reset-In`. Never add a
 request path that bypasses it, never lower `MIN_INTERVAL` for the public servers, and never
 schedule background work at a fixed time of day (randomized trickles only). Prefer
-lookups/browses to search; search only on an explicit user action. Cache raw responses
+lookups/browses to search; search only on an explicit user action (the one exception: search
+as you type against a mirror of your own that's opted in, roadmap 7b; never musicbrainz.org). Cache raw responses
 (`api_cache`) and ask for everything a feature needs in one `inc=`. When in doubt, make fewer
 requests. See the roadmap's Ground rules.
 
