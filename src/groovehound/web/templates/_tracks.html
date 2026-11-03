@@ -1,7 +1,8 @@
 {% from "_icons.html" import icon %}
 {# An album page's *Tracks* (`tracks`: album.TrackList): an edition's tracks, each marked in your
    library or not (by recording, so a song you have on another release counts) once you have any
-   of them. When they aren't cached it loads itself once the page has shown (GET
+   of them; for an edition you have every track of, listed from your files' tags
+   (`tracks.local`). When they aren't cached it loads itself once the page has shown (GET
    /albums/<mbid>/tracks: at most two requests), unless that's just happened (`loaded`). #}
 {% set listing = tracks.tracks %}
 {% set loading = tracks.due and not loaded and not contact_problem and not error %}
@@ -16,7 +17,8 @@
     {{ {"library": "The edition you have", "wishlist": "The edition on your wishlist"}.get(tracks.pick.reason, "Edition") }}:
     <a href="{{ musicbrainz_web }}/release/{{ tracks.pick.release_mbid }}" rel="noopener" target="_blank">{{ tracks.details or "on MusicBrainz" }}</a>
     {%- if listing and listing.length_ms %} · {{ (listing.length_ms / 60000) | round | int }} min{% endif %}
-    {%- if listing and listing.owned %} · {{ listing.owned }} of {{ listing.total }} in your library{% endif %}
+    {%- if listing and listing.local %} · all in your library, listed from its files
+    {%- elif listing and listing.owned %} · {{ listing.owned }} of {{ listing.total }} in your library{% endif %}
   </p>
   {% endif %}
   {% if error %}<p class="muted small">{{ error }}</p>{% endif %}

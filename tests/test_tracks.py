@@ -1,9 +1,10 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from groovehound import releases, tracks
+from groovehound import library, releases, tracks
 from groovehound.brainz.http import ServiceError, ServicePause
 from groovehound.db import OWNER_ID, LibraryFile, LibraryRelease, Store
 
@@ -170,3 +171,71 @@ def test_fetch_remembers_a_missing_release_and_pauses_on_errors(tmp_path: Path):
         assert pause.remaining()
         with pytest.raises(ServiceError, match="paused"):
             tracks.fetch(store, failing, pause, R[2], now=NOW)
+
+
+# --- Track lists from your files ---------------------------------------------------------------
+
+
+def own_tagged(store: Store, release: str, rg: str, *files: LibraryFile) -> None:
+    """These files of `release` in the library, with the library row the scan would make."""
+    files = tuple(
+        replace(f, path=f"{release}/{f.path}", release_mbid=release, release_group_mbid=rg)
+        for f in files
+    )
+    store.save_library_files(OWNER_ID, files)
+    store.replace_library(
+        OWNER_ID, library.library_releases(store.library_files(OWNER_ID)), NOW.isoformat()
+    )
+
+
+def song(path: str, number: int | None, of: int | None, disc: int | None = None, **tags):
+    return LibraryFile(path, 1, 1, track_number=number, track_total=of, disc_number=disc, **tags)
+
+
+TWO_DISCS = (
+    song("1-02.flac", 2, 2, 1, disc_total=2, title="Other", recording_mbid=REC[1], media="CD"),
+    song("1-01.flac", 1, 2, 1, disc_total=2, title="Song", length_ms=200000, artist="A feat. B",
+         album="Album", album_artist="Artist", media="CD"),
+    song("1-01.mp3", 1, 2, 1, disc_total=2, title="Song (the MP3)"),
+    song("2-01.flac", 1, 1, 2, disc_total=2, title="Extra", disc_title="Bonus", media="CD"),
+)  # fmt: skip
+
+
+def test_local_track_list_when_every_track_is_there(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        own_tagged(store, R[1], RG, *TWO_DISCS)
+        listing = tracks.local_track_list(store, OWNER_ID, R[1])
+        (edition,) = store.library_editions(OWNER_ID, RG)
+    assert (edition.tracks, edition.complete) == (3, True)
+    assert listing.local and (listing.title, listing.artist) == ("Album", "Artist")
+    assert [(m.position, m.format, m.title) for m in listing.media] == [
+        (1, "CD", ""),
+        (2, "CD", "Bonus"),
+    ]
+    first, second = listing.media[0].tracks
+    assert first == tracks.Track("1", "Song", "A feat. B", 200000, "", owned=True)
+    assert (second.title, second.recording_mbid) == ("Other", REC[1])
+    assert (listing.total, listing.owned) == (3, 3)
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        TWO_DISCS[:3],  # the second disc is missing
+        (song("01.flac", 1, 2),),  # one of two tracks
+        (song("01.flac", 1, None), song("02.flac", 2, None)),  # no total
+        (song("01.flac", 1, 1, 1), song("02.flac", 1, 1, 2)),  # two discs, but how many?
+    ],
+)
+def test_no_local_track_list_unless_every_track_is_there(tmp_path: Path, files):
+    with Store(tmp_path / "db.sqlite") as store:
+        own_tagged(store, R[1], RG, *files)
+        assert tracks.local_track_list(store, OWNER_ID, R[1]) is None
+        assert not store.library_editions(OWNER_ID, RG)[0].complete
+
+
+def test_partial_albums_from_the_files_tags_without_the_browse(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        own_tagged(store, R[1], RG, song("01.flac", 1, 3), song("02.flac", 2, 3))
+        own_tagged(store, R[2], RG2, song("01.flac", 1, 1))
+        assert tracks.partial_albums(store, OWNER_ID, [RG, RG2]) == {RG: tracks.Partial(R[1], 2, 3)}
