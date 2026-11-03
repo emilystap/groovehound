@@ -855,6 +855,25 @@ class Store:
         )
         return [_library_release(r) for r in rows]
 
+    def library_of_artist(self, user_id: int, artist_mbid: str) -> list[LibraryRelease]:
+        """The releases in the user's library with this album artist, by title."""
+        rows = self.conn.execute(
+            "SELECT * FROM library WHERE user_id = ? AND EXISTS (SELECT 1 FROM "
+            "json_each(library.album_artist_mbids) WHERE value = ?) "
+            "ORDER BY title COLLATE NOCASE, release_mbid",
+            (user_id, artist_mbid),
+        )
+        return [_library_release(r) for r in rows]
+
+    def library_artists(self, user_id: int) -> set[str]:
+        """Every album artist in the user's library."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT a.value FROM library, json_each(library.album_artist_mbids) a "
+            "WHERE library.user_id = ?",
+            (user_id,),
+        )
+        return {r[0] for r in rows}
+
     def library_paths(self, user_id: int, release_mbid: str) -> list[str]:
         """The files of a release in the user's library, by path."""
         rows = self.conn.execute(

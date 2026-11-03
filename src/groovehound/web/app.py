@@ -30,6 +30,7 @@ from .. import (
     follows,
     history,
     library,
+    library_artists,
     listens,
     new_releases,
     personal,
@@ -532,19 +533,62 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/artists", response_class=HTMLResponse)
     def artists_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
         """The artists you follow (no requests)."""
+        follows_ = store.follows(user.id)
         return templates.TemplateResponse(
             request,
             "artists.html",
-            {"page": "artists", "follows": store.follows(user.id), "here": "/artists"},
+            {
+                "page": "artists",
+                "follows": follows_,
+                "follow_count": len(follows_),
+                "library_count": library_artists.count(store, user.id),
+                "here": "/artists",
+            },
         )
 
+    @app.get("/artists/library", response_class=HTMLResponse)
+    def library_artists_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """Every album artist in the library, with the suggested follows first (no requests)."""
+        found = library_artists.library_artists(store, user.id, new_follow_types)
+        return templates.TemplateResponse(
+            request,
+            "artists_library.html",
+            {
+                "page": "artists",
+                "artists": found,
+                "suggestions": library_artists.suggestions(store, user.id, found),
+                "suggest_at": library_artists.SUGGEST_AT,
+                "follow_count": len(store.follows(user.id)),
+                "library_count": len(found),
+                "here": "/artists/library",
+            },
+        )
+
+    @app.post("/artists/{mbid}/dismiss-suggestion")
+    async def dismiss_suggested_follow(
+        request: Request, mbid: str, store: StoreDep, user: UserDep
+    ) -> Response:
+        """Stop suggesting an artist to follow (5d). HTMX gets an empty swap, removing it."""
+        mbid = _artist_mbid(mbid)
+        form = await _form(request)
+        store.dismiss(user.id, library_artists.DISMISSED_KIND, mbid)
+        if request.headers.get("HX-Request"):
+            return HTMLResponse("")
+        return RedirectResponse(_local_path(form.get("next", "/artists/library")), status_code=303)
+
     @app.get("/artists/{mbid}", response_class=HTMLResponse)
-    def artist_page(request: Request, mbid: str, store: StoreDep, user: UserDep) -> HTMLResponse:
+    def artist_page(
+        request: Request, mbid: str, store: StoreDep, user: UserDep, missing: str = ""
+    ) -> HTMLResponse:
         """An artist's albums and EPs, with *Follow*: one browse unless cached (the same one
-        following makes, so following from here asks nothing more)."""
+        following makes, so following from here asks nothing more). For an artist in the
+        library, what you have of it and what's missing (5j; `missing=1`: only what's missing),
+        which browses their singles too when the types counted include them."""
         mbid = _artist_mbid(mbid)
         contact_problem = _contact_problem(settings)
         follow = store.follow_of(user.id, mbid)
+        types = follow.types if follow else new_follow_types
+        in_library = bool(store.library_of_artist(user.id, mbid))
         found, error = None, None
         if contact_problem:
             found, _ = follows.cached_discography(store, mbid)
@@ -552,7 +596,8 @@ def create_app(settings: Settings) -> FastAPI:
             client = musicbrainz.client_for(settings)
             try:
                 found = follows.discography(store, client, musicbrainz.PAUSE, mbid)
-                if follow and "single" in follow.types:  # followed for singles: keep them fresh
+                # followed for singles (keep them fresh), or counting them as missing
+                if "single" in types and (follow or in_library):
                     found = replace(
                         found, singles=follows.singles(store, client, musicbrainz.PAUSE, mbid)
                     )
@@ -562,6 +607,10 @@ def create_app(settings: Settings) -> FastAPI:
                 found, _ = follows.cached_discography(store, mbid)
                 error = str(exc)
         hits = (*found.release_groups, *(found.singles or ())) if found else ()
+        gaps = library_artists.gaps(store, user.id, mbid, found, types) if found else None
+        missing_only = bool(missing) and gaps is not None
+        if missing_only:
+            found = library_artists.missing_only(found, gaps)
         return templates.TemplateResponse(
             request,
             "artist.html",
@@ -575,6 +624,9 @@ def create_app(settings: Settings) -> FastAPI:
                 "follow": follow,
                 "error": error,
                 "contact_problem": contact_problem,
+                "gaps": gaps,
+                "types_counted": types,
+                "missing_only": missing_only,
                 "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
                 **owned_context(store, user, (h.mbid for h in hits)),
                 **similar_context(store, user, mbid),

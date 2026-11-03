@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Artists · Groovehound{% endblock %}
 {% block content %}
+{% include "_artist_tabs.html" %}
 <section class="card">
   <h2>Artists you follow{% if follows %} <span class="muted">({{ follows | length }})</span>{% endif %}</h2>
   {% if follows %}

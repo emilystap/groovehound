@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Artists in your library · Groovehound{% endblock %}
+{# Every album artist in the library (roadmap 5j), with the suggested follows first (5d). No
+   requests: "missing" counts show only for artists whose browse is cached. #}
+{% macro owned_line(artist) %}
+<div class="muted small">
+  {% if artist.gaps %}You have {{ artist.gaps.have }} of {{ artist.gaps.total }}{% if artist.gaps.missing %} · {{ artist.gaps.missing | length }} missing{% else %} · nothing missing{% endif %}
+  {% else %}{{ artist.owned }} in your library · not checked yet{% endif %}
+</div>
+{% endmacro %}
+{% block content %}
+{% include "_artist_tabs.html" %}
+
+{% if suggestions %}
+<section class="card">
+  <h2>Artists to follow? <span class="muted">({{ suggestions | length }})</span></h2>
+  <p class="muted small">You have {{ suggest_at }} or more of their albums, EPs or singles, and don't follow them.</p>
+  <ul class="artists">
+    {% for artist in suggestions %}
+    <li class="similar-artist" id="suggested-follow-{{ artist.mbid }}">
+      {% with following = false, error = none %}{% include "_follow_button.html" %}{% endwith %}
+      <span class="muted small">{{ artist.owned }} in your library</span>
+      <form method="post" action="/artists/{{ artist.mbid }}/dismiss-suggestion" hx-post="/artists/{{ artist.mbid }}/dismiss-suggestion"
+            hx-target="#suggested-follow-{{ artist.mbid }}" hx-swap="outerHTML">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit" class="chip secondary" aria-label="Don't suggest {{ artist.name }} again">Dismiss</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Artists in your library{% if artists %} <span class="muted">({{ artists | length }})</span>{% endif %}</h2>
+  {% if artists %}
+  <ul class="artists">
+    {% for artist in artists %}
+    <li>
+      {% with following = artist.following, error = none %}{% include "_follow_button.html" %}{% endwith %}
+      {{ owned_line(artist) }}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted small">Album artists from your files' tags. What's missing counts the types they're
+    followed for (or a new follow's, if you don't follow them), once their albums have been looked up:
+    open an artist to look.</p>
+  {% else %}
+  <p class="muted">No album artists in your library yet. See the <a href="/library">Library</a> page.</p>
+  {% endif %}
+</section>
+{% endblock %}

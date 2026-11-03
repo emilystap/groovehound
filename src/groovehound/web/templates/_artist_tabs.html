@@ -1,0 +1,6 @@
+{# The Artists page's two lists (roadmap 5j): who you follow, and every album artist in your
+   library. Expects `here`, `follow_count` and `library_count`. #}
+<nav class="tabs" aria-label="Artists">
+  <a href="/artists" {% if here == "/artists" %}aria-current="page"{% endif %}>Following <span class="muted">({{ follow_count }})</span></a>
+  <a href="/artists/library" {% if here == "/artists/library" %}aria-current="page"{% endif %}>In your library <span class="muted">({{ library_count }})</span></a>
+</nav>
