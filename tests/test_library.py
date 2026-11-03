@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from mutagen.apev2 import APEv2
 from mutagen.flac import FLAC
-from mutagen.id3 import ID3, TALB, TPE2, TXXX, UFID
+from mutagen.id3 import ID3, TALB, TIT2, TMED, TPE1, TPE2, TPOS, TRCK, TSST, TXXX, UFID
 from mutagen.mp4 import MP4FreeForm, MP4Tags
 
 from groovehound import cli, library
@@ -75,6 +75,8 @@ def album(root: Path, folder: str, release: str, tracks: int = 2, **extra: str) 
             musicbrainz_albumartistid=AA,
             album=extra.get("title", "Album"),
             albumartist="Artist",
+            tracknumber=str(n),
+            tracktotal=str(tracks),
         )
 
 
@@ -103,7 +105,9 @@ def test_reads_id3_txxx_from_mp3(tmp_path: Path):
         TALB(text=["Blue"]),
         TPE2(text=["Joni Mitchell"]),
     )
-    assert library.read_tags(path) == FileTags(REL, RG, (AA, AA2), "Blue", "Joni Mitchell")
+    assert library.read_tags(path) == FileTags(
+        REL, RG, (AA, AA2), "Blue", "Joni Mitchell", length_ms=261
+    )
 
 
 def test_reads_mp4_freeform_atoms():
@@ -129,7 +133,7 @@ def test_reads_apev2(tmp_path: Path):
 
 def test_falls_back_to_track_artists_without_album_artist_tags():
     tags = {"musicbrainz_albumid": [REL], "musicbrainz_artistid": [AA], "artist": ["Solo"]}
-    assert tags_from(tags) == FileTags(REL, None, (AA,), "", "Solo")
+    assert tags_from(tags) == FileTags(REL, None, (AA,), "", "Solo", artist="Solo")
 
 
 REC = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
@@ -183,6 +187,95 @@ def test_tracks_are_kept_and_files_read_again_after_the_migration(tmp_path: Path
         (file,) = store.library_files(OWNER_ID)
         assert file.recording_mbid == REC
         assert store.owned_recordings(OWNER_ID, [REC, TRK]) == {REC}
+
+
+def test_reads_track_tags_for_local_track_lists(tmp_path: Path):
+    """Title, track artist, track and disc numbers with totals, medium and disc title."""
+    want = FileTags(
+        REL, album_artist="Artist", title="Song", artist="Artist", track_number=3,
+        track_total=12, disc_number=1, disc_total=2, media="CD", disc_title="Bonus",
+    )  # fmt: skip
+    vorbis = flac(
+        tmp_path / "a.flac", MUSICBRAINZ_ALBUMID=REL, TITLE="Song", ARTIST="Artist",
+        TRACKNUMBER="3", TRACKTOTAL="12", DISCNUMBER="1", TOTALDISCS="2", MEDIA="CD",
+        DISCSUBTITLE="Bonus",
+    )  # fmt: skip
+    assert library.read_tags(vorbis) == want
+    id3 = mp3(
+        tmp_path / "a.mp3",
+        TXXX(desc="MusicBrainz Album Id", text=[REL]),
+        TIT2(text=["Song"]),
+        TPE1(text=["Artist"]),
+        TRCK(text=["3/12"]),
+        TPOS(text=["1/2"]),
+        TMED(text=["CD"]),
+        TSST(text=["Bonus"]),
+    )
+    assert library.read_tags(id3) == FileTags(**{**want.__dict__, "length_ms": 261})
+
+    mp4 = MP4Tags()
+    mp4["----:com.apple.iTunes:MusicBrainz Album Id"] = [MP4FreeForm(REL.encode())]
+    mp4["©nam"] = ["Song"]
+    mp4["©ART"] = ["Artist"]
+    mp4["trkn"] = [(3, 12)]
+    mp4["disk"] = [(1, 2)]
+    mp4["----:com.apple.iTunes:MEDIA"] = [MP4FreeForm(b"CD")]
+    mp4["----:com.apple.iTunes:DISCSUBTITLE"] = [MP4FreeForm(b"Bonus")]
+    assert tags_from(mp4) == want
+
+    ape = APEv2()
+    ape["MUSICBRAINZ_ALBUMID"] = REL
+    for key, value in [("Title", "Song"), ("Artist", "Artist"), ("Track", "3/12"),
+                       ("Disc", "1/2"), ("Media", "CD"), ("DiscSubtitle", "Bonus")]:  # fmt: skip
+        ape[key] = value
+    assert tags_from(ape) == want
+
+    # MP4's 0 is "unknown"; numbers that aren't are ignored
+    odd = tags_from({"trkn": [(3, 0)], "discnumber": ["A"], "tracktotal": ["x"]})
+    assert (odd.track_number, odd.track_total, odd.disc_number) == (3, None, None)
+
+
+@pytest.mark.parametrize(
+    ("numbers", "tracks", "complete"),
+    [
+        ([(1, 2, None, None), (2, 2, None, None)], 2, True),
+        ([(1, 2, None, None)], 2, False),
+        ([(1, 2, 1, 2), (2, 2, 1, 2), (1, 3, 2, 2)], 5, False),  # most of disc 2 missing
+        ([(1, 2, 1, 2), (2, 2, 1, 2)], None, False),  # disc 2 not there: its count unknown
+        ([(1, 1, None, None), (2, 1, None, None)], 1, True),  # an extra track
+        ([(1, None, None, None)], None, False),
+    ],
+)
+def test_coverage(numbers, tracks, complete):
+    files = [
+        LibraryFile(f"{n}", 1, 1, track_number=t, track_total=of, disc_number=d, disc_total=dt)
+        for n, (t, of, d, dt) in enumerate(numbers)
+    ]
+    assert library.coverage(files) == (tracks, complete)
+
+
+def test_track_tags_read_again_after_their_migration(tmp_path: Path):
+    root = tmp_path / "music"
+    album(root, "A", REL, tracks=1)
+    path = tmp_path / "db.sqlite"
+    old = sqlite3.connect(path)  # a database from before 16 (all SQL up to 14), file scanned
+    for index, script in enumerate(MIGRATIONS[:14], start=1):
+        old.executescript(script)
+        old.execute(f"PRAGMA user_version = {index}")
+    stat = (root / "A/01.flac").stat()
+    old.execute(
+        "INSERT INTO library_files (user_id, path, mtime_ns, size, release_mbid) "
+        "VALUES (1, 'A/01.flac', ?, ?, ?)",
+        (stat.st_mtime_ns, stat.st_size, REL),
+    )
+    old.commit()
+    old.close()
+    with Store(path) as store:
+        assert scan(store, OWNER_ID, root, now=NOW).read == 1
+        (file,) = store.library_files(OWNER_ID)
+        (release,) = store.library(OWNER_ID)
+    assert (file.track_number, file.track_total) == (1, 1)
+    assert (release.tracks, release.complete) == (1, True)
 
 
 def test_untagged_and_not_audio(tmp_path: Path):

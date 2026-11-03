@@ -12,7 +12,9 @@ browse first: one request, which the track list would make anyway.
 **The track list** comes from two cached responses: the editions browse (which says which
 editions there are, and so the default one) and one edition's lookup (`tracks.fetch`). The
 edition is the one asked for (`?edition=`, one of those two know), else the library's, else the
-wishlist item's chosen one, else `tracks.default_edition`. `track_list` reads only the cache;
+wishlist item's chosen one, else `tracks.default_edition`. An edition in the library with a
+file for every track needs neither: its files' tags give the list (`tracks.local_track_list`),
+unless a lookup is cached. `track_list` reads only the cache and the library;
 `fetch_track_list` makes what's missing of the two requests, for the page to load after it has
 shown (explicit, like opening an artist page). Tracks ahead of time are a later trickle.
 """
@@ -175,8 +177,9 @@ def track_list(
     *,
     now: datetime | None = None,
 ) -> TrackList:
-    """The track list as far as it's cached (no request): `due` if the editions browse or the
-    edition's lookup is missing. `edition` is shown if the library or the cached browse has it
+    """The track list as far as it's cached or in the library (no request): `due` if the
+    editions browse or the edition's lookup is missing, and the files don't cover the edition.
+    `edition` is shown if the library or the cached browse has it
     (anything else is ignored); `item` is the album's wishlist item, for its chosen edition."""
     browse = releases.cached(store, mbid, now=now)
     data = browse.data if browse is not None and browse.complete else None
@@ -184,8 +187,12 @@ def track_list(
     if pick is None:
         return TrackList(None, "", None, due=data is None)
     looked_up = tracks.cached(store, pick.release_mbid, now=now)
-    listing = tracks.track_list(store, user_id, looked_up) if looked_up is not None else None
-    return TrackList(pick, _details(data, pick, listing), listing, due=looked_up is None)
+    if looked_up is not None:
+        listing = tracks.track_list(store, user_id, looked_up)
+    else:
+        listing = tracks.local_track_list(store, user_id, pick.release_mbid)
+    due = looked_up is None and listing is None
+    return TrackList(pick, _details(data, pick, listing), listing, due=due)
 
 
 def fetch_track_list(

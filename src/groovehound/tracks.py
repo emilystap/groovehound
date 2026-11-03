@@ -4,13 +4,15 @@ Two things, both matched against the library scan's per-file tags:
 
 - **Partial albums**, without a request: a library edition's file count against its track
   count in the release group's cached browse (`releases.py`, asked for `inc=media` by *Choose
-  edition*): "8 of 12 tracks". Only when that browse is cached; never fetched to fill it in.
+  edition*), else as its files' tags give it (`library.coverage`): "8 of 12 tracks". Never
+  fetched to fill it in.
 - **Track lists**: an edition's tracks, each marked owned or not *by recording*, so a song you
   have on a compilation or a single counts wherever else it appears. One release lookup
   (`inc=recordings artist-credits`) per edition, only when a track list is asked for; the raw
   response is cached (shared) and refreshed, again only when asked for, after a randomized
   `TTL`. The edition is the one in the library, else the wishlist item's chosen one, else
-  `default_edition` of the cached browse.
+  `default_edition` of the cached browse. An edition you have every track of needs no lookup:
+  its files' tags, which Picard wrote from MusicBrainz, give the list (`local_track_list`).
 """
 
 from __future__ import annotations
@@ -22,10 +24,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from . import releases
+from . import library, releases
 from .brainz.http import NotFound, ServiceError, ServicePause
 from .brainz.musicbrainz import MusicBrainzClient
-from .db import Store
+from .db import LibraryFile, Store
 from .search import credit_text
 
 CACHE_KIND = "release-tracks"
@@ -65,6 +67,7 @@ class TrackList:
     title: str
     artist: str
     media: tuple[Medium, ...]
+    local: bool = False  # from the files' tags, not a MusicBrainz lookup
 
     @property
     def total(self) -> int:
@@ -76,7 +79,7 @@ class TrackList:
 
     @property
     def length_ms(self) -> int | None:
-        """The whole edition's length, if MusicBrainz knows every track's."""
+        """The whole edition's length, if every track's is known."""
         lengths = [t.length_ms for m in self.media for t in m.tracks]
         if not lengths or None in lengths:
             return None
@@ -100,18 +103,17 @@ def partial_albums(
     store: Store, user_id: int, release_group_mbids: Iterable[str]
 ) -> dict[str, Partial]:
     """Which of these release groups the user has only part of, by release group: those with
-    an edition in the library whose track count the cached browse knows, and none complete."""
+    an edition in the library whose track count is known (from the cached browse, else the
+    files' tags), and none complete."""
     result = {}
     for mbid in dict.fromkeys(release_group_mbids):
         editions = store.library_editions(user_id, mbid)
         if not editions:
             continue
         entry = releases.cached(store, mbid)
-        if entry is None:
-            continue
-        counts = track_counts(entry.data)
-        known = [(e, counts[e.release_mbid]) for e in editions if e.release_mbid in counts]
-        if not known or any(e.files >= of for e, of in known):
+        counts = track_counts(entry.data) if entry is not None else {}
+        known = [(e, of) for e in editions if (of := counts.get(e.release_mbid) or e.tracks)]
+        if not known or any(e.complete or e.files >= of for e, of in known):
             continue
         best, of = max(known, key=lambda k: k[0].files / k[1])
         result[mbid] = Partial(best.release_mbid, best.files, of)
@@ -242,6 +244,57 @@ def track_list(store: Store, user_id: int, release: dict) -> TrackList | None:
             for n, m in enumerate(media, start=1)
         ),
     )
+
+
+def local_track_list(store: Store, user_id: int, release_mbid: str) -> TrackList | None:
+    """A library edition's tracks from its files' tags, if there's a file for every track
+    (`library.coverage`), else None: then it takes a lookup to know what's missing. Every
+    track is owned; a track in two formats is listed once."""
+    files = store.library_release_files(user_id, release_mbid)
+    totals = library.disc_totals(files)
+    if totals is None:
+        return None
+    by_track: dict[tuple[int, int], LibraryFile] = {}
+    for f in files:  # by path, so the first of a track's files
+        disc = f.disc_number or 1
+        if f.track_number and disc in totals:
+            by_track.setdefault((disc, f.track_number), f)
+    if any((d, n) not in by_track for d, total in totals.items() for n in range(1, total + 1)):
+        return None
+    media = []
+    for disc in totals:
+        on_disc = sorted((n, f) for (d, n), f in by_track.items() if d == disc)
+        media.append(
+            Medium(
+                position=disc,
+                format=_most(f.media for _, f in on_disc),
+                title=_most(f.disc_title for _, f in on_disc),
+                tracks=tuple(
+                    Track(
+                        number=str(n),
+                        title=f.title,
+                        artist=f.artist,
+                        length_ms=f.length_ms,
+                        recording_mbid=f.recording_mbid or "",
+                        owned=True,
+                    )
+                    for n, f in on_disc
+                ),
+            )
+        )
+    return TrackList(
+        release_mbid=release_mbid,
+        title=_most(f.album for f in files),
+        artist=_most(f.album_artist for f in files),
+        media=tuple(media),
+        local=True,
+    )
+
+
+def _most(values: Iterable[str]) -> str:
+    """The commonest value that isn't empty (the first of equals), or ""."""
+    counts = Counter(v for v in values if v)
+    return counts.most_common(1)[0][0] if counts else ""
 
 
 def _track(track: dict, owned: set[str]) -> Track:

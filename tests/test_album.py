@@ -15,7 +15,7 @@ from groovehound.web import create_app
 from .conftest import FakeOpener, settings_for
 from .test_brainz import mb_client, params
 from .test_covers import caa_client
-from .test_tracks import BROWSE, RELEASE, RG, R
+from .test_tracks import BROWSE, RELEASE, RG, TWO_DISCS, R, own_tagged
 from .test_tracks import own as own_files
 
 ARTIST = "cccccccc-cccc-cccc-cccc-cccccccccccc"
@@ -346,3 +346,22 @@ def test_album_titles_link_to_album_pages(tmp_path: Path):
     client = TestClient(create_app(settings_for(tmp_path)))
     for url in ("/", "/wishlist"):
         assert f'<a class="hit-title" href="/albums/{RG}">' in client.get(url).text
+
+
+def test_an_edition_you_have_whole_is_listed_from_its_files(tmp_path: Path, monkeypatch):
+    opener = album_app(tmp_path, monkeypatch)
+    with store_at(tmp_path) as store:
+        own_tagged(store, R[1], RG, *TWO_DISCS)
+        listing = album.track_list(store, OWNER_ID, RG)
+        assert listing.tracks.local and not listing.due
+        assert listing.details == "2×CD · 3 tracks"  # noqa: RUF001
+        cache_tracks(store, R[1])  # a cached lookup is shown instead
+        assert not album.track_list(store, OWNER_ID, RG).tracks.local
+    with store_at(tmp_path) as store:
+        store.conn.execute("DELETE FROM api_cache")
+        store.conn.commit()
+    page = TestClient(create_app(settings_for(tmp_path))).get(f"/albums/{RG}").text
+    assert "all in your library, listed from its files" in page and "Extra" in page
+    assert 'hx-trigger="load"' not in page
+    assert "Your copy" in page and " of 3 tracks" not in page
+    assert opener.requests == []

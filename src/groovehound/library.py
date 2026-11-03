@@ -6,8 +6,11 @@ Each audio file's tags give its release (*MusicBrainz Album Id*), release group,
 (*MusicBrainz Album Artist Id*, else *Artist Id*), album title and album artist name, read with
 `mutagen` from Vorbis comments (FLAC, Ogg, Opus), ID3 `TXXX` frames (MP3, AIFF, WAV), MP4
 freeform atoms, APEv2 and ASF, which all name them alike; also its recording and release track
-(roadmap 5k), so a song owned anywhere counts wherever it appears. A file without an album id is
-counted and listed as untagged, never guessed at by name. The library is one row per release,
+(roadmap 5k), so a song owned anywhere counts wherever it appears, and its title, track artist,
+track and disc numbers with their totals, length, medium format and disc title, so an edition
+you have every track of has its track list without asking MusicBrainz (`coverage`,
+`tracks.local_track_list`). A file without an album id is counted and listed as untagged, never
+guessed at by name. The library is one row per release,
 rebuilt from the per-file index after every scan; the index keeps each file's mtime and size,
 so a rescan only re-reads files that changed.
 
@@ -27,7 +30,7 @@ import random
 import re
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -62,7 +65,7 @@ _FIELDS = {
     "musicbrainzartistid": "artists",
     "musicbrainztrackid": "recording",  # the recording, despite the name (roadmap 5k)
     "ufidhttpmusicbrainzorg": "recording",  # ID3 keeps it in a UFID frame, not TXXX
-    "musicbrainzreleasetrackid": "track",  # the track on this release
+    "musicbrainzreleasetrackid": "track_id",  # the track on this release
     "album": "album",
     "talb": "album",
     "alb": "album",  # MP4 ©alb
@@ -75,6 +78,29 @@ _FIELDS = {
     "tpe1": "artist",
     "art": "artist",  # MP4 ©ART
     "author": "artist",  # ASF
+    "title": "title",
+    "tit2": "title",
+    "nam": "title",  # MP4 ©nam
+    "tracknumber": "track",  # "3", or "3/12"
+    "trck": "track",
+    "trkn": "track",  # MP4: (3, 12)
+    "track": "track",  # APEv2
+    "wmtracknumber": "track",
+    "tracktotal": "track_total",
+    "totaltracks": "track_total",
+    "discnumber": "disc",
+    "tpos": "disc",
+    "disk": "disc",  # MP4: (1, 2)
+    "disc": "disc",  # APEv2
+    "wmpartofset": "disc",
+    "disctotal": "disc_total",
+    "totaldiscs": "disc_total",
+    "media": "media",
+    "tmed": "media",
+    "wmmedia": "media",
+    "discsubtitle": "disc_title",
+    "tsst": "disc_title",
+    "wmsetsubtitle": "disc_title",
 }
 
 
@@ -89,6 +115,15 @@ class FileTags:
     album_artist: str = ""
     recording_mbid: str | None = None
     track_mbid: str | None = None
+    title: str = ""
+    artist: str = ""  # the track's
+    track_number: int | None = None
+    track_total: int | None = None
+    disc_number: int | None = None
+    disc_total: int | None = None
+    length_ms: int | None = None  # from the audio, not a tag (`read_tags`)
+    media: str = ""
+    disc_title: str = ""
 
 
 def tags_from(tags: Mapping[str, Any] | None) -> FileTags:
@@ -103,7 +138,9 @@ def tags_from(tags: Mapping[str, Any] | None) -> FileTags:
     artists = _mbids(found.get("album_artists", ())) or _mbids(found.get("artists", ()))
     names = found.get("album_artist") or found.get("artist") or [""]
     recording = _mbids(found.get("recording", ()))
-    track = _mbids(found.get("track", ()))
+    track = _mbids(found.get("track_id", ()))
+    track_number, track_total = _pair(found.get("track"))
+    disc_number, disc_total = _pair(found.get("disc"))
     return FileTags(
         release_mbid=release[0] if release else None,
         release_group_mbid=release_group[0] if release_group else None,
@@ -112,16 +149,26 @@ def tags_from(tags: Mapping[str, Any] | None) -> FileTags:
         album_artist=names[0],
         recording_mbid=recording[0] if recording else None,
         track_mbid=track[0] if track else None,
+        title=(found.get("title") or [""])[0],
+        artist=(found.get("artist") or [""])[0],
+        track_number=track_number,
+        track_total=track_total or _number(found.get("track_total")),
+        disc_number=disc_number,
+        disc_total=disc_total or _number(found.get("disc_total")),
+        media=(found.get("media") or [""])[0],
+        disc_title=(found.get("disc_title") or [""])[0],
     )
 
 
 def read_tags(path: Path) -> FileTags:
-    """A file's MusicBrainz tags. Raises OSError or mutagen.MutagenError if it can't be read,
-    and ValueError if it isn't audio mutagen knows."""
+    """A file's MusicBrainz tags, and its length. Raises OSError or mutagen.MutagenError if it
+    can't be read, and ValueError if it isn't audio mutagen knows."""
     audio = mutagen.File(path)
     if audio is None:
         raise ValueError("not an audio format Groovehound can read")
-    return tags_from(audio.tags)
+    tags = tags_from(audio.tags)
+    length = round((getattr(audio.info, "length", 0) or 0) * 1000)
+    return replace(tags, length_ms=length) if length > 0 else tags
 
 
 def _normalized(key: str) -> str:
@@ -133,8 +180,9 @@ def _normalized(key: str) -> str:
 
 def _texts(value: Any) -> list[str]:
     """A tag value's strings: ID3 frames (.text), lists (Vorbis, MP4, ASF), APEv2 values;
-    MP4 freeform values are bytes, as is an ID3 UFID frame's data. Multiple values in one
-    string are split on NUL."""
+    MP4 freeform values are bytes, as is an ID3 UFID frame's data; MP4 track and disc numbers
+    are (number, total) pairs, read as "3/12". Multiple values in one string are split on
+    NUL."""
     if hasattr(value, "text"):
         items = value.text
     elif isinstance(getattr(value, "data", None), bytes):  # ID3 UFID
@@ -145,9 +193,29 @@ def _texts(value: Any) -> list[str]:
         items = [items]
     texts = []
     for item in items:
-        text = item.decode("utf-8", "replace") if isinstance(item, bytes) else str(item)
+        if isinstance(item, tuple):
+            text = "/".join(str(i) for i in item)
+        elif isinstance(item, bytes):
+            text = item.decode("utf-8", "replace")
+        else:
+            text = str(item)
         texts += (t.strip() for t in text.split("\0"))
     return [t for t in texts if t]
+
+
+def _pair(texts: list[str] | None) -> tuple[int | None, int | None]:
+    """A track or disc number and the total, from "3/12" or "3" (the total None)."""
+    number, _, total = (texts or [""])[0].partition("/")
+    return _number([number]), _number([total])
+
+
+def _number(texts: list[str] | None) -> int | None:
+    """The first string as a positive whole number, else None (0 is how MP4 says unknown)."""
+    try:
+        number = int((texts or [""])[0].strip())
+    except ValueError:
+        return None
+    return number if number > 0 else None
 
 
 def _mbids(texts: Iterable[str]) -> tuple[str, ...]:
@@ -284,12 +352,22 @@ def _file(
         album_artist=tags.album_artist,
         recording_mbid=tags.recording_mbid,
         track_mbid=tags.track_mbid,
+        title=tags.title,
+        artist=tags.artist,
+        track_number=tags.track_number,
+        track_total=tags.track_total,
+        disc_number=tags.disc_number,
+        disc_total=tags.disc_total,
+        length_ms=tags.length_ms,
+        media=tags.media,
+        disc_title=tags.disc_title,
     )
 
 
 def library_releases(files: Iterable[LibraryFile]) -> list[LibraryRelease]:
     """One release per album id among the tagged files: its release group, album artists, title
-    and album artist as most of its files have them, and the folder holding all of them."""
+    and album artist as most of its files have them, the folder holding all of them, and its
+    track count and whether you have every track, as their tags say (`coverage`)."""
     by_release: dict[str, list[LibraryFile]] = {}
     for f in files:
         if f.release_mbid:
@@ -297,6 +375,7 @@ def library_releases(files: Iterable[LibraryFile]) -> list[LibraryRelease]:
     releases = []
     for mbid, tracks in by_release.items():
         folders = [PurePosixPath(t.path).parent for t in tracks]
+        total, complete = coverage(tracks)
         releases.append(
             LibraryRelease(
                 release_mbid=mbid,
@@ -306,9 +385,42 @@ def library_releases(files: Iterable[LibraryFile]) -> list[LibraryRelease]:
                 artist=_most(t.album_artist for t in tracks) or "",
                 folder=os.path.commonpath([str(f) for f in folders]).replace("\\", "/"),
                 files=len(tracks),
+                tracks=total,
+                complete=complete,
             )
         )
     return releases
+
+
+def disc_totals(files: Iterable[LibraryFile]) -> dict[int, int] | None:
+    """Each disc of an edition and its track count, as its files' tags say (as most of a disc's
+    files say it, and one disc if none says how many); None unless they say it for every disc."""
+    files = list(files)
+    discs = _most(f.disc_total for f in files)
+    if discs is None:
+        if any((f.disc_number or 1) != 1 for f in files):
+            return None  # several discs, but not how many
+        discs = 1
+    totals = {}
+    for disc in range(1, discs + 1):
+        total = _most(f.track_total for f in files if (f.disc_number or 1) == disc)
+        if total is None:
+            return None
+        totals[disc] = total
+    return totals
+
+
+def coverage(files: Iterable[LibraryFile]) -> tuple[int | None, bool]:
+    """An edition's track count as its files' tags give it (None if they don't for every disc),
+    and whether there's a file for every one of those tracks (the same track in two formats
+    counts once, and tracks beyond the count are extras)."""
+    files = list(files)
+    totals = disc_totals(files)
+    if totals is None:
+        return None, False
+    have = {(f.disc_number or 1, f.track_number) for f in files if f.track_number}
+    want = {(disc, n) for disc, total in totals.items() for n in range(1, total + 1)}
+    return sum(totals.values()), want <= have
 
 
 def _most[T](values: Iterable[T]) -> T | None:

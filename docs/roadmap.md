@@ -655,11 +655,17 @@ changes.
 - 7b **Search as you type, from the mirror** (needs U6's one bar, `docs/ui-roadmap.md`). As
   well as the local matches, the bar asks the mirror while you type: albums (release groups)
   and artists, the small search indexes, so they can stay in the mirror's memory; songs stay
-  on Enter (the recording index is many times larger).
+  on Enter (the recording index is many times larger). They show as an *On MusicBrainz* group
+  under the local matches, re-ranked as U6's results are.
+  - **Needs the mirror's search containers** (Solr, and the indexer that keeps it current), not
+    just its database and web service, which don't answer `?query=` searches. That's most of
+    the mirror's cost; the Groovehound side is small.
   - **Only with a mirror you've opted in:** a separate setting (`[musicbrainz]
-    search_as_you_type = true`), refused at startup unless `api_root` is set and its host isn't
-    musicbrainz.org or one of its subdomains. Setting `api_root` alone isn't enough: it could
-    be someone else's server, which deserves the public rules.
+    search_as_you_type = true`), refused at startup unless `api_root` is set to a server that
+    isn't musicbrainz.org (`musicbrainz.is_public_server`). Setting `api_root` alone isn't
+    enough: it could be someone else's server, which deserves the public rules.
+  - **Prefixes:** MusicBrainz search (Lucene) matches whole words, so the word being typed gets
+    a `*` ("demon da*").
   - **Requests:** after a short pause in typing (HTMX `delay:300ms`), from 3 characters, a small
     `limit` (10), through `JsonClient` as always; a newer keystroke replaces a request still
     waiting (`hx-sync="this:replace"`). Best with `interval = 0`; at 1.5 s it works but lags.
@@ -669,6 +675,8 @@ changes.
     the cover cache); otherwise a blank tile. Loading the archive's thumbnails for every
     keystroke's results would put the load on the Cover Art Archive instead. Enter's results
     link the archive as today.
+  - The mirror's shorter `interval` could also speed up the trickles; that's a separate
+    decision.
 
 ## Decided against
 
