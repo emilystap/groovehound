@@ -45,8 +45,16 @@
 
 {% if found %}
 <section class="card">
-  <h2>Albums and EPs <span class="muted">({{ found.main | length }})</span></h2>
-  {% if found.main %}{{ release_groups(found.main) }}{% else %}
+  <h2>{% if missing_only %}Missing albums and EPs{% else %}Albums and EPs{% endif %} <span class="muted">({{ found.main | length }})</span></h2>
+  {% if gaps %}
+  <p class="small">
+    {% if missing_only %}{{ gaps.missing | length }} missing of {{ gaps.total }} · <a href="/artists/{{ mbid }}">Show all</a>
+    {% else %}You have {{ gaps.have }} of {{ gaps.total }}{% if gaps.missing %} · <a href="/artists/{{ mbid }}?missing=1">Missing only ({{ gaps.missing | length }})</a>{% endif %}{% endif %}
+    <span class="muted">· counting {{ types_label(types_counted) }}</span>
+  </p>
+  {% endif %}
+  {% if found.main %}{{ release_groups(found.main) }}{% elif missing_only %}
+  <p class="muted">No albums or EPs missing.</p>{% else %}
   <p class="muted">MusicBrainz has no albums or EPs for {{ name }}.</p>
   {% endif %}
   {% if found.singles is not none %}
@@ -62,8 +70,26 @@
     {{ release_groups(found.other) }}
   </details>
   {% endif %}
+  {% if gaps and gaps.also and not missing_only %}
+  <details class="more-groups">
+    <summary>Also in your library ({{ gaps.also | length }})</summary>
+    <p class="muted small">In your files under {{ name }}, but not among the official releases above.</p>
+    <ul class="hits">
+      {% for release in gaps.also %}
+      <li class="hit">
+        <div class="hit-body">
+          {% if release.release_group_mbid %}<a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ release.release_group_mbid }}" rel="noopener" target="_blank">{{ release.title or "Untitled" }}</a>
+          {% else %}<a class="hit-title" href="{{ musicbrainz_web }}/release/{{ release.release_mbid }}" rel="noopener" target="_blank">{{ release.title or "Untitled" }}</a>{% endif %}
+          {% if release.artist and release.artist != name %}<div>{{ release.artist }}</div>{% endif %}
+          <div class="small owned">✓ In your library</div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
   <p class="muted small">
-    {% if found.count > found.release_groups | length %}The first {{ found.release_groups | length }} of {{ found.count }};
+    {% if found.count > found.release_groups | length and not missing_only %}The first {{ found.release_groups | length }} of {{ found.count }};
     the rest are <a href="{{ musicbrainz_web }}/artist/{{ mbid }}" rel="noopener" target="_blank">on MusicBrainz</a>. {% endif %}
     Official releases only, as of {{ found.fetched_at | local_date }}.
   </p>

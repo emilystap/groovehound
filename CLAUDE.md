@@ -55,7 +55,8 @@ the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the a
 `similar.py`) done; phase 5a (the library scan, `library.py`), 5b ("In your library"
 badges), 5e (unplayed, `listens.py`), 5f (rediscover: the listen history, `history.py`, and the
 page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) and 5h (recommended albums,
-the CF recommendations once 4c, `recommended.py`) done. Links to other sites open in a new tab (`target="_blank"`).
+the CF recommendations once 4c, `recommended.py`) and 5j (library artists, with 5d's suggested
+follows, `library_artists.py`) done. Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 

@@ -427,10 +427,16 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   its internal API only, which can change without notice. With release MBIDs alone, matching
   would need a MusicBrainz lookup per album, which the ground rules rule out; then match
   wishlist editions only, or skip 5c.
-- 5d **Suggest follows** (needs phase 2): album artists with N+ release groups in the library
-  that you don't follow, ranked by how many you own, with *Follow* and *dismiss* (stays
-  dismissed). Following one also seeds the "already out" list from the library, so albums you
-  own are never reported as new. Later, combine with ListenBrainz listen counts (phase 4).
+- 5d ✅ **Suggest follows** (needs phase 2; built with 5j, `library_artists.py`): album artists
+  with 3+ release groups in the library that you don't follow, ranked by how many you own (the
+  top 10, at the top of 5j's tab), with *Follow* and *dismiss* (stays dismissed: `dismissed`
+  kind `suggested-follow`, apart from 4b's). Later, combine with ListenBrainz listen counts
+  (phase 4).
+  - **Owned albums aren't hidden from new releases** (decided 2026-11-02, instead of seeding the
+    "already out" list from the library on follow): the home page's list is also for what to
+    listen to next, not only what to buy, so an album you own that MusicBrainz lists after you
+    followed shows as new like any other, marked *In your library* (5b). Following already
+    records what the browse returns as seen.
 - 5e ✅ **Unplayed.** With a ListenBrainz username: your all-time listen counts per release
   group (`/1/stats/user/<name>/release-groups`, `range=all_time`; public, no token), kept in a
   per-user `listened` table (`listens.py`). Library minus played = unplayed: *never played* next
@@ -554,7 +560,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   - `/cover/<mbid>` also allows release groups in the library, and search results and other
     artists' pages use it for those, so they need no contact and no request. Library covers
     work without a contact configured.
-- 5j **Library artists** (needs 5a/5b): every album artist in the library, followed or not, so
+- 5j ✅ **Library artists** (needs 5a/5b; `library_artists.py`): every album artist in the library, followed or not, so
   any of them can be opened to see what you're missing. *Artists* gets two tabs: *Following*
   (today's `/artists`) and *In your library* (`/artists/library`), built from the `library`
   table's album artist MBIDs, sorted by sort name, each with how many of their release groups
