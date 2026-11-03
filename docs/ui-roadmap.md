@@ -86,7 +86,7 @@ A phone's bottom bar has room for four or five; Groovehound has seven links. Pro
 |---|---|---|
 | **Home** | Shelves of what to listen to or get next | `/`, `/discover`, `/rediscover` (as *See all*) |
 | **Search** | Search MusicBrainz, quick capture | `/search` |
-| **Library** | Your albums that want attention, your artists, the scan | `/library`, `/artists`, `/artists/library` |
+| **Library** | Your albums that want attention, then all of them; your artists, the scan | `/library`, `/artists`, `/artists/library` |
 | **Wishlist** | What you want, what you've bought, what's waiting to be looked up | `/wishlist` |
 
 On a phone: a bottom tab bar (icons with labels, ≥ 48 px tall, above the gesture bar with
@@ -197,24 +197,41 @@ picture square on the left of the header band and the name to its right, never s
 into a wide banner (the photos Navidrome passes on are mostly square, and a wide crop cuts
 them or blurs them); the discography as a grid and similar artists as a shelf.
 
-### Library: the albums that want attention, not a library browser
+### Library: the albums that want attention, then all of them
 
-Browsing your whole library A–Z is the player's job (Navidrome, Symfonium), so the Library tab
-doesn't list all 600 albums. It's what Groovehound adds to the library:
+The Library tab leads with what Groovehound adds to the library, not an A–Z list of 600 albums:
 
 - **Albums:** shelves (each with *See all*) of *Never played*, *Partial* (5k's *8 of 12 tracks*,
   best covered first) and *Not played lately*; the never-played-by-artist list as today's
-  folding list under *See all*.
+  folding list under *See all*. Below them, *All albums* (next section).
 - **Artists:** segments *Following* / *In your library*, with the suggested follows (5d) at the
   top of the second, as today.
 - **Scan:** status, *Rescan* and the problem lists (untagged, no release group, unreadable),
   behind an icon in the app bar: maintenance, not browsing.
 
-**Left out for now, easy to add later** (decided 2026-11-02): an *All albums* grid (A–Z, by
-artist, recently added) would need no new data and no requests: a sorted, paged query over the
-`library` table in `library.py`, the album tile, and HTMX `revealed` to load the next page, as
-a *See all* under Library. Add it if browsing the library here turns out to matter, with the
-reason, since it's close to the player's job.
+### All albums: the library browser
+
+Left out on 2026-11-02 as close to the player's job; added on 2026-11-03 because search already
+shows *In your library* and every album gets a page (U2), so the app plainly knows your albums
+and having no way to see them all reads as a gap. It stays a view of the library *from
+Groovehound's side*, not a second player:
+
+- **One grid, the shelves' filters on top.** *All albums* is a grid of album tiles under the
+  shelves, with chips for what only Groovehound knows: *Never played*, *Partial*, *Not played
+  lately*, *On your wishlist*. Each shelf's *See all* opens this grid with its chip on, so the
+  shelves and the browser are one thing, not two lists of the same albums.
+- **Sorts that serve "what next?":** by artist (A–Z), by title, recently added, last played.
+  No genre or year trees, no folders, no playlists.
+- **Nothing to play.** Tiles open the album page; where a player would have *Play*, the album
+  page has *Open in Navidrome* (5g).
+- **No new data, no requests:** a sorted, filtered, paged query over the `library` table (with
+  the listen history and wishlist for the chips) in a function outside `web/`, the album tile,
+  and HTMX `revealed` to load the next page. Filter and sort live in the URL
+  (`/library/albums?filter=partial&sort=artist`), so it works without JavaScript and can be
+  bookmarked.
+
+Ideas that turn it into a player (queues, editing, genre browsing, statistics) stay out under
+the Non-goals and "Decided against".
 
 ### Wishlist
 
@@ -417,8 +434,10 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U3 Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
   become *See all* grids. The five album rows become the tile and row components.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
-- **U5 Library and Wishlist.** The Library tab's shelves, artists and scan; the wishlist's
-  segments and plain rows, with the item's sections now only on the album page.
+- **U5 Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
+  wishlist's segments and plain rows, with the item's sections now only on the album page. The
+  Library tab has no mockup yet: mock it up (phone and desktop, on the Direction A page) when U5
+  starts, from the tile, shelf and grid as built by then.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
   capture box at its top. Then a last pass for anything still on the old CSS.
@@ -453,7 +472,8 @@ Decided 2026-11-02:
    (Library's *Partial* shelf, the artist page, the album page), from the cached responses.
 6. Covers at 500 px, stored as files under the data folder.
 7. No full library browser for now: the Library tab shows what wants attention. Easy to add
-   later (see Library).
+   later (see Library). *Changed 2026-11-03:* *All albums* added (see All albums), as a grid
+   with the shelves' filters, in U5.
 8. The look: direction A, "streaming, dark first" (near-black, big covers, one bright accent,
    the album page's header tinted from its cover), with a light theme of the same design.
    Chosen from mockups of three directions.
