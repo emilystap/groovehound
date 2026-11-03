@@ -597,8 +597,9 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     follow) can be a section at the top of this tab rather than a page of their own.
 - 5k **Tracks** (needs 5a/5b; `tracks.py`): see which songs of an album you have, mostly for
   albums you own only part of. **Backend done** (scan, partial counts, editions, cached lookup);
-  the *Tracks* button and badges wait for the UI overhaul (decided 2026-11-02), which may give
-  albums a page of their own where the track list belongs, rather than a dialog in three places.
+  the track list and badges wait for the UI overhaul (decided 2026-11-02), which gives albums a
+  page of their own where the track list belongs, with track lists fetched ahead of time for the
+  albums Groovehound shows (see `docs/ui-roadmap.md`, "Album pages").
   - **Scan:** also read *MusicBrainz Release Track Id* and *MusicBrainz Track Id* (the
     recording) into `library_files`; a migration, and every file read once more after it (local
     only, no requests). Matching by recording means a song you own on a compilation or a single
