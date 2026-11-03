@@ -260,6 +260,36 @@ Light and dark, following the system; dark comes first (direction A, decided 202
 the manifest's one `theme_color`, which the installed app's gesture bar takes (1f), becomes the
 dark tab bar's colour, and the tab bar right above the gesture bar matches it.
 
+### Direction A, as mocked up
+
+The mockups (2026-11-02, made-up data) are a Claude design canvas, private to the owner:
+<https://claude.ai/artifact/TyTqjUk2K4XVDPG3VC48Vi>. A session that can read it should; the
+values below are the ones it uses, so the design survives without it. They're a starting
+point for U1's tokens, to be checked for contrast in place.
+
+| Token | Dark | Light |
+|---|---|---|
+| `--bg` | `#121212` | `#ffffff` |
+| `--surface` (cards, inputs) | `#1f1f1f` | `#f3f3f3` |
+| `--text` | `#f4f4f4` | `#111111` |
+| `--muted` | `#ababab` | `#5e5e5e` |
+| `--divider` | `#2a2a2a` | `#e3e3e3` |
+| `--accent` (one primary button per page, ticks) | `#ff7a59` | `#c8401f` |
+| `--on-accent` | `#1a0d08` | `#ffffff` |
+| `--badge-bg` / `--badge-fg` | `#2a2a2a` / `#ededed` | `#efefef` / `#222222` |
+| tab bar / sidebar frame | `#0b0b0b` / `#000000` | `#ffffff` / `#e9e9e9` |
+
+- **Type:** Inter (or the system sans), 700 for headings with -0.02em tracking: page titles
+  30 px on a phone, 34 px on desktop; album titles 30 / 64 px; shelf headings 21 / 23 px; body
+  14–15 px; badges 11–12 px, 600.
+- **Shapes:** covers and tiles 6 px radius (4 px at row size), badges 4 px, buttons and the
+  search bar fully rounded; tiles 150 px on a phone, 184 px in a desktop shelf.
+- **Album and artist headers:** centred on a phone (cover or picture, title, artist, meta line,
+  badges, buttons, all on one axis), on a band tinted from the cover (dark `#22313b`, light
+  `#dfe9f0` for a blue cover: a darkened or lightened tone of the cover's main colour). On
+  desktop, the cover sits left of a left-aligned title. A photo header puts the name over the
+  photo's bottom edge, centred, with a fade into `--bg` behind it.
+
 ### Shared components
 
 One template partial or Jinja macro each, replacing the five album rows:
