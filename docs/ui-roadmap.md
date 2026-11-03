@@ -178,6 +178,11 @@ artist photos, and Groovehound fetches nothing from other services itself, so:
 
 Artist tiles (similar artists, the Library's artist list) follow the same order, in a circle.
 
+**On desktop** (not mocked up; decided 2026-11-02): the desktop album page's layout, with the
+picture square on the left of the header band and the name to its right, never stretched
+into a wide banner (the photos Navidrome passes on are mostly square, and a wide crop cuts
+them or blurs them); the discography as a grid and similar artists as a shelf.
+
 ### Library: the albums that want attention, not a library browser
 
 Browsing your whole library A–Z is the player's job (Navidrome, Symfonium), so the Library tab
@@ -234,6 +239,12 @@ mashups whose titles contain "Gorillaz", and not the original. So: re-rank album
 locally (albums before EPs before singles, live, remix and compilation types after the rest,
 within the scores MusicBrainz gives), and for *Songs* without " by " or the artist box, say
 under the results that adding the artist works much better.
+
+**On desktop** (not mocked up; decided 2026-11-02): the search bar sits at the top of every
+page's content, and typing in it opens the Search page (focus and text carried over), where
+the results show as you type; no drop-down of results over the current page, so there's one
+results layout and one place where Enter asks MusicBrainz. The page itself is the phone's,
+wider.
 
 Search results are seen once, so they keep the archive's 250 px covers, linked directly.
 *Not what you were looking for?* (save as a capture) and the capture banner stay. This
