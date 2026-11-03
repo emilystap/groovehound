@@ -111,7 +111,7 @@ def test_choose_edition_on_the_wishlist(tmp_path: Path, monkeypatch):
     chosen = client.post(
         f"/wishlist/{item}/edition", data={"release": R2.upper(), "next": "/wishlist"}, headers=hx
     ).text
-    assert "Edition: 2024-06-07 · Worldwide · Digital Media · 15 tracks" in chosen
+    assert "2024-06-07 · Worldwide · Digital Media · 15 tracks</a>" in chosen
     assert "Change edition" in chosen and f"release/{R2}" in chosen
     # its links come first under Where to buy: R2's Bandcamp before R1's Qobuz
     assert chosen.index("charlixcx.bandcamp.com") < chosen.index("qobuz.com/gb-en/album")

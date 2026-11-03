@@ -175,11 +175,17 @@ def playlists(
 def listed(store: Store, user_name: str, release_group_mbid: str) -> bool:
     """Whether a shown playlist has a recording on this release group (so its cover may be
     fetched)."""
+    return find(store, user_name, release_group_mbid) is not None
+
+
+def find(store: Store, user_name: str, release_group_mbid: str) -> Hit | None:
+    """The release group as the first shown playlist with a recording on it has it, dismissed
+    or not; None if none has. No request."""
     for playlist in shown(store, user_name):
         releases, _ = _releases(store, playlist.mbid)
-        if any(hit.mbid == release_group_mbid for hit in releases or ()):
-            return True
-    return False
+        if hit := next((h for h in releases or () if h.mbid == release_group_mbid), None):
+            return hit
+    return None
 
 
 def _releases(store: Store, playlist_mbid: str) -> tuple[list[Hit] | None, int]:

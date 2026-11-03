@@ -330,6 +330,111 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 .edition:first-child { border-top: 0; }
 .edition > span { display: grid; min-width: 0; }
 
+/* Badges: what's true of an album, as text (In your library, 8 of 12 tracks, Out 2026-11-14). */
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The album page (U2). Its header sits on a band tinted from the cover (tint.band, set inline
+   as --band-dark / --band-light), edge to edge; centred on a phone, the cover left of the title
+   from 768 px, where the side sections move beside the tracks. */
+.album-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: 0 -16px;
+  padding: 24px 16px;
+  text-align: center;
+  background: var(--band-light, var(--surface));
+}
+@media (prefers-color-scheme: dark) {
+  .album-head { background: var(--band-dark, var(--surface)); }
+}
+.album-cover {
+  flex: none;
+  width: min(260px, 70vw);
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--divider);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+.album-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.album-info { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.album-kind { display: none; font-size: 13px; font-weight: 600; }
+.album-head h1 { margin: 0; font-size: 30px; overflow-wrap: anywhere; }
+.album-head .follows { justify-content: center; margin: 0; font-size: 15px; }
+.album-head .follow > a { font-weight: 600; }
+.album-head .badges { justify-content: center; margin-top: 4px; }
+.album-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px 0; }
+.album-actions .add, .album-actions form { margin: 0; }
+.album-actions .button, .album-actions button { gap: 8px; min-height: 44px; }
+.album-actions .icon { width: 18px; height: 18px; }
+.album-body { display: grid; gap: 24px; }
+.album-side { display: grid; gap: 16px; align-content: start; }
+.album-side .card { margin: 0; }
+.album-side h2 { font-size: 18px; margin-bottom: 6px; }
+.album-side .wish .edit summary { color: var(--accent); cursor: pointer; width: fit-content; }
+.album-side .wish .edit, .album-side .wish .actions { margin-top: 8px; }
+.more-about > summary {
+  display: grid;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+.more-about > summary::-webkit-details-marker { display: none; }
+.more-about > summary .muted { font-weight: 400; }
+.more-about[open] > summary { margin-bottom: 8px; }
+.more-about .links, .more-about .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.editions-shown .edition { cursor: default; }
+
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.section-head h2 { margin: 0; }
+.edition-line { margin: 4px 0 8px; }
+.medium { margin: 16px 0 4px; font-size: 15px; }
+.track-list { list-style: none; margin: 0; padding: 0; }
+.track-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 0;
+  border-top: 1px solid var(--divider);
+}
+.track-no, .track-len { flex: none; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.track-no { width: 2.2em; text-align: right; }
+.track-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.track-title > span { display: block; }
+.track-list .icon { width: 18px; height: 18px; color: var(--accent); }
+.track-list.placeholder .track-title > span { height: 12px; width: 60%; border-radius: 4px; background: var(--surface); }
+
+@media (min-width: 768px) {
+  .album-head {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 28px;
+    margin: -16px -32px 0;
+    padding: 32px;
+    border-radius: 10px 10px 0 0;
+    text-align: left;
+  }
+  main > .album-head { max-width: none; }
+  .album-cover { width: 232px; }
+  .album-info { align-items: flex-start; gap: 8px; }
+  .album-kind { display: block; }
+  .album-head h1 { font-size: clamp(34px, 5vw, 64px); letter-spacing: -0.035em; line-height: 1.05; }
+  .album-head .follows, .album-head .badges { justify-content: flex-start; }
+  .album-actions { padding: 24px 0; }
+  .album-body { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; gap: 32px; }
+}
+
 /* Phones: bigger touch targets, and the cover doesn't take room from the text. */
 @media (max-width: 480px) {
   .card { padding: 12px; }

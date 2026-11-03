@@ -59,7 +59,8 @@ page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.c
 the CF recommendations once 4c, `recommended.py`) and 5j (library artists, with 5d's suggested
 follows, `library_artists.py`) done; 5k (tracks, `tracks.py`) has its backend, its UI waits
 for the UI overhaul (planned in `docs/ui-roadmap.md`): U0 (covers at 500 px as files under
-`covers/` beside the database, with each cover's tint, `tint.py`) done. Links to other sites open in a new tab (`target="_blank"`).
+`covers/` beside the database, with each cover's tint, `tint.py`) and U1 (tokens and the shell)
+done; U2's album page (`/albums/<mbid>`, `album.py`) done, its tracks-ahead trickle next. Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 

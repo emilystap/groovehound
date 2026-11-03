@@ -179,14 +179,15 @@ class MusicBrainzClient(JsonClient):
     def release_group_releases(self, mbid: str) -> dict:
         """The release group's releases (editions) with their media (formats, track counts),
         labels and catalogue numbers, and URL relationships, purchase and streaming links among
-        them: the wishlist's *Choose edition* and *Where to buy*. `{"release-count": N,
-        "releases": [...]}`. One request: the first `BROWSE_LIMIT` editions (fewer for big box
-        sets, since MusicBrainz caps a page at 500 tracks) are plenty. Raises NotFound, or
-        ServiceError."""
+        them: the wishlist's *Choose edition* and *Where to buy*; and each with its release
+        group and artist credits, so the album page has its header from the same request.
+        `{"release-count": N, "releases": [...]}`. One request: the first `BROWSE_LIMIT`
+        editions (fewer for big box sets, since MusicBrainz caps a page at 500 tracks) are
+        plenty. Raises NotFound, or ServiceError."""
         return self._get(
             "/release",
             **{"release-group": _mbid(mbid)},
-            inc="media labels url-rels",
+            inc="media labels url-rels release-groups artist-credits",
             limit=BROWSE_LIMIT,
         )
 

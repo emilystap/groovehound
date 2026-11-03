@@ -115,12 +115,26 @@ def suggestions(store: Store, user_id: int, user_name: str, *, limit: int = SHOW
 
 def listed(store: Store, user_name: str, release_group_mbid: str) -> bool:
     """Whether the user's cached feed lists this release group (so its cover may be fetched)."""
+    return find(store, user_name, release_group_mbid) is not None
+
+
+def find(store: Store, user_name: str, release_group_mbid: str) -> Hit | None:
+    """The release group as the user's cached feed lists it (its earliest release there), dismissed
+    or not; None if it doesn't. No request."""
     if not user_name.strip():
-        return False
+        return None
     entry = store.cached(fresh.SERVICE, CACHE_KIND, _key(user_name))
-    return entry is not None and any(
-        r.get("release_group_mbid") == release_group_mbid for r in fresh.releases(entry.data or {})
-    )
+    if entry is None or entry.data is None:
+        return None
+    found = [
+        r for r in fresh.releases(entry.data) if r.get("release_group_mbid") == release_group_mbid
+    ]
+    if not found:
+        return None
+    # the earliest dated release, as `suggestions` shows it; undated ones last
+    release = min(found, key=lambda r: (not r.get("release_date"), r.get("release_date") or ""))
+    mbids = tuple(m for m in release.get("artist_mbids") or [] if isinstance(m, str))
+    return _hit(release, release_group_mbid, mbids, release.get("release_date") or "")
 
 
 def credit_names(credit: str, count: int) -> tuple[str, ...]:

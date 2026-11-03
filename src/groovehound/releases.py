@@ -1,12 +1,15 @@
-"""A release group's editions (releases), from one MusicBrainz browse that feeds both the
-wishlist's *Where to buy* (roadmap 1c) and *Choose edition* (1g).
+"""A release group's editions (releases), from one MusicBrainz browse that feeds the wishlist's
+*Where to buy* (roadmap 1c) and *Choose edition* (1g), and the album page (`album.py`).
 
-The browse asks for `inc=media labels url-rels`: formats and track counts, labels and catalogue
-numbers, and the purchase and streaming links, all in one request. It's only made when someone
-opens one of those on an item, so items nobody looks at cost nothing; the raw response is
-cached and refreshed (again only when opened) after a randomized `TTL`, since MusicBrainz asks
-clients not to poll for changes. Responses cached before 1g lack media and labels: they still
-give links, but count as due, so they're refetched when next opened. All of it is CC0.
+The browse asks for `inc=media labels url-rels release-groups artist-credits`: formats and
+track counts, labels and catalogue numbers, the purchase and streaming links, and the release
+group itself (the album page's header, for an album nothing else stored knows), all in one
+request. It's only made when someone opens one of those, so albums nobody looks at cost
+nothing; the raw response is cached and refreshed (again only when opened) after a randomized
+`TTL`, since MusicBrainz asks clients not to poll for changes. Responses cached before 1g lack
+media and labels: they still give links, but count as due, so they're refetched when next
+opened. Ones cached before the album page lack the release group, which only matters for an
+album nothing else stored knows; they're replaced at their refresh. All of it is CC0.
 """
 
 from __future__ import annotations

@@ -24,7 +24,8 @@ def url_rel(kind: str, url: str, **extra) -> dict:
     return {"type": kind, "target-type": "url", "url": {"resource": url}, **extra}
 
 
-# A browse of the release group's releases with inc=media labels url-rels, as MusicBrainz shapes it
+# A browse of the release group's releases with inc=media labels url-rels (the release groups
+# and credits it also asks for are left out), as MusicBrainz shapes it
 RELEASES = {
     "release-count": 2,
     "releases": [
@@ -109,7 +110,7 @@ def test_links_are_one_request_then_cached(tmp_path: Path):
         (request,) = opener.requests
         assert urllib.parse.urlsplit(request.full_url).path == "/ws/2/release"
         assert params(request)["release-group"] == [RG]
-        assert params(request)["inc"] == ["media labels url-rels"]
+        assert params(request)["inc"] == ["media labels url-rels release-groups artist-credits"]
 
         after = buy.where_to_buy(store, ITEM, "us-en", now=NOW)
         assert after.links == links and not after.due

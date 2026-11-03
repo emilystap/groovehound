@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{# An album (docs/ui-roadmap.md, "Album pages"): a header on a band tinted from its cover, its
+   actions, the track list, then your copy, the wishlist item, editions and where to buy (beside
+   the tracks from 768 px). Its forms post normally and come back here (`next`); only Follow and
+   the parts loaded when opened use HTMX. #}
+{% block title %}{{ hit.title or "Album" }} · Groovehound{% endblock %}
+{% block appbar %}{% endblock %}
+{% block content %}
+<header class="album-head"{% if band.dark %} style="--band-dark: {{ band.dark }}; --band-light: {{ band.light }}"{% endif %}>
+  <span class="album-cover"><img src="/cover/{{ mbid }}" alt="" width="260" height="260" onerror="this.remove()"></span>
+  <div class="album-info">
+    <div class="album-kind">{{ hit.primary_type or "Album" }}</div>
+    <h1>{{ hit.title or "Untitled" }}</h1>
+    {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}
+    {% if credits %}{% include "_follow_row.html" %}{% elif hit.artist_credit %}<div class="follows">{{ hit.artist_credit }}</div>{% endif %}
+    {% endwith %}
+    <div class="muted small">
+      {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {% if album.upcoming %}out {% endif %}{{ hit.first_release_date }}{% endif %}
+    </div>
+    {% set copy = album.copy %}
+    {% if copy or item or album.upcoming %}
+    <div class="badges">
+      {% if copy %}<span class="badge">In your library</span>{% endif %}
+      {% if copy and copy.never_played %}<span class="badge">Never played</span>{% endif %}
+      {% if copy and copy.partial %}<span class="badge">{{ copy.partial.have }} of {{ copy.partial.of }} tracks</span>{% endif %}
+      {% if item %}<span class="badge">{% if item.bought_at %}Bought{% else %}On your wishlist{% endif %}</span>{% endif %}
+      {% if album.upcoming %}<span class="badge">Out {{ hit.first_release_date }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</header>
+
+<div class="album-actions">
+  {% if item %}
+  <a class="button" href="#wish">{{ icon("check") }}<span>{% if item.bought_at %}Bought{% else %}On your wishlist{% endif %}</span></a>
+  {% else %}
+  {% with saved = false, capture = none, plain = true, primary = true %}{% include "_wishlist_button.html" %}{% endwith %}
+  {% endif %}
+  <a class="button secondary" href="{{ musicbrainz_web }}/release-group/{{ mbid }}" rel="noopener" target="_blank"><span>MusicBrainz</span>{{ icon("external") }}</a>
+</div>
+
+<div class="album-body">
+  {% include "_tracks.html" %}
+
+  <div class="album-side">
+    {% if copy %}
+    <section class="card" id="copy">
+      <h2>Your copy</h2>
+      {% for edition in copy.editions %}
+      <p>{{ details.get(edition.release_mbid) or edition.title }} · {{ edition.files }} file{{ "s" if edition.files != 1 }}</p>
+      {% endfor %}
+      <p class="muted small">
+        Found in your library on {{ copy.since | local_date }}
+        {%- if copy.never_played %} · never played
+        {%- elif copy.listens %} · {{ copy.listens }} listen{{ "s" if copy.listens != 1 }}{% if copy.last_played %}, last on {{ copy.last_played | local_date }}{% endif %}
+        {%- endif %}
+      </p>
+    </section>
+    {% endif %}
+
+    {% if item %}
+    <section class="card wish" id="wish">
+      <h2>{% if item.bought_at %}Bought{% else %}On your wishlist{% endif %}</h2>
+      <p class="muted small">
+        Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
+        {% if choice.chosen %}<br>Edition: <a href="{{ musicbrainz_web }}/release/{{ item.release_mbid }}" rel="noopener" target="_blank">{{ choice.chosen.details }}</a>{% elif item.release_mbid %}<br>A specific edition{% endif %}
+      </p>
+      {% with found = found[item.id] %}{% if found and not item.bought_at %}
+      {# offered, never done for you: an edition you already have may not be the one you want #}
+      <form class="owned found" method="post" action="/wishlist/{{ item.id }}/bought">
+        <span class="small">✓ {% if found.other_edition %}Another edition{% else %}Found{% endif %} in your library on {{ found.since | local_date }}.</span>
+        <input type="hidden" name="bought" value="1">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button type="submit" class="secondary">Mark bought</button>
+      </form>
+      {% endif %}{% endwith %}
+      {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
+      {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
+      <details class="edit">
+        <summary>{% if item.notes or item.heard %}Edit notes{% else %}Add notes{% endif %}</summary>
+        <form class="annotate" method="post" action="/wishlist/{{ item.id }}/notes">
+          <label>Where I heard it
+            <input type="text" name="heard" value="{{ item.heard }}" maxlength="200"
+                   placeholder="e.g. the café on Main St, 2026-11-01"></label>
+          <label>Notes
+            <textarea name="notes" rows="3" maxlength="2000">{{ item.notes }}</textarea></label>
+          <input type="hidden" name="next" value="{{ here }}">
+          <button type="submit">Save</button>
+        </form>
+      </details>
+      <div class="actions">
+        <form method="post" action="/wishlist/{{ item.id }}/bought">
+          <input type="hidden" name="bought" value="{{ '0' if item.bought_at else '1' }}">
+          <input type="hidden" name="next" value="{{ here }}">
+          <button type="submit">{% if item.bought_at %}Still want it{% else %}Bought it{% endif %}</button>
+        </form>
+        <form method="post" action="/wishlist/{{ item.id }}/remove"
+              onsubmit="return confirm(this.dataset.confirm)" data-confirm="Remove “{{ item.title }}” from your wishlist?">
+          <input type="hidden" name="next" value="/wishlist">
+          <button type="submit" class="secondary">Remove</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
+    <details class="card more-about" id="editions"{% if choice.due %} hx-get="/albums/{{ mbid }}/editions{% if edition %}?edition={{ edition }}{% endif %}"
+             hx-trigger="toggle once" hx-target="find .edition-list" hx-swap="outerHTML"{% endif %}>
+      <summary><span>Editions</span><span class="muted small">{% if choice.editions %}{{ choice.editions | length }} on MusicBrainz{% else %}Every edition on MusicBrainz{% endif %}</span></summary>
+      {% include "_album_editions.html" %}
+    </details>
+
+    <details class="card more-about buy" id="buy"{% if where.due %} hx-get="{{ links_url }}"
+             hx-trigger="toggle once" hx-target="find .mb-links" hx-swap="outerHTML"{% endif %}>
+      <summary><span>Where to buy</span><span class="muted small">Stores, and MusicBrainz's links</span></summary>
+      <p class="links"><span class="muted">Search:</span>
+        {% for link in where.searches %}<a href="{{ link.url }}" rel="noreferrer" target="_blank">{{ link.site }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+      </p>
+      {% with item = item or {"release_group_mbid": mbid} %}{% include "_buy_links.html" %}{% endwith %}
+    </details>
+  </div>
+</div>
+{% endblock %}

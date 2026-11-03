@@ -74,13 +74,23 @@ class TrackList:
     def owned(self) -> int:
         return sum(t.owned for m in self.media for t in m.tracks)
 
+    @property
+    def length_ms(self) -> int | None:
+        """The whole edition's length, if MusicBrainz knows every track's."""
+        lengths = [t.length_ms for m in self.media for t in m.tracks]
+        if not lengths or None in lengths:
+            return None
+        return sum(n or 0 for n in lengths)
+
 
 @dataclass(frozen=True)
 class Pick:
     """The edition a track list is for, and why that one."""
 
     release_mbid: str
-    reason: str  # "library", "wishlist" (the item's chosen edition) or "default"
+    # "library", "wishlist" (the item's chosen edition), "default", or "chosen" (picked to look
+    # at on the album page)
+    reason: str
 
 
 # --- Partial albums (no requests) ---------------------------------------------------------

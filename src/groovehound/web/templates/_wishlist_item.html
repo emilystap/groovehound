@@ -3,14 +3,14 @@
 <li class="hit wish" id="wish-{{ item.id }}">
   {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
-    <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}" rel="noopener" target="_blank">{{ item.title }}</a>
+    <a class="hit-title" href="/albums/{{ item.release_group_mbid }}">{{ item.title }}</a>
     <div>{{ item.artist_credit }}</div>
     <div class="muted small">
       {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
       {% if item.release_mbid and not editions[item.id].chosen %} · a specific edition{% endif %}
     </div>
     {% with credits = followable(item.artist_mbids, item.artist_names, item.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
-    {% if editions[item.id].chosen %}<div class="muted small">Edition: {{ editions[item.id].chosen.details }}</div>{% endif %}
+    {% if editions[item.id].chosen %}<div class="muted small">Edition: <a href="{{ musicbrainz_web }}/release/{{ item.release_mbid }}" rel="noopener" target="_blank">{{ editions[item.id].chosen.details }}</a></div>{% endif %}
     <div class="muted small">
       Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
     </div>
@@ -39,7 +39,7 @@
     </details>
     {% endwith %}
 
-    {% with where = where_to_buy[item.id] %}
+    {% with where = where_to_buy[item.id], links_url = "/wishlist/%d/links?next=%s" | format(item.id, here | urlencode) %}
     <details class="edit buy"{% if where.due %} hx-get="/wishlist/{{ item.id }}/links"
              hx-trigger="toggle once" hx-target="find .mb-links" hx-swap="outerHTML"{% endif %}>
       <summary>Where to buy</summary>

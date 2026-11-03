@@ -1,12 +1,12 @@
 {# One album on the Discover page (`hit`, with the playlist's or the recommendations' recordings
-   on it in `songs`; `row_prefix`, unique per list). Its title opens it on MusicBrainz; each artist gets *Follow*.
+   on it in `songs`; `row_prefix`, unique per list). Its title opens its album page; each artist gets *Follow*.
    *Dismiss* removes it with HTMX (and keeps it off the home page too); without JavaScript the
    form posts normally and comes back (`next`). #}
 {% set row = row_prefix ~ "-" ~ hit.mbid %}
 <li class="hit" id="{{ row }}">
   {% with mbid = hit.mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
-    <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
+    <a class="hit-title" href="/albums/{{ hit.mbid }}">{{ hit.title }}</a>
     <div>{{ hit.artist_credit }}</div>
     <div class="muted small">“{{ hit.songs | join("”, “") }}”</div>
     {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}

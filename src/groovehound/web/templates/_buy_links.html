@@ -1,12 +1,12 @@
-{# The links MusicBrainz has for a wishlist item (`where`: buy.WhereToBuy). Replaced by
-   GET /wishlist/<id>/links when *Where to buy* is opened and they haven't been fetched (or are due
-   a refresh). #}
+{# The links MusicBrainz has for a wishlist item or album (`where`: buy.WhereToBuy). Replaced by
+   `links_url` (GET /wishlist/<id>/links or /albums/<mbid>/links) when *Where to buy* is opened
+   and they haven't been fetched (or are due a refresh). #}
 <div class="mb-links">
   {% if error %}<p class="muted small">{{ error }}</p>{% endif %}
   {% if where.links is none %}
     {% if not error %}
     <p class="muted small">Asking MusicBrainz for store links…
-      <noscript><a href="/wishlist/{{ item.id }}/links?next={{ here | urlencode }}">Ask MusicBrainz for store links</a></noscript>
+      <noscript><a href="{{ links_url }}">Ask MusicBrainz for store links</a></noscript>
     </p>
     {% endif %}
   {% elif where.links %}

@@ -188,13 +188,19 @@ def recommended(store: Store, user_id: int, user_name: str) -> Recommended | Non
 def listed(store: Store, user_name: str, release_group_mbid: str) -> bool:
     """Whether a cached recommendation is on this release group (so its cover may be
     fetched)."""
+    return find(store, user_name, release_group_mbid) is not None
+
+
+def find(store: Store, user_name: str, release_group_mbid: str) -> Hit | None:
+    """The release group as a cached recommendation has it, shown or not; None if none is on
+    it. No request."""
     if not user_name.strip():
-        return False
+        return None
     entry = store.cached(fresh.SERVICE, CACHE_KIND, _key(user_name))
     if entry is None or entry.data is None:
-        return False
+        return None
     albums, _ = _albums(store, _key(user_name), entry.data)
-    return any(hit.mbid == release_group_mbid for hit in albums)
+    return next((hit for hit in albums if hit.mbid == release_group_mbid), None)
 
 
 def _albums(store: Store, key: str, data: dict) -> tuple[list[Hit], int]:

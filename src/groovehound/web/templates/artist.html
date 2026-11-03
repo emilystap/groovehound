@@ -9,7 +9,7 @@
   <li class="hit">
     {% with mbid = hit.mbid, cached = following %}{% include "_cover.html" %}{% endwith %}
     <div class="hit-body">
-      <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
+      <a class="hit-title" href="/albums/{{ hit.mbid }}">{{ hit.title }}</a>
       {% if hit.artist_mbids | length > 1 %}<div>{{ hit.artist_credit }}</div>{% endif %}
       <div class="muted small">
         {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
@@ -78,7 +78,7 @@
       {% for release in gaps.also %}
       <li class="hit">
         <div class="hit-body">
-          {% if release.release_group_mbid %}<a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ release.release_group_mbid }}" rel="noopener" target="_blank">{{ release.title or "Untitled" }}</a>
+          {% if release.release_group_mbid %}<a class="hit-title" href="/albums/{{ release.release_group_mbid }}">{{ release.title or "Untitled" }}</a>
           {% else %}<a class="hit-title" href="{{ musicbrainz_web }}/release/{{ release.release_mbid }}" rel="noopener" target="_blank">{{ release.title or "Untitled" }}</a>{% endif %}
           {% if release.artist and release.artist != name %}<div>{{ release.artist }}</div>{% endif %}
           <div class="small owned">✓ In your library</div>
