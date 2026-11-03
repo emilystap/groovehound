@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import struct
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,12 +9,19 @@ import pytest
 from fastapi.testclient import TestClient
 from mutagen.apev2 import APEv2
 from mutagen.flac import FLAC
-from mutagen.id3 import ID3, TALB, TPE2, TXXX
+from mutagen.id3 import ID3, TALB, TPE2, TXXX, UFID
 from mutagen.mp4 import MP4FreeForm, MP4Tags
 
 from groovehound import cli, library
 from groovehound.config import load_settings
-from groovehound.db import OWNER_ID, LibraryFile, LibraryRelease, Store, WishlistItem
+from groovehound.db import (
+    MIGRATIONS,
+    OWNER_ID,
+    LibraryFile,
+    LibraryRelease,
+    Store,
+    WishlistItem,
+)
 from groovehound.library import FileTags, LibraryScanner, scan, tags_from
 from groovehound.web import create_app
 
@@ -122,6 +130,59 @@ def test_reads_apev2(tmp_path: Path):
 def test_falls_back_to_track_artists_without_album_artist_tags():
     tags = {"musicbrainz_albumid": [REL], "musicbrainz_artistid": [AA], "artist": ["Solo"]}
     assert tags_from(tags) == FileTags(REL, None, (AA,), "", "Solo")
+
+
+REC = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+TRK = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
+
+def test_reads_recording_and_release_track_ids(tmp_path: Path):
+    """Roadmap 5k: Picard's *MusicBrainz Track Id* is the recording; ID3 keeps it in UFID."""
+    vorbis = flac(
+        tmp_path / "a.flac", MUSICBRAINZ_ALBUMID=REL, MUSICBRAINZ_TRACKID=REC,
+        MUSICBRAINZ_RELEASETRACKID=TRK,
+    )  # fmt: skip
+    tags = library.read_tags(vorbis)
+    assert (tags.recording_mbid, tags.track_mbid) == (REC, TRK)
+
+    id3 = mp3(
+        tmp_path / "a.mp3",
+        TXXX(desc="MusicBrainz Album Id", text=[REL]),
+        UFID(owner="http://musicbrainz.org", data=REC.encode()),
+        TXXX(desc="MusicBrainz Release Track Id", text=[TRK]),
+    )
+    tags = library.read_tags(id3)
+    assert (tags.recording_mbid, tags.track_mbid) == (REC, TRK)
+
+    mp4 = MP4Tags()
+    mp4["----:com.apple.iTunes:MusicBrainz Track Id"] = [MP4FreeForm(REC.encode())]
+    assert tags_from(mp4).recording_mbid == REC
+    assert (
+        library.read_tags(flac(tmp_path / "b.flac", MUSICBRAINZ_ALBUMID=REL)).recording_mbid is None
+    )
+
+
+def test_tracks_are_kept_and_files_read_again_after_the_migration(tmp_path: Path):
+    root = tmp_path / "music"
+    flac(root / "A/01.flac", musicbrainz_albumid=REL, musicbrainz_trackid=REC)
+    path = tmp_path / "db.sqlite"
+    old = sqlite3.connect(path)  # a database from before 5k, with the file scanned
+    for index, script in enumerate(MIGRATIONS[:12], start=1):
+        old.executescript(script)
+        old.execute(f"PRAGMA user_version = {index}")
+    stat = (root / "A/01.flac").stat()
+    old.execute(
+        "INSERT INTO library_files (user_id, path, mtime_ns, size, release_mbid) "
+        "VALUES (1, 'A/01.flac', ?, ?, ?)",
+        (stat.st_mtime_ns, stat.st_size, REL),
+    )
+    old.commit()
+    old.close()
+    with Store(path) as store:
+        assert scan(store, OWNER_ID, root, now=NOW).read == 1
+        (file,) = store.library_files(OWNER_ID)
+        assert file.recording_mbid == REC
+        assert store.owned_recordings(OWNER_ID, [REC, TRK]) == {REC}
 
 
 def test_untagged_and_not_audio(tmp_path: Path):

@@ -3,8 +3,8 @@
 Each request opens its own Store. Routes that act for a user get it from `current_user`, the
 only place that decides who that is: today always the owner (`db.OWNER_ID`); with accounts,
 the logged-in user from the session. While the app runs, `reconcile.Reconciler` re-browses
-followed artists in the background (roadmap 2c), and `library.LibraryScanner` scans the music
-folder, if there is one (roadmap 5a).
+followed artists in the background (roadmap 2c), `covers_ahead.CoverFetcher` caches their covers
+(roadmap 2e), and `library.LibraryScanner` scans the music folder, if there is one (roadmap 5a).
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
+from ..covers_ahead import CoverFetcher
 from ..db import OWNER_ID, Store, User, WishlistItem, local_date, local_time, utcnow
 from ..reconcile import Reconciler
 from ..search import KINDS, clean, search
@@ -90,12 +91,14 @@ def create_app(settings: Settings) -> FastAPI:
 
     # The slow re-browse of followed artists (roadmap 2c), only once MusicBrainz can be asked
     reconciler = None if _contact_problem(settings) else Reconciler(settings)
+    # Their covers ahead of time (roadmap 2e), likewise only with a contact
+    cover_fetcher = None if _contact_problem(settings) else CoverFetcher(settings)
     # The library scan (roadmap 5a): no requests, so it runs with or without a contact
     scanner = library.LibraryScanner(settings) if settings.library_path else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        workers = [w for w in (reconciler, scanner) if w]
+        workers = [w for w in (reconciler, cover_fetcher, scanner) if w]
         for worker in workers:
             worker.start()
         try:

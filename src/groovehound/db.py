@@ -231,6 +231,15 @@ MIGRATIONS: list[str] = [
         filled_at   TEXT
     );
     """,
+    # 13: tracks (roadmap 5k). Each library file's recording (*MusicBrainz Track Id*) and release
+    # track (*MusicBrainz Release Track Id*); NULL when the tags don't say. mtime_ns = -1 makes
+    # the next scans read every file once more, to fill them in (local only, no requests).
+    """
+    ALTER TABLE library_files ADD COLUMN recording_mbid TEXT;
+    ALTER TABLE library_files ADD COLUMN track_mbid TEXT;
+    UPDATE library_files SET mtime_ns = -1;
+    CREATE INDEX library_files_recording ON library_files(user_id, recording_mbid);
+    """,
 ]
 
 
@@ -328,6 +337,8 @@ class LibraryFile:
     album: str = ""
     album_artist: str = ""
     problem: str = ""  # why it couldn't be read, if it couldn't
+    recording_mbid: str | None = None  # the song (roadmap 5k)
+    track_mbid: str | None = None  # the track on this release
 
 
 @dataclass(frozen=True)
@@ -599,6 +610,11 @@ class Store:
         )
         return [_follow(r) for r in rows]
 
+    def all_follows(self) -> list[Follow]:
+        """Every user's follows, for work on the shared caches (one artist may appear twice)."""
+        rows = self.conn.execute("SELECT * FROM follows ORDER BY id")
+        return [_follow(r) for r in rows]
+
     def follow_of(self, user_id: int, artist_mbid: str) -> Follow | None:
         row = self.conn.execute(
             "SELECT * FROM follows WHERE user_id = ? AND artist_mbid = ?", (user_id, artist_mbid)
@@ -752,7 +768,7 @@ class Store:
             self.conn.executemany(
                 "INSERT OR REPLACE INTO library_files (user_id, path, mtime_ns, size, "
                 "release_mbid, release_group_mbid, album_artist_mbids, album, album_artist, "
-                "problem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "problem, recording_mbid, track_mbid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     (
                         user_id,
@@ -765,6 +781,8 @@ class Store:
                         f.album,
                         f.album_artist,
                         f.problem,
+                        f.recording_mbid,
+                        f.track_mbid,
                     )
                     for f in files
                 ),
@@ -795,6 +813,8 @@ class Store:
                 album=r["album"],
                 album_artist=r["album_artist"],
                 problem=r["problem"],
+                recording_mbid=r["recording_mbid"],
+                track_mbid=r["track_mbid"],
             )
             for r in rows
         ]
@@ -881,6 +901,20 @@ class Store:
             (user_id, release_mbid),
         )
         return [r[0] for r in rows]
+
+    def owned_recordings(self, user_id: int, recording_mbids: Iterable[str]) -> set[str]:
+        """Which of these recordings are in this user's library, on any release."""
+        mbids = list(set(recording_mbids))
+        found: set[str] = set()
+        for start in range(0, len(mbids), 500):  # well under SQLite's variable limit
+            chunk = mbids[start : start + 500]
+            rows = self.conn.execute(
+                "SELECT DISTINCT recording_mbid FROM library_files WHERE user_id = ? "
+                f"AND recording_mbid IN ({', '.join('?' * len(chunk))})",
+                (user_id, *chunk),
+            )
+            found.update(r[0] for r in rows)
+        return found
 
     def in_library(self, user_id: int, mbids: Iterable[str]) -> dict[str, str]:
         """Which of these release groups or releases (an MBID is never both) are in this user's
@@ -1158,6 +1192,21 @@ class Store:
             row["source"],
             row["source_mtime_ns"],
         )
+
+    def covers_due(self, release_group_mbids: Iterable[str], now: str) -> set[str]:
+        """Which of these release groups have no cached cover (or "no cover"), or one whose
+        refresh is due."""
+        mbids = list(set(release_group_mbids))
+        fresh: set[str] = set()
+        for start in range(0, len(mbids), 500):  # well under SQLite's variable limit
+            chunk = mbids[start : start + 500]
+            rows = self.conn.execute(
+                "SELECT release_group_mbid FROM covers WHERE refresh_after > ? "
+                f"AND release_group_mbid IN ({', '.join('?' * len(chunk))})",
+                (now, *chunk),
+            )
+            fresh.update(r[0] for r in rows)
+        return set(mbids) - fresh
 
     def drop_cached_before(self, service: str, kind: str, before: str) -> None:
         """Forget responses of `kind` whose refresh was due before `before` (for kinds nothing
