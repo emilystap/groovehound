@@ -66,7 +66,7 @@
     <li class="hit">
       {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
       <div class="hit-body">
-        <a class="hit-title" href="{{ musicbrainz_web }}/{% if item.release_mbid %}release/{{ item.release_mbid }}{% else %}release-group/{{ item.release_group_mbid }}{% endif %}" rel="noopener" target="_blank">{{ item.title }}</a>
+        <a class="hit-title" href="/albums/{{ item.release_group_mbid }}">{{ item.title }}</a>
         <div>{{ item.artist_credit }}</div>
         <div class="muted small">
           {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}

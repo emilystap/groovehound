@@ -1,4 +1,4 @@
 {# "In your library" (roadmap 5b) under a release group (`mbid`) the library scan found: `owned`
    maps those to when they were first found; `unplayed` (5e) holds those ListenBrainz has no
-   listens for (empty without stats). #}
-{% if mbid in owned %}<div class="small owned">✓ In your library{% if mbid in (unplayed or ()) %} <span class="unplayed">· never played</span>{% endif %}</div>{% endif %}
+   listens for (empty without stats); `partial` (5k), those you have only some tracks of. #}
+{% if mbid in owned %}<div class="small owned">✓ In your library{% if mbid in (unplayed or ()) %} <span class="unplayed">· never played</span>{% endif %}{% with part = (partial or {}).get(mbid) %}{% if part %} <span class="unplayed">· {{ part.have }} of {{ part.of }} tracks</span>{% endif %}{% endwith %}</div>{% endif %}

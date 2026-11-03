@@ -559,6 +559,14 @@ class Store:
         ).fetchone()
         return _wishlist_item(row) if row else None
 
+    def wishlist_item_of(self, user_id: int, release_group_mbid: str) -> WishlistItem | None:
+        """The user's wishlist item for a release group (to buy or bought), if there is one."""
+        row = self.conn.execute(
+            "SELECT * FROM wishlist WHERE user_id = ? AND release_group_mbid = ?",
+            (user_id, release_group_mbid),
+        ).fetchone()
+        return _wishlist_item(row) if row else None
+
     def wishlist_count(self, user_id: int, *, bought: bool = False) -> int:
         """How many items are still to buy (or, with `bought`, already bought)."""
         return self.conn.execute(
@@ -724,6 +732,15 @@ class Store:
             (artist_mbid,),
         )
         return {r[0]: r[1] for r in rows}
+
+    def artists_seen_with(self, release_group_mbid: str) -> list[str]:
+        """The artists whose browses have returned this release group, first seen first."""
+        rows = self.conn.execute(
+            "SELECT artist_mbid FROM release_groups_seen WHERE release_group_mbid = ? "
+            "ORDER BY first_seen, artist_mbid",
+            (release_group_mbid,),
+        )
+        return [r[0] for r in rows]
 
     def followed_release_group(self, user_id: int, release_group_mbid: str) -> bool:
         """Whether a browse of an artist this user follows has returned this release group."""

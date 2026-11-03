@@ -1,0 +1,56 @@
+{% from "_icons.html" import icon %}
+{# An album page's *Tracks* (`tracks`: album.TrackList): an edition's tracks, each marked in your
+   library or not (by recording, so a song you have on another release counts) once you have any
+   of them. When they aren't cached it loads itself once the page has shown (GET
+   /albums/<mbid>/tracks: at most two requests), unless that's just happened (`loaded`). #}
+{% set listing = tracks.tracks %}
+{% set loading = tracks.due and not loaded and not contact_problem and not error %}
+<section class="tracks" id="tracks"{% if loading %} hx-get="/albums/{{ mbid }}/tracks{% if edition %}?edition={{ edition }}{% endif %}"
+         hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+  <div class="section-head">
+    <h2>Tracks</h2>
+    {% if tracks.pick %}<a class="small" href="#editions">Change edition</a>{% endif %}
+  </div>
+  {% if tracks.pick %}
+  <p class="muted small edition-line">
+    {{ {"library": "The edition you have", "wishlist": "The edition on your wishlist"}.get(tracks.pick.reason, "Edition") }}:
+    <a href="{{ musicbrainz_web }}/release/{{ tracks.pick.release_mbid }}" rel="noopener" target="_blank">{{ tracks.details or "on MusicBrainz" }}</a>
+    {%- if listing and listing.length_ms %} · {{ (listing.length_ms / 60000) | round | int }} min{% endif %}
+    {%- if listing and listing.owned %} · {{ listing.owned }} of {{ listing.total }} in your library{% endif %}
+  </p>
+  {% endif %}
+  {% if error %}<p class="muted small">{{ error }}</p>{% endif %}
+
+  {% if listing %}
+  {% for medium in listing.media %}
+  {% if listing.media | length > 1 %}<h3 class="medium">{{ medium.format or "Disc" }} {{ medium.position }}{% if medium.title %}: {{ medium.title }}{% endif %}</h3>{% endif %}
+  <ol class="track-list">
+    {% for track in medium.tracks %}
+    <li>
+      <span class="track-no">{{ track.number }}</span>
+      <span class="track-title">
+        <span>{{ track.title or "Untitled" }}</span>
+        {% if track.artist and track.artist != listing.artist %}<span class="muted small">{{ track.artist }}</span>{% endif %}
+        {% if listing.owned and not track.owned %}<span class="muted small">Not in your library</span>{% endif %}
+      </span>
+      {% if listing.owned and track.owned %}{{ icon("check", "In your library") }}{% endif %}
+      <span class="track-len muted">{{ track.length_ms | duration }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endfor %}
+  {% elif tracks.due %}
+    {% if contact_problem %}
+    <p class="muted small">Not connected to MusicBrainz, so its tracks can't be asked for yet.</p>
+    {% elif not error %}
+    <p class="muted small">Asking MusicBrainz for its tracks…
+      <noscript><a href="/albums/{{ mbid }}/tracks{% if edition %}?edition={{ edition }}{% endif %}">Ask MusicBrainz for its tracks</a></noscript>
+    </p>
+    <ol class="track-list placeholder" aria-hidden="true">{% for _ in range(6) %}<li><span class="track-no"></span><span class="track-title"><span></span></span></li>{% endfor %}</ol>
+    {% endif %}
+  {% elif tracks.pick %}
+  <p class="muted small">MusicBrainz no longer has this edition.</p>
+  {% else %}
+  <p class="muted small">MusicBrainz has no editions of it.</p>
+  {% endif %}
+</section>

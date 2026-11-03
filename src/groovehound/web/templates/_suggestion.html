@@ -1,10 +1,10 @@
 {# One release from your ListenBrainz fresh releases, by artists you don't follow (`hit`), on
-   the home page. Its title opens it on MusicBrainz; each artist gets *Follow*. *Dismiss* removes
+   the home page. Its title opens its album page; each artist gets *Follow*. *Dismiss* removes
    it with HTMX; without JavaScript the form posts normally and comes back (`next`). #}
 <li class="hit" id="suggested-{{ hit.mbid }}">
   {% with mbid = hit.mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
   <div class="hit-body">
-    <a class="hit-title" href="{{ musicbrainz_web }}/release-group/{{ hit.mbid }}" rel="noopener" target="_blank">{{ hit.title }}</a>
+    <a class="hit-title" href="/albums/{{ hit.mbid }}">{{ hit.title }}</a>
     <div>{{ hit.artist_credit }}</div>
     <div class="muted small">
       {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {% if hit.first_release_date > today %}out {% endif %}{{ hit.first_release_date }}{% endif %}

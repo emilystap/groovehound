@@ -139,7 +139,7 @@ item's folded sections move to, so wishlist rows can be as plain as any other.
 albums you look up yourself load on view.** The header is built from what's already stored:
 whichever of the wishlist, library, cached browses, feeds, playlists and recommendations knows
 the release group (every link to the page comes from one of them). The track list, editions and
-buy links come from two cached responses: 1g's releases browse (`inc=media labels url-rels`:
+buy links come from two cached responses: 1g's releases browse (`inc=media labels url-rels`, plus `release-groups artist-credits`:
 editions, buy links, track counts, and so the default edition) and 5k's track lookup of one
 edition. The edition is the one in the library, else the wishlist item's chosen one, else 5k's
 default from the browse.
@@ -159,7 +159,8 @@ default from the browse.
   non-followed artist's album): the browse and then the lookup, loaded after the page has shown
   (HTMX, `hx-trigger="load"`) with a placeholder track list, about 2.5–4 s behind the limiter.
   An explicit click, like opening an artist page; cached 30–60 days like the rest. A release
-  group no stored data knows (a pasted URL) gets the release group lookup for its header first.
+  group no stored data knows (a pasted URL) gets the editions browse first, which names it
+  (`inc=release-groups artist-credits`) for the header.
 
 This replaces 5k's "only when *Tracks* is opened". If the trickle's volume ever seems too much,
 the first things to trim are the library tier (~600 of the backlog) and Daily Jams (most of the
@@ -417,7 +418,7 @@ needs something new (the album page's header) gets a function outside `web/`.
   covers, nothing else changes. Files under `covers/` beside the database (`Store.covers_dir`,
   `covers/ab/ab12….jpg`); migrations 14 and 15 add `file`, `size` and `tint` and write the
   blobs out (then `VACUUM`). The band itself (`tint.band`) waits for U2's header.
-- **U1 Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
+- **U1 ✅ Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
   four destinations, the app bar, the footer's new place. Pages keep their current content under
   the new shell; Discover, Rediscover and Artists get links from Home and Library until U3 and
   U5 place them (as app bar buttons). Of the shared components, those the shell uses arrive
@@ -431,6 +432,15 @@ needs something new (the album page's header) gets a function outside `web/`.
   badges, and every album title linking to it. The wishlist item keeps its sections for now;
   the album page shows them too. Tracks ahead (above) is its own backend PR, before or after
   the page: without it, every album loads on view.
+  - ✅ **The page** (`album.py`): the header from what's stored, the tinted band, *Tracks*
+    (loaded after the page shows when not cached; `?edition=` shows another edition's), *Your
+    copy*, the wishlist item (its forms post plainly and come back), *Editions* and *Where to
+    buy*; album titles everywhere link here, and library rows say *8 of 12 tracks*. Decided in
+    place: the editions browse also asks for `release-groups artist-credits`, so an album
+    nothing stored knows gets its header from the browse the track list needs anyway (one
+    request, not a release group lookup and then the browse; checked against musicbrainz.org
+    2026-11-03). The ⋯ menu waits for U3's tile, its first other user.
+  - **Tracks ahead**: the trickle, next.
 - **U3 Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
   become *See all* grids. The five album rows become the tile and row components.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.

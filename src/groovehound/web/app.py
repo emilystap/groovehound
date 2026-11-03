@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 
 from .. import (
     __version__,
+    album,
     buy,
     covers,
     follows,
@@ -39,6 +40,8 @@ from .. import (
     rediscover,
     releases,
     similar,
+    tint,
+    tracks,
 )
 from ..brainz import coverart, listenbrainz, musicbrainz
 from ..brainz.http import NotFound, ServiceError, validate_contact
@@ -124,6 +127,7 @@ def create_app(settings: Settings) -> FastAPI:
     )
     templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
     templates.env.filters["local_time"] = local_time
+    templates.env.filters["duration"] = _duration
     templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
     templates.env.globals.update(  # a follow's release group types (_follow_types.html)
         primary_types=follows.PRIMARY_TYPES,
@@ -232,12 +236,13 @@ def create_app(settings: Settings) -> FastAPI:
         return RedirectResponse(_local_path(form.get("next", "/rediscover")), status_code=303)
 
     def owned_context(store: Store, user: User, mbids: Iterable[str]) -> dict[str, object]:
-        """Which of these release groups are in the library (5b), and which of those were never
-        played (5e), for `_owned.html`."""
+        """Which of these release groups are in the library (5b), which of those were never
+        played (5e), and which you have only some tracks of (5k), for `_owned.html`."""
         owned = store.in_library(user.id, mbids)
         return {
             "owned": owned,
             "unplayed": listens.never_played(store, user.id, _listenbrainz_user(user), owned),
+            "partial": tracks.partial_albums(store, user.id, owned),
         }
 
     def _listenbrainz_user(user: User) -> str:
@@ -265,8 +270,8 @@ def create_app(settings: Settings) -> FastAPI:
         art, else one request to the Cover Art Archive the first time, or when due for a
         refresh). Only for release groups on your wishlist, by artists you follow, in your
         ListenBrainz fresh releases (the home page), in the playlists it created for you or its
-        recommendations (Discover) or in your library, so this isn't a way to make the server
-        fetch anything else."""
+        recommendations (Discover), in your library, or an album whose page you opened (its
+        editions are cached), so this isn't a way to make the server fetch anything else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
             store.wishlisted(user.id, [mbid])
@@ -275,6 +280,7 @@ def create_app(settings: Settings) -> FastAPI:
             or personal.listed(store, _listenbrainz_user(user), mbid)
             or playlists.listed(store, _listenbrainz_user(user), mbid)
             or recommended.listed(store, _listenbrainz_user(user), mbid)
+            or releases.cached(store, mbid) is not None
         ):
             raise HTTPException(404, "not on your wishlist, home page, Discover or in your library")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
@@ -297,6 +303,149 @@ def create_app(settings: Settings) -> FastAPI:
                 "X-Content-Type-Options": "nosniff",
             },
         )
+
+    @app.get("/albums/{mbid}", response_class=HTMLResponse)
+    def album_page(
+        request: Request, mbid: str, store: StoreDep, user: UserDep, edition: str = ""
+    ) -> HTMLResponse:
+        """An album (release group): its header from what's stored, the track list of an
+        edition (`edition`, else the one you have or want, else the default) if cached, else
+        loaded after the page shows (/albums/<mbid>/tracks), your copy, the wishlist item, its
+        editions and where to buy. A request only for an album nothing stored knows: the
+        editions browse, which names it too."""
+        mbid = _release_group_mbid(mbid)
+        if album.album(store, user.id, _listenbrainz_user(user), mbid) is None:
+            problem = _contact_problem(settings)
+            if problem:
+                raise HTTPException(404, f"not an album Groovehound knows yet ({problem})")
+            try:
+                releases.fetch(store, musicbrainz.client_for(settings), musicbrainz.PAUSE, mbid)
+            except ServiceError as exc:
+                raise HTTPException(503, str(exc)) from exc
+        context = album_context(request, store, user, mbid, edition)
+        if context is None:
+            raise HTTPException(404, "no such album on MusicBrainz")
+        return templates.TemplateResponse(request, "album.html", context)
+
+    @app.get("/albums/{mbid}/tracks", response_class=HTMLResponse)
+    def album_tracks(
+        request: Request, mbid: str, store: StoreDep, user: UserDep, edition: str = ""
+    ) -> Response:
+        """An album's track list, asking MusicBrainz for what isn't cached (its editions, if
+        the edition isn't known without them, then the edition's tracks: at most two
+        requests). HTMX gets the track list in place; without JavaScript, back to the page."""
+        mbid = _release_group_mbid(mbid)
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                album.fetch_track_list(
+                    store,
+                    musicbrainz.client_for(settings),
+                    musicbrainz.PAUSE,
+                    user.id,
+                    mbid,
+                    store.wishlist_item_of(user.id, mbid),
+                    _edition(edition),
+                )
+            except ServiceError as exc:
+                error = str(exc)
+        return album_part_or_back(request, store, user, mbid, edition, "_tracks.html", error)
+
+    @app.get("/albums/{mbid}/editions", response_class=HTMLResponse)
+    def album_editions(
+        request: Request, mbid: str, store: StoreDep, user: UserDep, edition: str = ""
+    ) -> Response:
+        """Every edition of an album, asked for when its *Editions* is opened: one request
+        unless cached (the browse *Where to buy* uses too). HTMX gets the list in place."""
+        mbid = _release_group_mbid(mbid)
+        error = fetch_album_releases(store, mbid)
+        return album_part_or_back(
+            request, store, user, mbid, edition, "_album_editions.html", error
+        )
+
+    @app.get("/albums/{mbid}/links", response_class=HTMLResponse)
+    def album_links(
+        request: Request, mbid: str, store: StoreDep, user: UserDep, edition: str = ""
+    ) -> Response:
+        """MusicBrainz's purchase and streaming links for an album, asked for when its *Where
+        to buy* is opened: one request unless cached. HTMX gets them in place."""
+        mbid = _release_group_mbid(mbid)
+        error = fetch_album_releases(store, mbid)
+        return album_part_or_back(request, store, user, mbid, edition, "_buy_links.html", error)
+
+    def album_context(
+        request: Request,
+        store: Store,
+        user: User,
+        mbid: str,
+        edition: str = "",
+        error: str | None = None,
+    ) -> dict[str, object] | None:
+        """What the album page and its parts show (no requests); None if nothing stored knows
+        the album."""
+        found = album.album(store, user.id, _listenbrainz_user(user), mbid)
+        if found is None:
+            return None
+        chosen = _edition(edition)
+        item = found.item
+        # Where to buy and Editions work on an item, saved or not
+        wanted = item or WishlistItem(mbid, found.hit.title, found.hit.artist_credit)
+        here = f"/albums/{mbid}"
+        query = f"?edition={chosen}" if chosen else ""
+        return {
+            "page": _tab_from(request),
+            "mbid": mbid,
+            "album": found,
+            "hit": found.hit,
+            "item": item,
+            "edition": chosen,
+            "tracks": album.track_list(store, user.id, mbid, item, chosen),
+            "details": album.edition_details(store, mbid),
+            "choice": releases.choice(store, wanted),
+            "where": buy.where_to_buy(store, wanted, settings.qobuz_store),
+            "found": library.found(store, user.id, [item]) if item else {},
+            "followed": store.followed(user.id, found.hit.artist_mbids),
+            "band": {
+                "dark": tint.band(found.tint, dark=True),
+                "light": tint.band(found.tint, dark=False),
+            },
+            "contact_problem": _contact_problem(settings),
+            "error": error,
+            "links_url": f"{here}/links{query}",
+            "here": here + query,
+        }
+
+    def album_part_or_back(
+        request: Request,
+        store: Store,
+        user: User,
+        mbid: str,
+        edition: str,
+        part: str,
+        error: str | None,
+    ) -> Response:
+        """After asking MusicBrainz for a part of an album page: HTMX gets the part, a plain
+        request goes back to it on the page."""
+        if not request.headers.get("HX-Request"):
+            chosen = _edition(edition)
+            query = f"?edition={chosen}" if chosen else ""
+            anchor = {"_tracks.html": "tracks", "_album_editions.html": "editions"}.get(part, "buy")
+            return RedirectResponse(f"/albums/{mbid}{query}#{anchor}", status_code=303)
+        context = album_context(request, store, user, mbid, edition, error)
+        if context is None:
+            raise HTTPException(404, error or "no such album on MusicBrainz")
+        return templates.TemplateResponse(request, part, {**context, "loaded": True})
+
+    def fetch_album_releases(store: Store, mbid: str) -> str | None:
+        """Make sure the album's editions are cached (one request if they aren't, or are
+        due); why not, if that failed."""
+        error = _contact_problem(settings)
+        if not error:
+            try:
+                releases.fetch(store, musicbrainz.client_for(settings), musicbrainz.PAUSE, mbid)
+            except ServiceError as exc:
+                error = str(exc)
+        return error
 
     @app.get("/search", response_class=HTMLResponse)
     def search_page(
@@ -954,6 +1103,37 @@ async def _form(request: Request) -> dict[str, str]:
 async def _form_lists(request: Request) -> dict[str, list[str]]:
     """A urlencoded form's fields with every value (checkboxes sharing a name)."""
     return parse_qs((await request.body()).decode(errors="replace"))
+
+
+def _release_group_mbid(mbid: str) -> str:
+    """A release group MBID from the URL, lowercased. Raises HTTPException(404) if it isn't
+    one."""
+    if not is_mbid(mbid):
+        raise HTTPException(404, "not a release group MBID")
+    return mbid.strip().lower()
+
+
+def _edition(edition: str) -> str | None:
+    """A release MBID from `?edition=`, lowercased; None if there's none (or it isn't one)."""
+    return edition.strip().lower() if is_mbid(edition) else None
+
+
+def _tab_from(request: Request) -> str:
+    """The destination an album page belongs to: the one it was opened from (the referring
+    page), else Home. Discover and Rediscover belong to Home, artist pages to Library."""
+    path = urlsplit(request.headers.get("referer", "")).path
+    first = path.strip("/").split("/")[0]
+    tabs = {"search": "search", "share": "search", "wishlist": "wishlist", "artists": "library"}
+    return tabs.get(first, "library" if first == "library" else "home")
+
+
+def _duration(ms: int | None) -> str:
+    """A track's length as players show it: "3:07", "1:02:15"; "" if unknown."""
+    if not ms:
+        return ""
+    minutes, seconds = divmod(round(ms / 1000), 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
 
 
 def _artist_mbid(mbid: str) -> str:

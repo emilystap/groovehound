@@ -1,0 +1,48 @@
+{# An album page's *Editions* (`choice`: releases.Choice). On your wishlist: pick the edition you
+   want, as the wishlist item's *Choose edition* does; otherwise each edition links to its track
+   list. Replaced by GET /albums/<mbid>/editions when opened and the editions haven't been fetched
+   (or are due a refresh). Identical editions share a row ("×3"). #}
+<div class="edition-list">
+  {% if error %}<p class="muted small">{{ error }}</p>{% endif %}
+  {% if choice.editions is none %}
+    {% if not error %}
+    <p class="muted small">Asking MusicBrainz for its editions…
+      <noscript><a href="/albums/{{ mbid }}/editions{% if edition %}?edition={{ edition }}{% endif %}">Ask MusicBrainz for its editions</a></noscript>
+    </p>
+    {% endif %}
+  {% elif not choice.editions %}
+    <p class="muted small">MusicBrainz has no editions of it.</p>
+  {% elif item %}
+  <form method="post" action="/wishlist/{{ item.id }}/edition">
+    <fieldset aria-label="The edition of {{ item.title }} you want">
+      <label class="edition"><input type="radio" name="release" value=""{% if not item.release_mbid %} checked{% endif %}>
+        <span>Any edition</span></label>
+      {% for row in choice.editions %}
+      <label class="edition"><input type="radio" name="release" value="{{ row.mbid }}"{% if row == choice.chosen %} checked{% endif %}>
+        <span>
+          <span>{{ row.details or "No details on MusicBrainz" }}{% if row.mbids | length > 1 %} <span class="muted">×{{ row.mbids | length }}</span>{% endif %}</span>
+          {% if row.labels %}<span class="muted small">{{ row.labels }}</span>{% endif %}
+        </span></label>
+      {% endfor %}
+    </fieldset>
+    <input type="hidden" name="next" value="/albums/{{ mbid }}">
+    <button type="submit">Save</button>
+  </form>
+  {% else %}
+  <ul class="plain editions-shown">
+    {% for row in choice.editions %}
+    <li class="edition">
+      <span>
+        {% if tracks.pick and tracks.pick.release_mbid in row.mbids %}
+        <span>{{ row.details or "No details on MusicBrainz" }} <span class="muted small">· its tracks are shown</span></span>
+        {% else %}
+        <a href="/albums/{{ mbid }}?edition={{ row.mbid }}#tracks">{{ row.details or "No details on MusicBrainz" }}</a>
+        {% endif %}
+        {% if row.labels %}<span class="muted small">{{ row.labels }}{% if row.mbids | length > 1 %} · ×{{ row.mbids | length }}{% endif %}</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if choice.editions %}<p class="muted small">Editions from <a href="{{ musicbrainz_web }}/release-group/{{ mbid }}" rel="noopener" target="_blank">MusicBrainz</a>.</p>{% endif %}
+</div>

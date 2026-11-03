@@ -53,12 +53,15 @@
   </aside>
 
   <main id="page">
+    {# The album page has its title in its header instead #}
+    {% block appbar %}
     <header class="appbar">
       <h1>{% block heading %}Groovehound{% endblock %}</h1>
       {# a page's one or two actions (Shuffle, links to its other pages), when it has any #}
       {% set actions = self.actions() %}
       {% if actions | trim %}<div class="appbar-actions">{% block actions %}{% endblock %}</div>{% endif %}
     </header>
+    {% endblock %}
     {% block content %}{% endblock %}
   </main>
 </body>
