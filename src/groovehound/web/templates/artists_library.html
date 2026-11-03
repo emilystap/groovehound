@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Artists in your library · Groovehound{% endblock %}
+{% block heading %}Artists{% endblock %}
 {# Every album artist in the library (roadmap 5j), with the suggested follows first (5d). No
    requests: "missing" counts show only for artists whose browse is cached. #}
 {% macro owned_line(artist) %}

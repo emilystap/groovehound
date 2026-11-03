@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% block title %}Discover · Groovehound{% endblock %}
+{% block heading %}Discover{% endblock %}
 {% block content %}
 {% if not listenbrainz_user %}
 <section class="card">
-  <h2>Discover</h2>
   <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> in
     <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see the albums
     ListenBrainz recommends and those on the playlists it makes for you here.</p>
@@ -47,7 +48,6 @@
 {% else %}
 {% if not recommended %}
 <section class="card">
-  <h2>Discover</h2>
   <p class="muted">Nothing yet. The albums ListenBrainz recommends, and the playlists it creates
     for you (Weekly Exploration and the like), show up here within a day or so.</p>
 </section>

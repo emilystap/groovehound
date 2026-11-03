@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{% if bought %}Bought{% else %}Wishlist{% endif %} · Groovehound{% endblock %}
+{% block heading %}Wishlist{% endblock %}
 {% block content %}
 {% if not bought %}{% include "_captures.html" %}{% endif %}
 <section class="card">

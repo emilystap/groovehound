@@ -50,6 +50,37 @@ def test_home_and_healthz(tmp_path: Path):
     assert "Not connected" not in page
 
 
+@pytest.mark.parametrize(
+    "url, tab, heading",
+    [
+        ("/", "Home", "Home"),
+        ("/discover", "Home", "Discover"),
+        ("/rediscover", "Home", "Rediscover"),
+        ("/search", "Search", "Search"),
+        ("/library", "Library", "Library"),
+        ("/artists", "Library", "Artists"),
+        ("/artists/library", "Library", "Artists"),
+        ("/wishlist", "Wishlist", "Wishlist"),
+    ],
+)
+def test_every_page_has_the_four_destinations(tmp_path: Path, url, tab, heading):
+    """The tab bar (a sidebar from 768 px) marks the destination a page belongs to; every page
+    has its title in the app bar and the attribution footer."""
+    page = TestClient(create_app(settings_for(tmp_path))).get(url).text
+    nav = page.split('<nav class="nav" aria-label="Main">')[1].split("</nav>")[0]
+    for href, label in [
+        ("/", "Home"),
+        ("/search", "Search"),
+        ("/library", "Library"),
+        ("/wishlist", "Wishlist"),
+    ]:
+        current = 'aria-current="page"' if label == tab else ""
+        assert f'<a href="{href}" {current}>' in nav and f"<span>{label}</span>" in nav
+    assert nav.count('aria-current="page"') == 1
+    assert f"<h1>{heading}</h1>" in page
+    assert "Cover Art Archive" in page and "MetaBrainz Foundation" in page
+
+
 def test_installable_as_an_app(tmp_path: Path):
     """What Chrome needs before it offers *Install app*: a linked manifest, served as one, with
     a name, start URL in scope, standalone display and 192 / 512 px PNG icons (maskable too)."""

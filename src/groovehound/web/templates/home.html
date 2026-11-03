@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{% block heading %}Home{% endblock %}
+{# Discover and Rediscover belong to Home until its shelves take them in (U3). #}
+{% block actions %}<a class="button" href="/discover">Discover</a>
+<a class="button" href="/rediscover">Rediscover</a>{% endblock %}
 {% block content %}
 {% if contact_problem %}
 <section class="card notice">

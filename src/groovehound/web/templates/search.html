@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{% if title %}{{ title }} · {% endif %}Search · Groovehound{% endblock %}
+{% block heading %}Search{% endblock %}
 {% block content %}
 {% if contact_problem %}
 <section class="card notice">
@@ -37,7 +38,7 @@
     <label><span>Artist <span class="muted small">(optional)</span></span>
       <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"></label>
     {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
-    <button type="submit" {% if prefilled %}autofocus{% endif %}>Search</button>
+    <button type="submit" class="primary" {% if prefilled %}autofocus{% endif %}>Search</button>
   </form>
 </section>
 
