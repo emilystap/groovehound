@@ -48,7 +48,8 @@ requests. See the roadmap's Ground rules.
 Phases 0 (scaffolding) and 1 (the wishlist: 1a search and save, 1b the wishlist page, 1c where
 to buy, 1d quick capture, 1e installable on Android, 1f share to search, 1g choose the edition)
 done; phase 2a (follow / unfollow artists), 2b (release group types per follow) and 2c (slow
-reconciliation: the background re-browse, `reconcile.py`) and 2d (the home page's new and upcoming
+reconciliation: the background re-browse, `reconcile.py`), 2e (covers ahead of time,
+`covers_ahead.py`) and 2d (the home page's new and upcoming
 releases, `new_releases.py`) done; phase 3a (ListenBrainz's sitewide fresh releases, `fresh.py`)
 and 3b (personal fresh releases, `personal.py`) done; phase 4a ("Created for you" playlists on
 the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the artist page,
@@ -56,7 +57,8 @@ the Discover page, `playlists.py`) and 4b (similar artists via LB Radio on the a
 badges), 5e (unplayed, `listens.py`), 5f (rediscover: the listen history, `history.py`, and the
 page, `rediscover.py`) and 5i (covers from the library, `covers.py` / `library.cover_art`) and 5h (recommended albums,
 the CF recommendations once 4c, `recommended.py`) and 5j (library artists, with 5d's suggested
-follows, `library_artists.py`) done. Links to other sites open in a new tab (`target="_blank"`).
+follows, `library_artists.py`) done; 5k (tracks, `tracks.py`) has its backend, its UI waits
+for the UI overhaul (a separate UI roadmap, planned next). Links to other sites open in a new tab (`target="_blank"`).
 
 ## Commands
 

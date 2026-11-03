@@ -265,7 +265,7 @@ The core loop: hear something → find it → save it → buy it later.
     you follow: the home page is seen often, so direct links would be slow every time. The
     artist page does the same for an artist you follow; for anyone else it links the Cover Art
     Archive directly, since you may look only once.
-- 2e **Covers ahead of time.** Cached covers make a page fast from the second view on, but the
+- 2e ✅ **Covers ahead of time.** Cached covers make a page fast from the second view on, but the
   first view of a followed artist's page waits on the Cover Art Archive's limiter, one cover per
   1.5 s or more (40 albums: about a minute). Fetch them in the background instead, so the
   cover-heavy UI planned later never waits.
@@ -278,7 +278,10 @@ The core loop: hear something → find it → save it → buy it later.
     days, then about one request per new release group plus refreshes every 30–60 days (~50–100
     a day). Nothing while the archive is paused after an error; nothing without a contact.
     5i's covers from the library come first for release groups in the library (no request).
-  - **Size:** 250 px (~40 KB each; ~120 MB for 3,000). A bigger UI may want 500 px (CAA's
+    Its own thread (`covers_ahead.py`), started with the app only with a contact. Nothing is
+    browsed for it: only the browses 2c or a page view already cached.
+  - **Size:** 250 px for now (~40 KB each; ~120 MB for 3,000); decided with the UI overhaul
+    (2026-11-02: modelled on streaming apps, so likely bigger). A bigger UI may want 500 px (CAA's
     `front-500`, ~100–150 KB): change the size then, and the 30–60 day refresh replaces the old
     ones without a migration. Past a few hundred MB, keep covers as files under the data
     folder rather than blobs in SQLite, so the database stays small to back up.
@@ -592,12 +595,15 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     otherwise), never fetched to fill the column.
   - **With 5d:** the suggested follows (library artists with N+ release groups you don't
     follow) can be a section at the top of this tab rather than a page of their own.
-- 5k **Tracks** (needs 5a/5b): see which songs of an album you have, mostly for albums you own
-  only part of.
+- 5k **Tracks** (needs 5a/5b; `tracks.py`): see which songs of an album you have, mostly for
+  albums you own only part of. **Backend done** (scan, partial counts, editions, cached lookup);
+  the *Tracks* button and badges wait for the UI overhaul (decided 2026-11-02), which may give
+  albums a page of their own where the track list belongs, rather than a dialog in three places.
   - **Scan:** also read *MusicBrainz Release Track Id* and *MusicBrainz Track Id* (the
     recording) into `library_files`; a migration, and every file read once more after it (local
     only, no requests). Matching by recording means a song you own on a compilation or a single
-    counts as owned anywhere else it appears, which 4d and 5f's tracks need.
+    counts as owned anywhere else it appears, which 4d and 5f's tracks need. ID3 keeps the
+    recording in a `UFID:http://musicbrainz.org` frame, not `TXXX` (migration 13).
   - **Partial albums, no requests:** the library row's file count against the edition's track
     count from 1g's cached browse (`inc=media`) gives *8 of 12 tracks* on library items and the
     artist page. Only when that browse is cached; never fetched to fill the badge.
@@ -608,9 +614,10 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     above the list with a link to choose another.
   - **Requests:** one release lookup (`/release/<mbid>?inc=recordings artist-credits`) per
     edition, only when *Tracks* is opened; cached (shared) for a randomized 30–60 days, refreshed
-    only when opened again. **Check first** whether 1g's browse could ask for `inc=recordings`
-    for every edition at once: MusicBrainz limits browses that include recordings, so a lookup
-    per edition is the assumption.
+    only when opened again. Not 1g's browse with `inc=recordings` (checked 2026-11-02): the API
+    docs say a release browse is cut so a page holds at most 500 tracks, which would cost
+    *Choose edition* most of its editions for a big release group. A lookup returns every
+    track (Picard reads box sets this way).
 
 ### 6. Notifications and polish
 

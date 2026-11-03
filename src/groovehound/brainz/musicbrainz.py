@@ -133,6 +133,14 @@ class MusicBrainzClient(JsonClient):
         streaming links). Raises NotFound, or ServiceError."""
         return self._get(f"/release/{_mbid(mbid)}", inc="artist-credits release-groups url-rels")
 
+    def release_tracks(self, mbid: str) -> dict:
+        """A release with its media and every track, each with its recording and artist credit:
+        a track list (roadmap 5k). A browse of the release group's releases could include
+        recordings too, but MusicBrainz then cuts each page at 500 tracks, which would cost
+        *Choose edition* most of its editions; so it's one lookup per edition, when asked for.
+        Raises NotFound, or ServiceError."""
+        return self._get(f"/release/{_mbid(mbid)}", inc="recordings artist-credits")
+
     def artist(self, mbid: str) -> dict:
         """An artist (name, sort name, disambiguation, type, area, life span)."""
         return self._get(f"/artist/{_mbid(mbid)}")

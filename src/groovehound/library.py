@@ -5,7 +5,8 @@ only read.
 Each audio file's tags give its release (*MusicBrainz Album Id*), release group, album artists
 (*MusicBrainz Album Artist Id*, else *Artist Id*), album title and album artist name, read with
 `mutagen` from Vorbis comments (FLAC, Ogg, Opus), ID3 `TXXX` frames (MP3, AIFF, WAV), MP4
-freeform atoms, APEv2 and ASF, which all name them alike. A file without an album id is
+freeform atoms, APEv2 and ASF, which all name them alike; also its recording and release track
+(roadmap 5k), so a song owned anywhere counts wherever it appears. A file without an album id is
 counted and listed as untagged, never guessed at by name. The library is one row per release,
 rebuilt from the per-file index after every scan; the index keeps each file's mtime and size,
 so a rescan only re-reads files that changed.
@@ -59,6 +60,9 @@ _FIELDS = {
     "musicbrainzreleasegroupid": "release_group",
     "musicbrainzalbumartistid": "album_artists",
     "musicbrainzartistid": "artists",
+    "musicbrainztrackid": "recording",  # the recording, despite the name (roadmap 5k)
+    "ufidhttpmusicbrainzorg": "recording",  # ID3 keeps it in a UFID frame, not TXXX
+    "musicbrainzreleasetrackid": "track",  # the track on this release
     "album": "album",
     "talb": "album",
     "alb": "album",  # MP4 ©alb
@@ -83,6 +87,8 @@ class FileTags:
     album_artist_mbids: tuple[str, ...] = ()
     album: str = ""
     album_artist: str = ""
+    recording_mbid: str | None = None
+    track_mbid: str | None = None
 
 
 def tags_from(tags: Mapping[str, Any] | None) -> FileTags:
@@ -96,12 +102,16 @@ def tags_from(tags: Mapping[str, Any] | None) -> FileTags:
     release_group = _mbids(found.get("release_group", ()))
     artists = _mbids(found.get("album_artists", ())) or _mbids(found.get("artists", ()))
     names = found.get("album_artist") or found.get("artist") or [""]
+    recording = _mbids(found.get("recording", ()))
+    track = _mbids(found.get("track", ()))
     return FileTags(
         release_mbid=release[0] if release else None,
         release_group_mbid=release_group[0] if release_group else None,
         album_artist_mbids=artists,
         album=(found.get("album") or [""])[0],
         album_artist=names[0],
+        recording_mbid=recording[0] if recording else None,
+        track_mbid=track[0] if track else None,
     )
 
 
@@ -123,8 +133,14 @@ def _normalized(key: str) -> str:
 
 def _texts(value: Any) -> list[str]:
     """A tag value's strings: ID3 frames (.text), lists (Vorbis, MP4, ASF), APEv2 values;
-    MP4 freeform values are bytes. Multiple values in one string are split on NUL."""
-    items = value.text if hasattr(value, "text") else value
+    MP4 freeform values are bytes, as is an ID3 UFID frame's data. Multiple values in one
+    string are split on NUL."""
+    if hasattr(value, "text"):
+        items = value.text
+    elif isinstance(getattr(value, "data", None), bytes):  # ID3 UFID
+        items = value.data
+    else:
+        items = value
     if isinstance(items, (str, bytes)) or not isinstance(items, (list, tuple)):
         items = [items]
     texts = []
@@ -266,6 +282,8 @@ def _file(
         album_artist_mbids=tags.album_artist_mbids,
         album=tags.album,
         album_artist=tags.album_artist,
+        recording_mbid=tags.recording_mbid,
+        track_mbid=tags.track_mbid,
     )
 
 
