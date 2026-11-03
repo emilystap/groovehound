@@ -263,7 +263,9 @@ dark tab bar's colour, and the tab bar right above the gesture bar matches it.
 ### Direction A, as mocked up
 
 The mockups (2026-11-02, made-up data) are a Claude design canvas, private to the owner:
-<https://claude.ai/artifact/TyTqjUk2K4XVDPG3VC48Vi>. A session that can read it should; the
+<https://claude.ai/artifact/TyTqjUk2K4XVDPG3VC48Vi>. Its page *Direction A (the design)* is the
+design; *Explored (not chosen)* keeps directions B and C and the other search layouts, as the
+record of what was compared. A session that can read it should; the
 values below are the ones it uses, so the design survives without it. They're a starting
 point for U1's tokens, to be checked for contrast in place.
 
