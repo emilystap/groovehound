@@ -251,8 +251,11 @@ One template partial or Jinja macro each, replacing the five album rows:
 - **Album row** (wishlist, search, track context): cover, title, artist, a meta line, badges, at
   most one inline action and ⋯.
 - **Artist tile / row:** monogram or cover mosaic, name, *Follow*.
-- **Shelf:** a heading, *See all*, and a row that scrolls sideways (`overflow-x: auto` with
-  `scroll-snap`, no script); on a wide screen it wraps into a grid instead.
+- **Shelf:** a heading, *See all*, and one row that scrolls sideways (`overflow-x: auto` with
+  `scroll-snap`), on a phone and a wide screen alike (decided 2026-11-02: Home stays a list of
+  shelves, several to a screen, however long each is). On a wide screen, ‹ › buttons beside
+  *See all* scroll the row by about its width (a few lines of inline script; without it the row
+  still scrolls with a trackpad or Shift+wheel). *See all* opens the whole list as a grid.
 - **Grid:** auto-filling tiles for *See all* pages and discographies.
 - **Badge:** *In your library*, *Never played*, *8 of 12 tracks*, *On your wishlist*, *New*,
   *Out 14 Nov*. Text, not colour alone.
