@@ -82,8 +82,8 @@ non-profit (MetaBrainz), and every feature below is designed around these limits
   non-commercial use, but the UI credits MusicBrainz wherever they're shown. ListenBrainz data
   is CC0. The footer always credits both, with links.
 - Cover art comes from the Cover Art Archive (`coverartarchive.org`), except for albums in the
-  library, whose covers come from the files when they have art (5i), as 250 px
-  thumbnails, loaded lazily. Wishlist covers go through the server's cover cache
+  library, whose covers come from the files when they have art (5i), at 500 px (U0 in
+  `docs/ui-roadmap.md`), loaded lazily. Wishlist covers go through the server's cover cache
   (`covers.py`, `/cover/<mbid>`): fetched through `brainz/http.py` like any other request,
   once per release group when first shown, refreshed (again only when shown) after a
   randomized 30–60 days. Search results link the archive directly: they're seen once, and
@@ -284,7 +284,8 @@ The core loop: hear something → find it → save it → buy it later.
     (2026-11-02: modelled on streaming apps, so likely bigger). A bigger UI may want 500 px (CAA's
     `front-500`, ~100–150 KB): change the size then, and the 30–60 day refresh replaces the old
     ones without a migration. Past a few hundred MB, keep covers as files under the data
-    folder rather than blobs in SQLite, so the database stays small to back up.
+    folder rather than blobs in SQLite, so the database stays small to back up. **Done in U0**
+    (`docs/ui-roadmap.md`): 500 px, as files under `covers/` beside the database.
 
 ### 3. Fresh releases from ListenBrainz
 

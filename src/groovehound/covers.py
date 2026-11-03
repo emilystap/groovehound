@@ -1,9 +1,11 @@
-"""Cover thumbnails, cached (roadmap: "Thumbnails" under open questions).
+"""Covers, cached (roadmap: "Thumbnails" under open questions).
 
 Linked straight from the browser, a Cover Art Archive thumbnail redirects twice (to archive.org,
 then to a mirror) and neither redirect can be cached, so every page load waited for both. Covers
-of wishlist items are instead fetched by the server the first time they're shown, kept in the
-database and served from there; the browser can then keep them too.
+of wishlist items are instead fetched by the server the first time they're shown, kept (as files
+under the data folder, `Store.covers_dir`) and served from there; the browser can then keep them
+too. They're 500 px (docs/ui-roadmap.md, "Covers at 500 px, as files"), sharp in a tile on a
+phone; each is stored with its main colour (`tint.main_colour`) for the album page's header.
 
 Like *Where to buy*, nothing is fetched in the background: a cover is asked for when a page
 shows it and isn't cached, or its randomized `COVER_TTL` has passed (cover art gets added and
@@ -11,10 +13,12 @@ changed, so "no cover" is remembered for the same time). A failed fetch starts
 `coverart.PAUSE`, during which the cached cover, if any, is shown as it is.
 
 For a release group in your library (roadmap 5i), the cover comes from your files first: an
-image beside the music, else the art embedded in it (`library.cover_art`), made into a 250 px
+image beside the music, else the art embedded in it (`library.cover_art`), made into a 500 px
 JPEG with Pillow. No request then, and covers the archive doesn't have. Each view checks that the
 file it came from hasn't changed (one `stat`); if it has, or has gone, the cover is made again.
-The archive is asked only when the library has no art.
+The archive is asked only when the library has no art. A library cover made smaller than
+`COVER_SIZE` (before covers were 500 px) is made again when next shown; one from the archive is
+replaced at its refresh, which is spread out already.
 """
 
 from __future__ import annotations
@@ -28,7 +32,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from . import library
+from . import library, tint
+from .brainz import coverart
 from .brainz.coverart import CoverArtClient
 from .brainz.http import NotFound, ServiceError, ServicePause
 from .db import OWNER_ID, CachedCover, Store
@@ -36,10 +41,10 @@ from .db import OWNER_ID, CachedCover, Store
 log = logging.getLogger(__name__)
 
 COVER_TTL = (timedelta(days=30), timedelta(days=60))  # refreshed (when shown) at random within
-MAX_BYTES = 2_000_000  # a 250 px thumbnail is about 40 KB
+MAX_BYTES = 2_000_000  # a 500 px cover is about 100-150 KB
 # Served from our own origin, so only image types a browser won't run as a page
 IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
-THUMBNAIL_SIZE = 250  # px, the longer side of a cover made from the library, like CAA's front-250
+COVER_SIZE = coverart.COVER_SIZE  # px, the longer side of a cover made from the library
 
 
 def cover(
@@ -53,7 +58,7 @@ def cover(
     now: datetime | None = None,
     rng: random.Random | None = None,
 ) -> CachedCover:
-    """The release group's thumbnail: cached while fresh, otherwise made from the art in the
+    """The release group's cover: cached while fresh, otherwise made from the art in the
     user's library folder (`library_root`) if it's there and has some, otherwise one request
     (none without a `client`, i.e. no contact configured, or while paused: then the stale copy
     is kept). An `image` of None means it has no cover art. Raises ServiceError when the fetch
@@ -61,7 +66,11 @@ def cover(
     now = now or datetime.now(UTC)
     cached = store.cover(release_group_mbid)
     fresh = cached is not None and cached.refresh_after > _iso(now)
-    if fresh and cached.source and not _unchanged(library_root, cached):
+    if (
+        fresh
+        and cached.source
+        and (cached.size < COVER_SIZE or not _unchanged(library_root, cached))
+    ):
         fresh = False
     if fresh and (cached.source or library_root is None):
         return cached
@@ -78,8 +87,13 @@ def cover(
             return cached  # stale beats nothing
         raise
     refresh_after = _refresh_after(now, rng)
-    store.save_cover(release_group_mbid, image, content_type, refresh_after, fetched_at=_iso(now))
-    return CachedCover(image, content_type, _iso(now), refresh_after)
+    size = COVER_SIZE if image else 0
+    colour = tint.main_colour(image) if image else ""
+    store.save_cover(
+        release_group_mbid, image, content_type, refresh_after, fetched_at=_iso(now), size=size,
+        tint=colour,
+    )  # fmt: skip
+    return CachedCover(image, content_type, _iso(now), refresh_after, size=size, tint=colour)
 
 
 def _from_library(
@@ -90,7 +104,7 @@ def _from_library(
     now: datetime,
     rng: random.Random | None,
 ) -> CachedCover | None:
-    """A thumbnail of the first art in the library that makes one, cached; None if none does."""
+    """A cover from the first art in the library that makes one, cached; None if none does."""
     for art in library.cover_art(store, user_id, root, release_group_mbid):
         try:
             image = thumbnail(art.image)
@@ -98,6 +112,7 @@ def _from_library(
             log.info("Cover art in %s not used: %s", art.source, exc)
             continue
         refresh_after = _refresh_after(now, rng)
+        colour = tint.main_colour(image)
         store.save_cover(
             release_group_mbid,
             image,
@@ -106,17 +121,22 @@ def _from_library(
             fetched_at=_iso(now),
             source=art.source,
             source_mtime_ns=art.mtime_ns,
+            size=COVER_SIZE,
+            tint=colour,
         )
-        return CachedCover(image, "image/jpeg", _iso(now), refresh_after, art.source, art.mtime_ns)
+        return CachedCover(
+            image, "image/jpeg", _iso(now), refresh_after, art.source, art.mtime_ns, COVER_SIZE,
+            colour,
+        )  # fmt: skip
     return None
 
 
 def thumbnail(image: bytes) -> bytes:
-    """`image` (any format Pillow reads) as a JPEG at most THUMBNAIL_SIZE px on its longer side,
+    """`image` (any format Pillow reads) as a JPEG at most COVER_SIZE px on its longer side,
     turned upright, transparency on white. Raises OSError or ValueError if it can't be read."""
     with Image.open(io.BytesIO(image)) as opened:
         picture = ImageOps.exif_transpose(opened)
-        picture.thumbnail((THUMBNAIL_SIZE, THUMBNAIL_SIZE))
+        picture.thumbnail((COVER_SIZE, COVER_SIZE))
         if picture.mode in ("RGBA", "LA", "PA") or "transparency" in picture.info:
             picture = picture.convert("RGBA")
             flat = Image.new("RGB", picture.size, "white")

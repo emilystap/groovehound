@@ -323,11 +323,13 @@ point for U1's tokens, to be checked for contrast in place.
   desktop, the cover sits left of a left-aligned title. A photo header puts the name over the
   photo's bottom edge, centred, with a fade into `--bg` behind it.
 - **The tint:** worked out once, when a cover is cached, not per page view: the cover's main
-  colour (Pillow, reduced to a few colours, the most common one that isn't near black or white),
-  stored with the cover in the `covers` table, in `covers.py` (outside `web/`). The page turns it
-  into the dark band (that colour darkened until `--text` on it passes WCAG AA) or the light one
-  (lightened until `#111111` passes). No cover, or no usable colour: `--surface`. Added with U0's
-  migration, so every cover made or refreshed from then on has one.
+  colour (Pillow, reduced to eight colours, the most common one that isn't near black or white
+  and covers at least 5% of it), stored with the cover in the `covers` table (`tint.py`, called
+  from `covers.py` and the migration; outside `web/`). `tint.band` turns it into the dark band
+  (its hue at the mockup's lightness, 18%, saturation at most 40%, darkened further if
+  `--text` on it doesn't pass WCAG AA) or the light one (91%, at most 50%, until `#111111`
+  passes). No cover, or no usable colour: `--surface`. Added with U0's migration, which also
+  works out the tints of the covers already cached.
 
 ### Shared components
 
@@ -394,8 +396,10 @@ in alongside the old CSS, and each PR deletes what it leaves unused. Routes don'
 the logic for each page stays where it is (`new_releases.py`, `rediscover.py`, …); a page that
 needs something new (the album page's header) gets a function outside `web/`.
 
-- **U0 Covers at 500 px, as files** (backend only; above), with each cover's tint. Sharper
-  covers, nothing else changes.
+- **U0 ✅ Covers at 500 px, as files** (backend only; above), with each cover's tint. Sharper
+  covers, nothing else changes. Files under `covers/` beside the database (`Store.covers_dir`,
+  `covers/ab/ab12….jpg`); migrations 14 and 15 add `file`, `size` and `tint` and write the
+  blobs out (then `VACUUM`). The band itself (`tint.band`) waits for U2's header.
 - **U1 Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
   four destinations, the app bar, the footer's new place. Pages keep their current content under
   the new shell; Discover, Rediscover and Artists get links from Home and Library until U3 and
@@ -461,8 +465,10 @@ Decided 2026-11-02:
 
 Gathered from the "Check first" notes above; settle each before the phase that needs it.
 
-- **Before U0:** that a cover's main colour, picked as "Design language" says, gives a pleasant
-  band for typical covers (try it on a few dozen cached ones in a preview).
+- ✅ **Before U0:** that a cover's main colour gives a pleasant band for typical covers.
+  Checked 2026-11-02 on the 135 covers in a copy of a real database: 133 got a tint (two
+  near-monochrome ones didn't), and the bands came out muted and close to the mockup's (greys
+  for black-and-white covers, browns for skin tones, a dark teal for a pale blue one).
 - **Before tracks ahead (with U2):** the trickle's real volume against the estimate (~800
   requests of backlog, then ~30–60 a day), from its first days' logs.
 - **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
