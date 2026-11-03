@@ -7,7 +7,8 @@ text rows with 64 px covers. This plan reworks it along the lines of music strea
 pages, and a bottom tab bar on a phone, which is where it's mostly used (the installed app, 1e).
 
 Planned 2026-11-02, after 5k's backend and 2e (emilystap/groovehound#38). The visual direction
-(colours, type, how close to Spotify it looks) is chosen from mockups, after this plan.
+was chosen from mockups of three: A, close to the streaming apps and dark first (see
+"Decisions").
 
 ## What "streaming-like" means here
 
@@ -186,10 +187,40 @@ artist, the badges, "heard at the café") with one inline action (*Bought it*) a
 the album page. The quick capture box stays at the top of *To look up*, and moves to the Search
 tab's top as well, since "I heard something and can't search now" starts there.
 
-### Search
+### Search: one bar (decided 2026-11-02)
 
-The form as today, results as rows (search results are seen once, so they keep the archive's
-250 px covers, linked directly). *Not what you were looking for?* and the capture banner stay.
+One search box instead of today's album / song choice and separate title and artist boxes,
+submitted with Enter (`enterkeyhint="search"`; no *Search* button in the bar). Under it, chips
+for *Albums* / *Songs* / *Artists* say what MusicBrainz is asked for, and *Artist box* shows a
+second box. Two kinds of results:
+
+- **As you type, locally:** the library (albums and album artists) and the wishlist, matched by
+  title and artist name in the database (no requests), so an album you already have shows
+  before you'd look it up again. A short debounce, HTMX `hx-trigger="input changed delay:300ms"`.
+- **On Enter, MusicBrainz:** one search per press, as today, cached as today. What's sent
+  depends on what was typed:
+  1. **"title by artist"**, split at the last " by " as the share target does (`share.py`):
+     title and artist as separate fields, which ranks best. The page says how it read it, with
+     *Search the words instead*.
+  2. **With the artist box open:** the two boxes as the two fields, for a title with "by" in it
+     or a song.
+  3. **Anything else:** the words as free text (no fields), which MusicBrainz matches against
+     title and artist together.
+
+**Checked 2026-11-02** (8 searches against musicbrainz.org; `dismax=true` made no difference):
+free text finds an album from title and artist words in any order and without accents
+("bite me renee rapp" → *BITE ME* by Reneé Rapp, first), but ranks loosely: "demon days
+gorillaz" put a 2021 remix single first and the album third, tied with a single of the same
+name. A bare title is hopeless either way ("brat": 4,190 matches, Charli xcx's not in the top
+five), and **songs as free text don't work**: "feel good inc gorillaz" returned covers and
+mashups whose titles contain "Gorillaz", and not the original. So: re-rank album results
+locally (albums before EPs before singles, live, remix and compilation types after the rest,
+within the scores MusicBrainz gives), and for *Songs* without " by " or the artist box, say
+under the results that adding the artist works much better.
+
+Search results are seen once, so they keep the archive's 250 px covers, linked directly.
+*Not what you were looking for?* (save as a capture) and the capture banner stay. This
+changes 1a's form, not its requests: still one search per press, never as you type.
 
 ## Design language
 
@@ -208,10 +239,9 @@ All in `:root` custom properties, redefined for dark under `prefers-color-scheme
 
 ### Themes
 
-Light and dark, following the system. Whether dark comes first (as in most streaming apps) is
-for the mockups. One snag to remember: the manifest has one `theme_color`, which the installed
-app's gesture bar takes (1f), and the tab bar now sits right above it, so their colours should
-agree in the theme that comes first.
+Light and dark, following the system; dark comes first (direction A, decided 2026-11-02), so
+the manifest's one `theme_color`, which the installed app's gesture bar takes (1f), becomes the
+dark tab bar's colour, and the tab bar right above the gesture bar matches it.
 
 ### Shared components
 
@@ -274,8 +304,9 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
 - **U5 Library and Wishlist.** The Library tab's shelves, artists and scan; the wishlist's
   segments and plain rows, with the item's sections now only on the album page.
-- **U6 Search** in the new components, and the capture box at its top. Then a last pass for
-  anything still on the old CSS.
+- **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
+  outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
+  capture box at its top. Then a last pass for anything still on the old CSS.
 
 5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action.
 
@@ -294,4 +325,8 @@ Decided 2026-11-02:
 7. No full library browser for now: the Library tab shows what wants attention. Easy to add
    later (see Library).
 
-Still open: the look (colours, type, dark first or not), chosen from the mockups.
+8. The look: direction A, "streaming, dark first" (near-black, big covers, one bright accent,
+   the album page's header tinted from its cover), with a light theme of the same design.
+   Chosen from mockups of three directions.
+9. Search is one bar: local matches as you type, MusicBrainz on Enter, as "title by artist",
+   with the artist box, or as free text (see Search).
