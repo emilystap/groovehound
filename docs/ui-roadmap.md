@@ -7,7 +7,22 @@ text rows with 64 px covers. This plan reworks it along the lines of music strea
 pages, and a bottom tab bar on a phone, which is where it's mostly used (the installed app, 1e).
 
 Planned 2026-11-02, after 5k's backend and 2e (emilystap/groovehound#38). The visual direction
-(colours, type, how close to Spotify it looks) is chosen from mockups, after this plan.
+was chosen from mockups of three: A, close to the streaming apps and dark first (see
+"Decisions").
+
+## Start here
+
+For a session starting on this work:
+
+1. **Read** this doc, the roadmap's Non-goals and Ground rules (`docs/roadmap.md`), and, if you
+   can, the mockups' *Direction A (the design)* page (see "Direction A, as mocked up"). Where
+   the doc and the mockups disagree, the doc wins.
+2. **Take the next phase not marked ✅** under "Phases", starting with U0. Each phase is its own
+   branch from `main` and its own squash-merged PR (or several); mark it ✅ here, and in
+   `CLAUDE.md`'s status, when it merges.
+3. **Check "Still to check"** at the end of this doc for anything the phase depends on, and
+   settle it first.
+4. **Preview** with a copy of a real database, never the original, and test as "Testing" says.
 
 ## What "streaming-like" means here
 
@@ -152,13 +167,35 @@ daily turnover).
 
 ### Artist pages
 
-Same route. A header with the name, *Follow* and the release types (in the ⋯ menu or a sheet,
-not inline); *You have 7 of 12* with *Missing only* as a toggle chip; the discography as a grid
-of tiles (albums and EPs, then singles and live etc. as their own shelves, folded only when
-long); *Also in your library*; similar artists as a shelf of artist tiles, still behind *Find
-similar artists*. MusicBrainz and the Cover Art Archive have no artist photos, and Groovehound
-fetches nothing from elsewhere, so an artist tile is a monogram or a mosaic of their cached
-covers (no requests).
+Same route. A header with the name, *Follow*, *MusicBrainz* (opens the artist there) and ⋯,
+with the release types under it as one line ("New releases: albums and EPs · *Change*", which
+opens a sheet); *You have 7 of 12* with *Missing only* as a toggle chip; the discography as a
+grid of tiles (albums and EPs, then singles and live etc. as rows that open their lists);
+*Also in your library*; similar artists as a shelf of artist tiles, still behind *Find similar
+artists*.
+
+**The header's picture** (decided 2026-11-02): MusicBrainz and the Cover Art Archive have no
+artist photos, and Groovehound fetches nothing from other services itself, so:
+
+1. **A photo and a short biography from Navidrome**, for artists in the library, once 5g's
+   Subsonic connection exists: `getArtistInfo2` gives `biography` and small, medium and large
+   image URLs. Navidrome gets them itself (Deezer by default, no key; Last.fm with a key;
+   `artist.*` files in the music folder first), so Groovehound only asks your own server. The
+   photo goes through Groovehound's cover cache like a cover; the biography is shown with a
+   credit ("From Navidrome (Last.fm)"). **Check first:** whether the image URLs point at
+   Navidrome or straight at Deezer, how an artist is found by MusicBrainz id, and the
+   biographies' licence (Last.fm's are CC BY-SA, as far as known).
+2. **Otherwise a mosaic of four of their cached covers**, in a header tinted from the newest:
+   every artist with albums, and the only header until 5g.
+3. **A monogram** (initials on a colour from their newest cover, or a neutral one) for an
+   artist with no covers at all.
+
+Artist tiles (similar artists, the Library's artist list) follow the same order, in a circle.
+
+**On desktop** (not mocked up; decided 2026-11-02): the desktop album page's layout, with the
+picture square on the left of the header band and the name to its right, never stretched
+into a wide banner (the photos Navidrome passes on are mostly square, and a wide crop cuts
+them or blurs them); the discography as a grid and similar artists as a shelf.
 
 ### Library: the albums that want attention, not a library browser
 
@@ -186,10 +223,46 @@ artist, the badges, "heard at the café") with one inline action (*Bought it*) a
 the album page. The quick capture box stays at the top of *To look up*, and moves to the Search
 tab's top as well, since "I heard something and can't search now" starts there.
 
-### Search
+### Search: one bar (decided 2026-11-02)
 
-The form as today, results as rows (search results are seen once, so they keep the archive's
-250 px covers, linked directly). *Not what you were looking for?* and the capture banner stay.
+One search box instead of today's album / song choice and separate title and artist boxes,
+submitted with Enter (`enterkeyhint="search"`; no *Search* button in the bar). Under it, chips
+for *Albums* / *Songs* / *Artists* say what MusicBrainz is asked for, and *Artist box* shows a
+second box. Two kinds of results:
+
+- **As you type, locally:** the library (albums and album artists) and the wishlist, matched by
+  title and artist name in the database (no requests), so an album you already have shows
+  before you'd look it up again. A short debounce, HTMX `hx-trigger="input changed delay:300ms"`.
+- **On Enter, MusicBrainz:** one search per press, as today, cached as today. What's sent
+  depends on what was typed:
+  1. **"title by artist"**, split at the last " by " as the share target does (`share.py`):
+     title and artist as separate fields, which ranks best. The page says how it read it, with
+     *Search the words instead*.
+  2. **With the artist box open:** the two boxes as the two fields, for a title with "by" in it
+     or a song.
+  3. **Anything else:** the words as free text (no fields), which MusicBrainz matches against
+     title and artist together.
+
+**Checked 2026-11-02** (8 searches against musicbrainz.org; `dismax=true` made no difference):
+free text finds an album from title and artist words in any order and without accents
+("bite me renee rapp" → *BITE ME* by Reneé Rapp, first), but ranks loosely: "demon days
+gorillaz" put a 2021 remix single first and the album third, tied with a single of the same
+name. A bare title is hopeless either way ("brat": 4,190 matches, Charli xcx's not in the top
+five), and **songs as free text don't work**: "feel good inc gorillaz" returned covers and
+mashups whose titles contain "Gorillaz", and not the original. So: re-rank album results
+locally (albums before EPs before singles, live, remix and compilation types after the rest,
+within the scores MusicBrainz gives), and for *Songs* without " by " or the artist box, say
+under the results that adding the artist works much better.
+
+**On desktop** (not mocked up; decided 2026-11-02): the search bar sits at the top of every
+page's content, and typing in it opens the Search page (focus and text carried over), where
+the results show as you type; no drop-down of results over the current page, so there's one
+results layout and one place where Enter asks MusicBrainz. The page itself is the phone's,
+wider.
+
+Search results are seen once, so they keep the archive's 250 px covers, linked directly.
+*Not what you were looking for?* (save as a capture) and the capture banner stay. This
+changes 1a's form, not its requests: still one search per press, never as you type.
 
 ## Design language
 
@@ -200,7 +273,12 @@ All in `:root` custom properties, redefined for dark under `prefers-color-scheme
 - **Colour:** `--bg`, `--surface`, `--surface-2` (raised: sheets, menus), `--text`, `--muted`,
   `--divider`, `--accent`, `--on-accent`, `--owned`, `--warning`, `--warning-bg`. Badge
   colours derived from these. Contrast checked to WCAG AA in both themes.
-- **Type:** the system font stack, a five-step scale (12, 14, 16, 20, 28 px), two weights.
+- **Type:** the system font stack (decided 2026-11-02: `system-ui, -apple-system, "Segoe UI",
+  Roboto, sans-serif`, so Roboto on Android): nothing downloaded, nothing loaded from another
+  site (the mockups' Google Fonts link is the mockups' only), and native on the phone. Sizes as
+  under "Direction A, as mocked up", two weights.
+- **Breakpoint:** one, at 768 px. Narrower: the bottom tab bar, phone layouts. 768 px and
+  wider: the sidebar, desktop layouts. A tablet held upright gets the phone layout.
 - **Space:** a 4 px scale (4, 8, 12, 16, 24, 32). **Radius:** 6 (badges, buttons), 10 (tiles),
   16 (sheets). **Covers:** row 56 px, tile ~150 px on a phone (two and a bit per screen width,
   so the next one peeks), 180 px wide, hero 240–300 px.
@@ -208,10 +286,48 @@ All in `:root` custom properties, redefined for dark under `prefers-color-scheme
 
 ### Themes
 
-Light and dark, following the system. Whether dark comes first (as in most streaming apps) is
-for the mockups. One snag to remember: the manifest has one `theme_color`, which the installed
-app's gesture bar takes (1f), and the tab bar now sits right above it, so their colours should
-agree in the theme that comes first.
+Light and dark, following the system; dark comes first (direction A, decided 2026-11-02), so
+the manifest's one `theme_color`, which the installed app's gesture bar takes (1f), becomes the
+dark tab bar's colour, and the tab bar right above the gesture bar matches it.
+
+### Direction A, as mocked up
+
+The mockups (2026-11-02, made-up data) are a Claude design canvas, private to the owner:
+<https://claude.ai/artifact/TyTqjUk2K4XVDPG3VC48Vi>. Its page *Direction A (the design)* is the
+design; *Explored (not chosen)* keeps directions B and C and the other search layouts, as the
+record of what was compared. A session that can read it should; the
+values below are the ones it uses, so the design survives without it. They're a starting
+point for U1's tokens, to be checked for contrast in place.
+
+| Token | Dark | Light |
+|---|---|---|
+| `--bg` | `#121212` | `#ffffff` |
+| `--surface` (cards, inputs) | `#1f1f1f` | `#f3f3f3` |
+| `--text` | `#f4f4f4` | `#111111` |
+| `--muted` | `#ababab` | `#5e5e5e` |
+| `--divider` | `#2a2a2a` | `#e3e3e3` |
+| `--accent` (one primary button per page, ticks) | `#ff7a59` | `#c8401f` |
+| `--on-accent` | `#1a0d08` | `#ffffff` |
+| `--badge-bg` / `--badge-fg` | `#2a2a2a` / `#ededed` | `#efefef` / `#222222` |
+| tab bar / sidebar frame | `#0b0b0b` / `#000000` | `#ffffff` / `#e9e9e9` |
+
+- **Type:** the system sans (the mockups show Inter, which is close), 700 for headings with
+  -0.02em tracking: page titles
+  30 px on a phone, 34 px on desktop; album titles 30 / 64 px; shelf headings 21 / 23 px; body
+  14–15 px; badges 11–12 px, 600.
+- **Shapes:** covers and tiles 6 px radius (4 px at row size), badges 4 px, buttons and the
+  search bar fully rounded; tiles 150 px on a phone, 184 px in a desktop shelf.
+- **Album and artist headers:** centred on a phone (cover or picture, title, artist, meta line,
+  badges, buttons, all on one axis), on a band tinted from the cover (dark `#22313b`, light
+  `#dfe9f0` for a blue cover: a darkened or lightened tone of the cover's main colour). On
+  desktop, the cover sits left of a left-aligned title. A photo header puts the name over the
+  photo's bottom edge, centred, with a fade into `--bg` behind it.
+- **The tint:** worked out once, when a cover is cached, not per page view: the cover's main
+  colour (Pillow, reduced to a few colours, the most common one that isn't near black or white),
+  stored with the cover in the `covers` table, in `covers.py` (outside `web/`). The page turns it
+  into the dark band (that colour darkened until `--text` on it passes WCAG AA) or the light one
+  (lightened until `#111111` passes). No cover, or no usable colour: `--surface`. Added with U0's
+  migration, so every cover made or refreshed from then on has one.
 
 ### Shared components
 
@@ -221,8 +337,11 @@ One template partial or Jinja macro each, replacing the five album rows:
 - **Album row** (wishlist, search, track context): cover, title, artist, a meta line, badges, at
   most one inline action and ⋯.
 - **Artist tile / row:** monogram or cover mosaic, name, *Follow*.
-- **Shelf:** a heading, *See all*, and a row that scrolls sideways (`overflow-x: auto` with
-  `scroll-snap`, no script); on a wide screen it wraps into a grid instead.
+- **Shelf:** a heading, *See all*, and one row that scrolls sideways (`overflow-x: auto` with
+  `scroll-snap`), on a phone and a wide screen alike (decided 2026-11-02: Home stays a list of
+  shelves, several to a screen, however long each is). On a wide screen, ‹ › buttons beside
+  *See all* scroll the row by about its width (a few lines of inline script; without it the row
+  still scrolls with a trackpad or Shift+wheel). *See all* opens the whole list as a grid.
 - **Grid:** auto-filling tiles for *See all* pages and discographies.
 - **Badge:** *In your library*, *Never played*, *8 of 12 tracks*, *On your wishlist*, *New*,
   *Out 14 Nov*. Text, not colour alone.
@@ -231,10 +350,25 @@ One template partial or Jinja macro each, replacing the five album rows:
 - **Action menu (⋯):** the actions a row no longer shows (*Dismiss*, *Follow* each artist,
   *Open on MusicBrainz*), using the `popover` attribute with `popovertarget`, so no script;
   each item is today's form, so it still posts without JavaScript.
+- **Links to MusicBrainz** (decided 2026-11-02): everything shown has a MusicBrainz id, and
+  MusicBrainz is where to read more or fix the data, so each album and artist page has a visible
+  *MusicBrainz* link (album and artist), every ⋯ menu has *Open on MusicBrainz*, and an
+  edition's line links to that release. They open in a new tab, as every external link does.
 - **Sheet / dialog:** for release types, editions and notes on a phone (`popover` as well;
   `hx-confirm` stays for confirming).
 - **App bar, tab bar / sidebar, empty state, notice, footer.** The footer's attribution stays
   on every page, at the end of the content above the tab bar.
+- **Icons:** a few simple line icons (home, search, library, bookmark, ⋯, back, tick, plus,
+  open externally, chevrons), drawn as inline SVG from one macro file (`_icons.html`,
+  `icon("home")`), using `currentColor`, `aria-hidden` beside a text label or with an
+  `aria-label` when alone. No icon font, nothing from another site.
+
+### Navigation
+
+Plain page loads between pages: no HTMX `hx-boost` (which swaps pages in place) in U1, so the
+back button, scroll position and the installed app behave as browsers do. HTMX stays for the
+parts of a page that change (follow, dismiss, the lazily loaded sections). Try `hx-boost` later
+only if switching tabs feels slow.
 
 ## Covers at 500 px, as files
 
@@ -260,7 +394,8 @@ in alongside the old CSS, and each PR deletes what it leaves unused. Routes don'
 the logic for each page stays where it is (`new_releases.py`, `rediscover.py`, …); a page that
 needs something new (the album page's header) gets a function outside `web/`.
 
-- **U0 Covers at 500 px, as files** (backend only; above). Sharper covers, nothing else changes.
+- **U0 Covers at 500 px, as files** (backend only; above), with each cover's tint. Sharper
+  covers, nothing else changes.
 - **U1 Tokens and the shell.** The new tokens and type, the bottom tab bar / sidebar with the
   four destinations, the app bar, the footer's new place. Pages keep their current content under
   the new shell; Discover, Rediscover and Artists get links from Home and Library until U3 and
@@ -274,10 +409,26 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
 - **U5 Library and Wishlist.** The Library tab's shelves, artists and scan; the wishlist's
   segments and plain rows, with the item's sections now only on the album page.
-- **U6 Search** in the new components, and the capture box at its top. Then a last pass for
-  anything still on the old CSS.
+- **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
+  outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
+  capture box at its top. Then a last pass for anything still on the old CSS.
 
-5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action.
+5g (*Open in Navidrome*) can land any time after U2 and fills the album page's first action;
+the artist photos and biographies (above) come with it or just after, on the same connection.
+
+### Testing
+
+- `tests/test_app.py` checks the pages' HTML: each phase updates it for what it changes, and
+  keeps checking what the old tests promised (the attribution footer, `target="_blank"` on
+  external links, root-relative URLs).
+- **Every action still works without JavaScript:** each form posts normally and comes back
+  (`next`). A test per new form or menu item posts it without HTMX headers and follows the
+  redirect.
+- New logic outside `web/` (the album page's header, tracks ahead, the tint, local search
+  matching, re-ranking) gets its own tests, with recorded responses only; never the network.
+- **Previews:** run the app on a copy of a real database (never the original), with no contact
+  set so nothing reaches MetaBrainz, and check each page at phone width and at desktop width, in
+  dark and light.
 
 ## Decisions
 
@@ -293,5 +444,33 @@ Decided 2026-11-02:
 6. Covers at 500 px, stored as files under the data folder.
 7. No full library browser for now: the Library tab shows what wants attention. Easy to add
    later (see Library).
+8. The look: direction A, "streaming, dark first" (near-black, big covers, one bright accent,
+   the album page's header tinted from its cover), with a light theme of the same design.
+   Chosen from mockups of three directions.
+9. Search is one bar: local matches as you type, MusicBrainz on Enter, as "title by artist",
+   with the artist box, or as free text (see Search).
+10. Shelves are one sideways row on every screen size, with ‹ › buttons on wide screens.
+11. Artist headers: a photo and biography from Navidrome (5g) for library artists, else a
+    mosaic of their covers, else a monogram (see Artist pages).
+12. A visible *MusicBrainz* link on every album and artist page, and in every ⋯ menu.
+13. System fonts, one breakpoint at 768 px, inline SVG icons from one macro file, plain page
+    loads (no `hx-boost`), and the header tint computed when a cover is cached (see Design
+    language).
 
-Still open: the look (colours, type, dark first or not), chosen from the mockups.
+## Still to check
+
+Gathered from the "Check first" notes above; settle each before the phase that needs it.
+
+- **Before U0:** that a cover's main colour, picked as "Design language" says, gives a pleasant
+  band for typical covers (try it on a few dozen cached ones in a preview).
+- **Before tracks ahead (with U2):** the trickle's real volume against the estimate (~800
+  requests of backlog, then ~30–60 a day), from its first days' logs.
+- **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
+  case: the album should come first), and whether free-text song searches need more than the
+  hint to add the artist.
+- **Before the artist photos (with 5g):** whether `getArtistInfo2`'s image URLs point at
+  Navidrome or straight at Deezer; how an artist is found by MusicBrainz id; the biographies'
+  licence (Last.fm's are CC BY-SA, as far as known) and the credit to show.
+- **With U2:** that 5k's default edition (the earliest official one with the most common track
+  count), used for albums not in the library or on the wishlist, gives sensible track lists in
+  practice.
