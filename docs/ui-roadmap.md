@@ -28,8 +28,10 @@ For a session starting on this work:
 
 **Layout and browsing, not playback.** Groovehound doesn't play music (Non-goals), so there is
 no play button, queue, now-playing bar or mini player. Where a streaming app has *Play*,
-Groovehound has the next step it does offer: *Open in Navidrome* once 5g exists, else *Add to
-wishlist* or *Open on MusicBrainz*. Nothing here needs a new request to MetaBrainz beyond those
+Groovehound has the next step it does offer: *Open in Navidrome* once 5g exists (*Open in
+Symfonium* with 5m's bridge app), else *Add to wishlist* or *Open on MusicBrainz*. The roadmap's
+5l *Now playing* card is no exception: it shows what your player is playing, with those same
+next steps, and has no controls. Nothing here needs a new request to MetaBrainz beyond those
 named under "Album page" below, and none of it shows listening statistics (see "Decided
 against" in the roadmap): listen counts appear only as a reason an album is suggested ("not
 played since March").
