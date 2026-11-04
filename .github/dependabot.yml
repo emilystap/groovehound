@@ -1,0 +1,37 @@
+# Weekly, grouped into one PR per ecosystem. The cooldown skips versions younger than a week, so a
+# compromised release has time to be caught before it arrives here. Security updates ignore it.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      images:
+        patterns: ["*"]
+    ignore:
+      # Digest updates for 3.13 only: moving to a new Python is a decision, not a chore.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
