@@ -21,9 +21,9 @@
   <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
   <script src="/static/htmx.min.js" defer></script>
 </head>
-{# The four destinations; a page belongs to one of them (Discover and Rediscover to Home, the
+{# The four destinations; a page belongs to one of them (Discover, Rediscover and New releases to Home, the
    artist pages to Library). URLs don't change, so bookmarks and the share target still work. #}
-{% set tab = {"discover": "home", "rediscover": "home", "artists": "library"}.get(page, page) %}
+{% set tab = {"discover": "home", "rediscover": "home", "new": "home", "artists": "library"}.get(page, page) %}
 <body>
   {# On a phone the sidebar's parts are laid out separately (display: contents): the nav is the
      bottom tab bar and the footer ends the content; from 768 px wide they're the sidebar. #}

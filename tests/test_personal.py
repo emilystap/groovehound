@@ -127,7 +127,7 @@ def test_the_home_page_shows_them_with_follow(tmp_path: Path):
     client = TestClient(create_app(settings))
     page = client.get("/").text
     assert "You might care about" in page and "Soon Enough" in page
-    assert "out 2099-01-01" in page
+    assert "Out 1 Jan 2099" in page
     assert f'action="/artists/{OTHER}/follow"' in page
     assert client.get(f"/cover/{RG_SOON}").status_code == 200  # listed: its cover is served
     assert client.get(f"/cover/{RG_DUO}").status_code == 404  # not listed: not fetched

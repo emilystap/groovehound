@@ -1,0 +1,5 @@
+{# A *See all* section's albums (`tiles`) as a grid of tiles; `section`: a name unique on the
+   page. #}
+<ul class="grid">
+  {% for tile in tiles %}{% include "_album_tile.html" %}{% endfor %}
+</ul>

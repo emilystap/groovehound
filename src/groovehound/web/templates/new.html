@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{# What's behind Home's new release shelves, whole. #}
+{% block title %}New releases · Groovehound{% endblock %}
+{% block heading %}New releases{% endblock %}
+{% block content %}
+{% for shelf in sections if shelf.tiles %}
+<section class="grid-section" id="{{ shelf.key }}">
+  <h2>{{ shelf.title }}</h2>
+  {% with tiles = shelf.tiles, section = shelf.key %}{% include "_grid.html" %}{% endwith %}
+</section>
+{% endfor %}
+{% if follow_count %}
+<p class="muted small">From the <a href="/artists">{{ follow_count }} artist{% if follow_count != 1 %}s{% endif %} you follow</a>.
+  Each is checked on MusicBrainz every week or two, and ListenBrainz's fresh releases every day.</p>
+{% else %}
+<p class="muted">Follow artists to see their new releases here.</p>
+{% endif %}
+{% if listenbrainz_user %}
+<p class="muted small"><em>You might care about</em>: new and upcoming releases by artists you listen to but
+  don't follow, from <a href="{{ listenbrainz_web }}/user/{{ listenbrainz_user | urlencode }}/" rel="noopener" target="_blank">your ListenBrainz</a>
+  fresh releases, checked every day.</p>
+{% endif %}
+{% endblock %}

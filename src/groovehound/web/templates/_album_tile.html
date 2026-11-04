@@ -1,0 +1,39 @@
+{% from "_icons.html" import icon %}
+{# One album (`tile`: shelves.Tile) on a shelf or a grid, or as a row (.rows, CSS); `section`
+   tells apart the copies of an album on one page. The picture and names open its album page; its
+   ⋯ menu has the rest (a popover, so no script). Its forms are the usual ones: without JavaScript
+   they post normally and come back (`next`). One badge at most: the reason it's here, else what's
+   true of it. #}
+{% set row = section ~ "-" ~ tile.mbid %}
+{% set part = (partial or {}).get(tile.mbid) %}
+{% set badge = tile.badge or (
+     part and (part.have ~ " of " ~ part.of ~ " tracks")
+     or (tile.mbid in owned and (tile.mbid in (unplayed or ()) and "Owned · never played" or "In your library"))
+     or (tile.hit and tile.mbid in saved_ids and "On your wishlist")
+   ) %}
+<li class="tile" id="{{ row }}">
+  <a class="tile-link" href="/albums/{{ tile.mbid }}">
+    <span class="tile-cover"><img src="/cover/{{ tile.mbid }}" alt="" width="184" height="184" loading="lazy" onerror="this.remove()"></span>
+    <span class="tile-names">
+      <span class="tile-title">{{ tile.title }}</span>
+      <span class="tile-artist">{{ tile.artist }}</span>
+      {% if tile.detail %}<span class="tile-detail">{{ tile.detail }}</span>{% endif %}
+    </span>
+  </a>
+  {% if badge %}<span class="badge">{{ badge }}</span>{% endif %}
+  <button type="button" class="tile-more" popovertarget="menu-{{ row }}" aria-label="More for {{ tile.title }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-{{ row }}" popover>
+    <p class="menu-title">{{ tile.title }}</p>
+    {% if tile.credits %}{% with credits = tile.credits %}{% include "_follow_row.html" %}{% endwith %}{% endif %}
+    {% if tile.hit %}{% with hit = tile.hit, saved = tile.mbid in saved_ids, capture = none %}{% include "_wishlist_button.html" %}{% endwith %}{% endif %}
+    <a class="menu-item" href="{{ musicbrainz_web }}/release-group/{{ tile.mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+    {% if tile.dismiss %}
+    <form method="post" action="{{ tile.dismiss }}" hx-post="{{ tile.dismiss }}"
+          hx-target="#{{ row }}" hx-swap="outerHTML">
+      <input type="hidden" name="next" value="{{ here }}">
+      <button type="submit" aria-label="Dismiss {{ tile.title }}">Dismiss</button>
+    </form>
+    {% endif %}
+    <button type="button" class="menu-close" popovertarget="menu-{{ row }}" popovertargetaction="hide">Close</button>
+  </div>
+</li>

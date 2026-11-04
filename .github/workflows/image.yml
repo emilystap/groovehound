@@ -70,7 +70,7 @@ jobs:
             if docker exec gh python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read().decode())"; then break; fi
             sleep 1
           done
-          docker exec gh python -c "import urllib.request; page = urllib.request.urlopen('http://127.0.0.1:8080/', timeout=5).read().decode(); assert 'New releases' in page, page" \
+          docker exec gh python -c "import urllib.request; page = urllib.request.urlopen('http://127.0.0.1:8080/', timeout=5).read().decode(); assert '<h1>Home</h1>' in page, page" \
             || { docker logs gh; exit 1; }
           docker exec gh test -f /data/groovehound.db || { docker logs gh; exit 1; }
           docker logs gh
