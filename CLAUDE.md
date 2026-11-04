@@ -33,6 +33,9 @@ requests. See the roadmap's Ground rules.
   a `changes` job (`.github/scripts/code-changed.sh`) that skips them for docs-only changes
   (`docs/**`, `CLAUDE.md`, `LICENSE`). Never use `paths-ignore` on these workflows: the
   required checks would never report.
+- Actions are pinned to full commit SHAs and Docker base images to digests, with Dependabot
+  (`.github/dependabot.yml`) keeping them current. Only `image.yml`'s `publish` job can write
+  to GHCR.
 - **Multi-user ready, single user today**: user-owned rows carry `user_id`; caches are shared.
   Routes get the user only through `web/app.py::current_user` (always `OWNER_ID` for now).
 - **Config precedence**: defaults < `config.toml` < `GROOVEHOUND_*` env vars < CLI flags.
