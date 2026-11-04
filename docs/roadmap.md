@@ -525,9 +525,10 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   each Navidrome album id to a `library` row by release MBID, which the tags already give, so
   the release-group question that holds up 5c doesn't arise. The file scan stays the library
   source. The same connection gives artist pages a photo and biography for library artists
-  (`getArtistInfo2`; see `docs/ui-roadmap.md`, "Artist pages"). *Open in Symfonium* isn't possible yet: as of 2026-11 Symfonium
-  has no links a web page can open (deep links are an open feature request on its forum, and
-  its broadcast-intent API is for other Android apps). Revisit if it adds them.
+  (`getArtistInfo2`; see `docs/ui-roadmap.md`, "Artist pages"). *Open in Symfonium* can't be a
+  plain link: as of 2026-11 Symfonium has no links a web page can open (deep links are an open
+  feature request on its forum, and its broadcast-intent API is for other Android apps). 5m's
+  bridge app gets around that; drop the bridge if Symfonium adds links.
 - 5h ✅ **Recommended albums** (was 4c; needs 5a/5b): ListenBrainz's collaborative-filtering
   recording recommendations (`/1/cf/recommendation/user/<name>/recording`, experimental), as the
   albums those recordings are on, on the *Discover* page with *Add to wishlist*, *Follow* and
@@ -625,6 +626,48 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     docs say a release browse is cut so a page holds at most 500 tracks, which would cost
     *Choose edition* most of its editions for a big release group. A lookup returns every
     track (Picard reads box sets this way).
+- 5l **Now playing** (needs 5g's Subsonic connection; planned 2026-11-04): a card at the top of
+  the home page with what your player is playing right now, when something is, and the next
+  steps Groovehound offers for it: *In your library* (or not), the album page, *Follow* for
+  each artist, *Add to wishlist* for the album or the song. Reads only (see Non-goals): no
+  controls, not a player bar (see `docs/ui-roadmap.md`, on what "streaming-like" means).
+  - **Source: Navidrome's `getNowPlaying`**, over 5g's connection: your own server, so no
+    MetaBrainz requests. It lists what every Navidrome user is playing, so keep the entries
+    whose `username` is the configured user. The album maps to a `library` row through 5g's
+    album ids; OpenSubsonic's `musicBrainzId` on the song, where Navidrome has one, gives the
+    recording. **Check first** that Symfonium reports what it plays to Navidrome (a
+    `scrobble` with `submission=false`), including songs from its offline cache, and what
+    Navidrome returns for them.
+  - **Fallback: ListenBrainz's playing now** (`/1/user/<name>/playing-now`), with only a
+    ListenBrainz username configured or when Navidrome has nothing for you: one request through
+    `JsonClient`, cached raw for a minute so reloads don't ask again. Check what it carries: a
+    playing-now listen may have only the names the player sent, no MBIDs.
+  - **Requests:** only when the home page is opened, never polled and never part of a
+    trickle. The card loads after the page (HTMX `hx-trigger="load"`), so a wait behind the
+    ListenBrainz limiter doesn't hold up the page; *Refresh* asks again. When the song has no
+    MBIDs, nothing is looked up: the card offers a song search pre-filled with title and artist,
+    as the share target does (1f), so it's one search when you press *Search*.
+- 5m **Open in Symfonium, through a bridge app** (needs 5g; planned 2026-11-04). A web page
+  can't send Symfonium's broadcast intents, so a small Android app of its own does it: no UI,
+  one activity that takes a link from Groovehound, sends Symfonium the matching broadcast and
+  closes. The PWA stays the interface; this is not a native Groovehound app (see "Decided
+  against").
+  - **Check first** what Symfonium's broadcast API can do: whether it can open or play a given
+    album (and by which id: Navidrome's album id, which 5g already maps, or something of
+    Symfonium's own), and whether it needs Symfonium to be running. If it can't do either,
+    stop here and record why under "Decided against".
+  - **The link:** an `intent://` URL naming the bridge's package, with
+    `S.browser_fallback_url` set to 5g's *Open in Navidrome* link, so without the bridge
+    installed the button still goes somewhere useful. Chrome opens these from a tap in the PWA.
+    Shown only with `[symfonium] bridge = true` in config, since a page can't tell whether the
+    app is installed.
+  - **Scope:** just this. Anything more on the phone (widgets, reading the media session,
+    catching Pixel's Now Playing notifications) is a new decision, checked against the
+    Non-goals; 5l covers now playing from the server.
+  - **Open:** where the code lives (an `android/` folder here, which would need
+    `code-changed.sh` to skip the Python and image workflows for it, or a repo of its own), and
+    how the APK is built and installed (a release asset from a workflow, sideloaded; signed with
+    a key kept as a repository secret).
 
 ### 6. Notifications and polish
 
@@ -695,6 +738,11 @@ See "Non-goals". Each entry gives the date and the reason.
 - **Listening statistics** (top artists, listens over time, a year in review) from 5f's listen
   history (2026-11-02): ListenBrainz's own stats pages do that, with more data and its own
   matching. The history only feeds what to play next (Rediscover).
+- **A native Android app** (2026-11-04): the PWA (1e, 1f) already installs, opens in its own
+  window and takes shares. A native app would be a second UI in a second language, with a JSON
+  API, a build and signing to keep up, for little gain: now playing comes from the server (5l),
+  and the one thing a web page can't do, sending Symfonium's broadcasts, takes a small bridge
+  app (5m), not a whole one.
 
 ## Open questions
 
