@@ -17,8 +17,9 @@ leaves jobs that other tools already do well to those tools. So Groovehound does
 
 - **Play music.** Navidrome, Symfonium and the rest do that; Groovehound links out to them.
 - **Write to your library or to other services.** The music folder is mounted read-only and
-  Navidrome is only ever read. The one possible exception, keeping the wishlist in a
-  MusicBrainz collection, would be opt-in and only run when you ask.
+  Navidrome is only read, with one exception: 5n's playlists, opt-in, sent only when you press
+  the button, and only ever the playlists Groovehound made. The other possible exception,
+  keeping the wishlist in a MusicBrainz collection, would be opt-in and only run when you ask.
 - **Manage files.** No tagging, renaming, moving or deleting: that's Picard (or beets).
 - **Fetch music automatically.** No downloaders or Lidarr-style automation. Groovehound shows
   where to buy something; buying it is up to you.
@@ -668,6 +669,32 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     `code-changed.sh` to skip the Python and image workflows for it, or a repo of its own), and
     how the APK is built and installed (a release asset from a workflow, sideloaded; signed with
     a key kept as a repository secret).
+- 5n **ListenBrainz playlists in Navidrome** (needs 5g, 5k and 4d, whose dialog it reuses; planned 2026-11-04):
+  for a "Created for you" playlist (4a) or a pasted one (4d), *Send to Navidrome* makes a
+  Navidrome playlist of the songs you have, and *Add the missing to the wishlist* puts the
+  albums of the rest on the wishlist. Not a playlist editor (see "Decided against"): the
+  playlist is ListenBrainz's, Groovehound only copies it.
+  - **Which songs you have:** by recording, from 5k's scan, so a song owned on another album
+    counts. Each playlist shows *12 of 50 songs in your library* before you press anything;
+    Weekly Exploration, mostly new to you, will often have few, Weekly and Daily Jams many.
+  - **Navidrome's song ids:** 5g's connection already lists albums by release MBID; this adds
+    the songs on each (`getAlbum` per album, your own server, no MetaBrainz requests), kept
+    beside 5g's album ids and refreshed after a library scan. A recording owned more than once
+    takes the copy on the album the playlist names, else the first.
+  - **Writing, opt-in:** off unless `[navidrome] write_playlists = true`. `createPlaylist` with
+    the songs in playlist order, named after the ListenBrainz playlist with "(Groovehound)"
+    after it. Groovehound keeps the Navidrome id of each playlist it made and only ever
+    replaces or deletes those, never one of yours. Pressing again replaces the songs
+    (`updatePlaylist`) with a snapshot of what you have now; nothing is kept in sync on its
+    own. A recurring kind (Weekly Jams) keeps one Navidrome playlist, replaced by the newest
+    week's when you send it. If you deleted it in Navidrome, the next press makes a new one.
+  - **Add the missing to the wishlist:** opens 4d's dialog for this playlist with the songs you
+    don't have and that aren't on the wishlist ticked, so you can untick some before *Add*.
+    Items as in 4d (the album, with the songs wanted and the playlist as its source). For a 4a
+    playlist it uses the metadata 4a already has; no new requests.
+  - **Requests:** only when you press a button; none to MetaBrainz beyond what 4a and 4d
+    already make, and none in a trickle.
+  - Rediscover stays a page of albums with *Open in Navidrome* (5g), not a playlist.
 
 ### 6. Notifications and polish
 
@@ -727,7 +754,11 @@ See "Non-goals". Each entry gives the date and the reason.
 
 - **Creating playlists in Navidrome** from Rediscover (2026-11-02): needs write access to
   Navidrome and keeping the playlist in sync, which is a player's job. Link to the album instead
-  (5g).
+  (5g). Revisited 2026-11-04 for ListenBrainz's playlists (5n): opt-in, on a button press, a
+  snapshot rather than a sync, and only the playlists Groovehound made. Rediscover stays out:
+  it's albums, not songs.
+- **A playlist editor** (building or editing playlists by hand, 2026-11-04): Navidrome and
+  Symfonium already do that. 5n only copies a ListenBrainz playlist as it is.
 - **Reading Spotify playlists directly** for 4d (2026-11-02): needs registered app credentials
   (another secret), and Spotify keeps narrowing what new apps may read. Its ISRCs would cost a
   MusicBrainz lookup per song (75 s+ for 50 songs behind the limiter), and many aren't in
