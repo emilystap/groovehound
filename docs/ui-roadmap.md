@@ -458,9 +458,24 @@ needs something new (the album page's header) gets a function outside `web/`.
   - ✅ **Track lists from your files** (above): decided after the page landed, to take most of
     the library tier out of tracks ahead before it starts. Migration 16 reads every file once
     more (local only).
-  - **Tracks ahead**: the trickle, next.
-- **U3 Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
-  become *See all* grids. The five album rows become the tile and row components.
+  - **Tracks ahead**: the trickle. Held on 2026-11-04 until the MusicBrainz mirror is running:
+    on-view loading from a mirror may be fast enough to shrink it or drop it, and its ~800
+    request backlog shouldn't go to musicbrainz.org a day or two before that's known.
+- **U3 ✅ Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
+  become *See all* grids. `shelves.py` turns every source into `Tile`s and `Shelf`s; one
+  partial (`_album_tile.html`) replaces the four album rows of those pages, with `_shelf.html`,
+  `_grid.html` and the ⋯ menu (a sheet on a phone, a small dialog from 768 px; the popover isn't
+  anchored to its button, so it names the album). Wishlist items and search results keep their
+  rows until U5 and U6. Decided in place: **`/new`** is the *See all* for *Out now*, *Coming up*
+  and *You might care about*, which had no page of their own; shelves show at most 20.
+  *On your wishlist* is rows on a phone and a shelf from 768 px, as mocked up, by CSS on the same
+  tile (`.rows`). *Quick capture* takes the place of the *To look up* chip with nothing waiting,
+  and the box itself lives on the wishlist page, so it stays one tap from Home until U6 puts it
+  on Search; a shared text that isn't "song by artist" still opens Home with the form filled
+  in. *Shuffle* swaps its shelf with HTMX (`/shelves/next`; a plain request goes back to
+  `/#next`). Grids show what a shelf leaves out: the songs on a recommended album, listens and
+  last played. A tile's artists are in its ⋯ menu, each with *Follow*. The album page's own ⋯
+  menu has nothing to hold yet.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
 - **U5 Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
   wishlist's segments and plain rows, with the item's sections now only on the album page. The

@@ -39,6 +39,7 @@ from .. import (
     recommended,
     rediscover,
     releases,
+    shelves,
     similar,
     tint,
     tracks,
@@ -53,7 +54,6 @@ from ..reconcile import Reconciler
 from ..search import KINDS, clean, search
 from ..share import parse_share
 
-HOME_WISHLIST = 10  # most recent items on the home page
 MAX_NOTES = 2000  # characters of a wishlist item's notes
 MAX_CAPTURE = 500  # characters of a quick capture
 COVER_MAX_AGE = 30 * 24 * 3600  # seconds the browser keeps a cover
@@ -128,6 +128,7 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.filters["local_date"] = local_date  # stored UTC, shown in the TZ time zone
     templates.env.filters["local_time"] = local_time
     templates.env.filters["duration"] = _duration
+    templates.env.filters["out_label"] = _out_label
     templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
     templates.env.globals.update(  # a follow's release group types (_follow_types.html)
         primary_types=follows.PRIMARY_TYPES,
@@ -147,10 +148,7 @@ def create_app(settings: Settings) -> FastAPI:
     def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
         """The home page (no requests); with `draft`, the quick capture form is filled in."""
         lb_user = _listenbrainz_user(user)
-        feed = new_releases.feed(store, user.id, lb_user)
-        suggested = personal.suggestions(store, user.id, lb_user)
-        hits = [r.hit for r in (*feed.upcoming, *feed.new)] + suggested
-        wishlist = store.wishlist(user.id, limit=HOME_WISHLIST)
+        found = shelves.home(store, user.id, lb_user)
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -158,20 +156,46 @@ def create_app(settings: Settings) -> FastAPI:
                 "page": "home",
                 "user": user,
                 "contact_problem": _contact_problem(settings),
-                "wishlist": wishlist,
-                "wishlist_count": store.wishlist_count(user.id),
-                "captures": store.captures(user.id),
+                "shelves": found,
                 "follow_count": len(store.follows(user.id)),
-                "feed": feed,
+                "captures": store.captures(user.id),
                 "listenbrainz_user": lb_user,
-                "suggested": suggested,
-                "today": local_date(utcnow()),  # upcoming suggestions say "out <date>"
-                "followed": store.followed(user.id, (a for h in suggested for a in h.artist_mbids)),
-                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                **owned_context(store, user, (h.mbid for h in hits)),
-                "found": library.found(store, user.id, wishlist),
+                **tiles_context(store, user, shelves.all_tiles(found)),
                 "draft": draft,
                 "here": "/",
+            },
+        )
+
+    @app.get("/shelves/next", response_class=HTMLResponse)
+    def shuffle_next(request: Request, store: StoreDep, user: UserDep) -> Response:
+        """*Shuffle*: Put on next drawn again (no requests). HTMX gets the shelf; a plain
+        request goes back to it on the home page, which draws again anyway."""
+        if not request.headers.get("HX-Request"):
+            return RedirectResponse("/#next", status_code=303)
+        shelf = shelves.put_on_next(store, user.id, _listenbrainz_user(user))
+        if shelf is None:
+            return HTMLResponse("")
+        return templates.TemplateResponse(
+            request,
+            "_shelf.html",
+            {"shelf": shelf, **tiles_context(store, user, shelf.tiles), "here": "/"},
+        )
+
+    @app.get("/new", response_class=HTMLResponse)
+    def new_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """Home's new release shelves, whole, as grids (no requests)."""
+        lb_user = _listenbrainz_user(user)
+        sections = shelves.new_page(store, user.id, lb_user)
+        return templates.TemplateResponse(
+            request,
+            "new.html",
+            {
+                "page": "new",
+                "sections": sections,
+                "follow_count": len(store.follows(user.id)),
+                "listenbrainz_user": lb_user,
+                **tiles_context(store, user, shelves.all_tiles(sections)),
+                "here": "/new",
             },
         )
 
@@ -182,8 +206,8 @@ def create_app(settings: Settings) -> FastAPI:
         lb_user = _listenbrainz_user(user)
         found = playlists.playlists(store, user.id, lb_user)
         recommendations = recommended.recommended(store, user.id, lb_user)
-        hits = [h for p in found for h in p.releases]
-        hits += recommendations.albums if recommendations else ()
+        picked = shelves.songs(recommendations.albums if recommendations else ())
+        lists = [(p, shelves.playlist_key(p), shelves.songs(p.releases)) for p in found]
         return templates.TemplateResponse(
             request,
             "discover.html",
@@ -191,11 +215,10 @@ def create_app(settings: Settings) -> FastAPI:
                 "page": "discover",
                 "user": user,
                 "listenbrainz_user": lb_user,
-                "playlists": found,
+                "playlists": lists,
                 "recommended": recommendations,
-                "followed": store.followed(user.id, (a for h in hits for a in h.artist_mbids)),
-                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                **owned_context(store, user, (h.mbid for h in hits)),
+                "recommended_tiles": picked,
+                **tiles_context(store, user, [*picked, *(t for _, _, ts in lists for t in ts)]),
                 "here": "/discover",
             },
         )
@@ -205,7 +228,7 @@ def create_app(settings: Settings) -> FastAPI:
         """Albums to put on next, drawn again on every load (no requests)."""
         lb_user = _listenbrainz_user(user)
         drawn = rediscover.draw(store, user.id, lb_user)
-        picks = drawn.picks if drawn else ()
+        sections = shelves.rediscover_sections(drawn, local_date(utcnow())) if drawn else []
         return templates.TemplateResponse(
             request,
             "rediscover.html",
@@ -214,9 +237,9 @@ def create_app(settings: Settings) -> FastAPI:
                 "user": user,
                 "listenbrainz_user": lb_user,
                 "draw": drawn,
+                "sections": sections,
                 "library_count": store.library_summary(user.id).release_groups,
-                "saved_ids": store.wishlisted(user.id, (p.mbid for p in picks)),
-                **owned_context(store, user, (p.mbid for p in picks)),
+                **tiles_context(store, user, [t for _, _, ts in sections for t in ts]),
                 "here": "/rediscover",
             },
         )
@@ -243,6 +266,16 @@ def create_app(settings: Settings) -> FastAPI:
             "owned": owned,
             "unplayed": listens.never_played(store, user.id, _listenbrainz_user(user), owned),
             "partial": tracks.partial_albums(store, user.id, owned),
+        }
+
+    def tiles_context(store: Store, user: User, tiles: Iterable[shelves.Tile]) -> dict[str, object]:
+        """What album tiles need besides themselves, for their badges and ⋯ menus."""
+        tiles = list(tiles)
+        mbids = [t.mbid for t in tiles]
+        return {
+            "followed": store.followed(user.id, (a.mbid for t in tiles for a in t.credits)),
+            "saved_ids": store.wishlisted(user.id, mbids),
+            **owned_context(store, user, mbids),
         }
 
     def _listenbrainz_user(user: User) -> str:
@@ -1134,6 +1167,11 @@ def _duration(ms: int | None) -> str:
     minutes, seconds = divmod(round(ms / 1000), 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
+
+
+def _out_label(date: str) -> str:
+    """A release date for a badge: "Out 14 Nov"."""
+    return shelves.out_label(date, local_date(utcnow()))
 
 
 def _artist_mbid(mbid: str) -> str:

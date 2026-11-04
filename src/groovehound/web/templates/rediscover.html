@@ -25,17 +25,10 @@
     Dismissed albums aren't drawn again.</p>
   {% if not draw %}<p class="muted">Nothing to draw: everything left has been dismissed.</p>{% endif %}
 </section>
-{% for title, picks in [
-  ("Never played, by artists you play most", draw.favourites),
-  ("Never played, by other artists", draw.others),
-  ("Not played in six months", draw.not_lately),
-  ("New from artists you play most", draw.new),
-] if picks %}
-<section class="card">
+{% for key, title, tiles in sections if tiles %}
+<section class="grid-section">
   <h2>{{ title }}</h2>
-  <ul class="hits">
-    {% for pick in picks %}{% include "_rediscover_pick.html" %}{% endfor %}
-  </ul>
+  {% with section = key %}{% include "_grid.html" %}{% endwith %}
 </section>
 {% endfor %}
 {% if draw and not draw.history_ready %}

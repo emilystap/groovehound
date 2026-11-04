@@ -161,8 +161,8 @@ def test_search_shows_results_and_saves_to_the_wishlist(tmp_path: Path, monkeypa
         (item,) = store.wishlist(OWNER_ID)
     assert (item.release_group_mbid, item.release_mbid) == (RG, R1)
     assert item.artist_mbids == (ARTIST,) and item.secondary_types == ()
-    home = client.get("/").text
-    assert "Brat" in home and "a specific edition" in home
+    assert "Brat" in client.get("/").text
+    assert "a specific edition" in client.get("/wishlist").text
 
 
 def test_plain_form_post_goes_back_but_only_on_this_site(tmp_path: Path):
@@ -282,12 +282,13 @@ def test_wishlist_actions_only_touch_your_own_items(tmp_path: Path):
         assert client.post(f"/wishlist/{item_id + 1}/{action}").status_code == 404
 
 
-def test_home_links_to_the_whole_wishlist(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("groovehound.web.app.HOME_WISHLIST", 1)
+def test_home_shows_the_newest_of_the_wishlist(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("groovehound.shelves.WISHLIST", 1)
     client, _ = wishlist_app(tmp_path)
-    assert "All 1 on your wishlist" not in client.get("/").text
     client.post("/wishlist", data={"release_group": R1, "title": "Other", "artist_credit": "x"})
-    assert "All 2 on your wishlist" in client.get("/").text
+    page = client.get("/").text
+    assert "Other" in page and "Brat" not in page
+    assert '<a href="/wishlist" aria-label="See all of On your wishlist">' in page
 
 
 def test_quick_capture_and_remove(tmp_path: Path):

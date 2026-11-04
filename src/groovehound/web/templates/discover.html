@@ -10,40 +10,31 @@
 </section>
 {% else %}
 {% if recommended %}
-<section class="card">
-  <details class="playlist" open>
-    <summary><h2>Recommended for you</h2></summary>
-    {% if recommended.albums %}
-    <p class="muted small">Albums with songs ListenBrainz recommends that you haven't played, best first.</p>
-    <ul class="hits">
-      {% for hit in recommended.albums %}{% with row_prefix = "recommended" %}{% include "_discover_release.html" %}{% endwith %}{% endfor %}
-    </ul>
-    {% else %}
-    <p class="muted">Nothing to show yet.</p>
-    {% endif %}
-    <p class="muted small more">
-      {%- if recommended.left_out %}{{ recommended.left_out }} more album{% if recommended.left_out != 1 %}s{% endif %} left out: in your library, played, on your wishlist or dismissed.{% endif %}
-      {% if recommended.unmatched %}{{ recommended.unmatched }} song{% if recommended.unmatched != 1 %}s{% endif %} not matched to an album.{% endif %}
-      From ListenBrainz's recommendations (experimental){% if recommended.last_updated %}, made {{ recommended.last_updated | local_date }}{% endif %}.</p>
-  </details>
+<section class="grid-section" id="recommended">
+  <h2>Recommended for you</h2>
+  {% if recommended.albums %}
+  <p class="muted small">Albums with songs ListenBrainz recommends that you haven't played, best first.</p>
+  {% with tiles = recommended_tiles, section = "recommended" %}{% include "_grid.html" %}{% endwith %}
+  {% else %}
+  <p class="muted">Nothing to show yet.</p>
+  {% endif %}
+  <p class="muted small more">
+    {%- if recommended.left_out %}{{ recommended.left_out }} more album{% if recommended.left_out != 1 %}s{% endif %} left out: in your library, played, on your wishlist or dismissed.{% endif %}
+    {% if recommended.unmatched %}{{ recommended.unmatched }} song{% if recommended.unmatched != 1 %}s{% endif %} not matched to an album.{% endif %}
+    From ListenBrainz's recommendations (experimental){% if recommended.last_updated %}, made {{ recommended.last_updated | local_date }}{% endif %}.</p>
 </section>
 {% endif %}
-{% for playlist in playlists %}
-<section class="card">
-  {# the first playlist (Weekly Exploration, when there is one) open, the rest folded #}
-  <details class="playlist"{% if loop.first %} open{% endif %}>
-    <summary><h2>{{ playlist.title }}</h2></summary>
-    {% if playlist.releases %}
-    <ul class="hits">
-      {% for hit in playlist.releases %}{% with row_prefix = "playlist-" ~ playlist.mbid[:8] %}{% include "_discover_release.html" %}{% endwith %}{% endfor %}
-    </ul>
-    {% else %}
-    <p class="muted">Nothing left to show.</p>
-    {% endif %}
-    <p class="muted small more">{{ playlist.releases | length }} album{% if playlist.releases | length != 1 %}s{% endif %}
-      {%- if playlist.hidden %} ({{ playlist.hidden }} more track{% if playlist.hidden != 1 %}s{% endif %} dismissed or not matched to an album){% endif %}.
-      <a href="{{ playlist.url }}" rel="noopener" target="_blank">The playlist on ListenBrainz</a></p>
-  </details>
+{% for playlist, key, tiles in playlists %}
+<section class="grid-section" id="{{ key }}">
+  <h2>{{ playlist.title }}</h2>
+  {% if tiles %}
+  {% with section = key %}{% include "_grid.html" %}{% endwith %}
+  {% else %}
+  <p class="muted">Nothing left to show.</p>
+  {% endif %}
+  <p class="muted small more">{{ playlist.releases | length }} album{% if playlist.releases | length != 1 %}s{% endif %}
+    {%- if playlist.hidden %} ({{ playlist.hidden }} more track{% if playlist.hidden != 1 %}s{% endif %} dismissed or not matched to an album){% endif %}.
+    <a href="{{ playlist.url }}" rel="noopener" target="_blank">The playlist on ListenBrainz</a></p>
 </section>
 {% else %}
 {% if not recommended %}

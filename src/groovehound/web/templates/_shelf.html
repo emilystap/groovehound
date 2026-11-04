@@ -1,0 +1,23 @@
+{% from "_icons.html" import icon %}
+{# A shelf (`shelf`: shelves.Shelf): a heading, See all, and one row that scrolls sideways, with
+   ‹ › from 768 px (the page's script; a trackpad or Shift+wheel does without). `rows`: a list of
+   rows on a phone instead. *Shuffle* swaps this shelf with HTMX; without JavaScript it reloads
+   the page, back at this shelf. A shelf left without tiles hides (CSS). #}
+<section class="shelf{% if shelf.rows %} rows{% endif %}" id="{{ shelf.key }}">
+  <div class="shelf-head">
+    <h2>{{ shelf.title }}</h2>
+    <div class="shelf-actions">
+      {% if shelf.shuffle %}
+      <form method="get" action="/shelves/next" hx-get="/shelves/next" hx-target="#{{ shelf.key }}" hx-swap="outerHTML">
+        <button type="submit" class="link">Shuffle</button>
+      </form>
+      {% endif %}
+      {% if shelf.see_all %}<a href="{{ shelf.see_all }}" aria-label="See all of {{ shelf.title }}">See all</a>{% endif %}
+      <button type="button" class="shelf-nudge" data-by="-1" aria-label="Scroll {{ shelf.title }} back">{{ icon("back") }}</button>
+      <button type="button" class="shelf-nudge" data-by="1" aria-label="Scroll {{ shelf.title }} on">{{ icon("forward") }}</button>
+    </div>
+  </div>
+  <ul class="shelf-row">
+    {% for tile in shelf.tiles %}{% with section = shelf.key %}{% include "_album_tile.html" %}{% endwith %}{% endfor %}
+  </ul>
+</section>

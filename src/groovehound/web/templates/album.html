@@ -25,7 +25,7 @@
       {% if copy and copy.never_played %}<span class="badge">Never played</span>{% endif %}
       {% if copy and copy.partial %}<span class="badge">{{ copy.partial.have }} of {{ copy.partial.of }} tracks</span>{% endif %}
       {% if item %}<span class="badge">{% if item.bought_at %}Bought{% else %}On your wishlist{% endif %}</span>{% endif %}
-      {% if album.upcoming %}<span class="badge">Out {{ hit.first_release_date }}</span>{% endif %}
+      {% if album.upcoming %}<span class="badge">{{ hit.first_release_date | out_label }}</span>{% endif %}
     </div>
     {% endif %}
   </div>

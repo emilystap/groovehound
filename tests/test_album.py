@@ -344,8 +344,8 @@ def test_album_titles_link_to_album_pages(tmp_path: Path):
     with store_at(tmp_path) as store:
         wish(store)
     client = TestClient(create_app(settings_for(tmp_path)))
-    for url in ("/", "/wishlist"):
-        assert f'<a class="hit-title" href="/albums/{RG}">' in client.get(url).text
+    assert f'<a class="tile-link" href="/albums/{RG}">' in client.get("/").text
+    assert f'<a class="hit-title" href="/albums/{RG}">' in client.get("/wishlist").text
 
 
 def test_an_edition_you_have_whole_is_listed_from_its_files(tmp_path: Path, monkeypatch):

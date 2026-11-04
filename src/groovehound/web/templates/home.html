@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block heading %}Home{% endblock %}
-{# Discover and Rediscover belong to Home until its shelves take them in (U3). #}
-{% block actions %}<a class="button" href="/discover">Discover</a>
-<a class="button" href="/rediscover">Rediscover</a>{% endblock %}
+{# Quick capture is on the wishlist page, and on Search's top from U6; until then this is the way
+   to it from here even with nothing waiting. #}
+{% block actions %}<a class="button" href="/wishlist#captures">{% if captures %}To look up · {{ captures | length }}{% else %}Quick capture{% endif %}</a>{% endblock %}
 {% block content %}
 {% if contact_problem %}
 <section class="card notice">
@@ -13,75 +13,34 @@
 </section>
 {% endif %}
 
-{% include "_captures.html" %}
+{# Shared to Groovehound, but not as "song by artist": it's waiting in the form. #}
+{% if draft %}{% include "_captures.html" %}{% endif %}
 
+{% for shelf in shelves %}{% include "_shelf.html" %}{% endfor %}
+
+{% if not shelves %}
 <section class="card">
-  <h2>New releases</h2>
-  {# a group whose last release is dismissed hides, heading and all (.new-group, CSS) #}
-  {% if feed.upcoming %}
-  <div class="new-group">
-    <h3 class="subhead">Coming up</h3>
-    <ul class="hits">
-      {% for release in feed.upcoming %}{% with upcoming = true %}{% include "_new_release.html" %}{% endwith %}{% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-  {% if feed.new %}
-  <div class="new-group">
-    {% if feed.upcoming %}<h3 class="subhead">Out now</h3>{% endif %}
-    <ul class="hits">
-      {% for release in feed.new %}{% with upcoming = false %}{% include "_new_release.html" %}{% endwith %}{% endfor %}
-    </ul>
-  </div>
-  {% endif %}
   {% if follow_count %}
-  <p class="muted small{% if feed %} more{% endif %}">{% if not feed %}Nothing new yet from the {% else %}From the {% endif %}<a href="/artists">{{ follow_count }}
-    artist{% if follow_count != 1 %}s{% endif %} you follow</a>. Each is checked on MusicBrainz every week or two, and
-    ListenBrainz's fresh releases every day.</p>
+  <p class="muted">Nothing new yet from the <a href="/artists">{{ follow_count }}
+    artist{% if follow_count != 1 %}s{% endif %} you follow</a>.</p>
   {% else %}
-  <p class="muted">Follow artists to see their new releases here.</p>
+  <p class="muted">Nothing here yet. <a href="/search">Search</a> for something you heard, or
+    follow artists to see their new releases here.</p>
   {% endif %}
-</section>
-
-{% if listenbrainz_user %}
-<section class="card">
-  <h2>You might care about</h2>
-  {% if suggested %}
-  <ul class="hits">
-    {% for hit in suggested %}{% include "_suggestion.html" %}{% endfor %}
-  </ul>
-  {% endif %}
-  <p class="muted small{% if suggested %} more{% endif %}">{% if not suggested %}Nothing yet. {% endif %}New and upcoming
-    releases by artists you listen to but don't follow, from
-    <a href="{{ listenbrainz_web }}/user/{{ listenbrainz_user | urlencode }}/" rel="noopener" target="_blank">your ListenBrainz</a>
-    fresh releases, checked every day.</p>
 </section>
 {% endif %}
-
-<section class="card">
-  <h2>Wishlist{% if wishlist_count %} <span class="muted">({{ wishlist_count }})</span>{% endif %}</h2>
-  {% if wishlist %}
-  <ul class="hits">
-    {% for item in wishlist %}
-    <li class="hit">
-      {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
-      <div class="hit-body">
-        <a class="hit-title" href="/albums/{{ item.release_group_mbid }}">{{ item.title }}</a>
-        <div>{{ item.artist_credit }}</div>
-        <div class="muted small">
-          {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
-          {% if item.release_mbid %} · a specific edition{% endif %}
-        </div>
-        {% if found[item.id] %}<div class="small owned">✓ In your library</div>{% endif %}
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-  {% if wishlist_count > wishlist | length %}
-  <p class="more"><a href="/wishlist">All {{ wishlist_count }} on your wishlist</a></p>
-  {% endif %}
-  {% else %}
-  <p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
-  {% endif %}
-</section>
+{% if not listenbrainz_user %}
+<p class="muted small">Set your ListenBrainz username (<code>[listenbrainz] user</code> in
+  <code>config.toml</code>, or <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) for albums to put on
+  next and recommendations.</p>
+{% endif %}
+{# ‹ › from 768 px: by about a row's width; smooth unless reduced motion is asked for (CSS). #}
+<script>
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest(".shelf-nudge");
+    if (!button) return;
+    const row = button.closest(".shelf").querySelector(".shelf-row");
+    row.scrollBy({ left: button.dataset.by * row.clientWidth * 0.9 });
+  });
+</script>
 {% endblock %}
