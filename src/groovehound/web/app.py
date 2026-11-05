@@ -224,10 +224,13 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.get("/rediscover", response_class=HTMLResponse)
-    def rediscover_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
-        """Albums to put on next, drawn again on every load (no requests)."""
+    def rediscover_page(
+        request: Request, store: StoreDep, user: UserDep, draw: str = ""
+    ) -> HTMLResponse:
+        """Albums to put on next (no requests): the draw `draw` names (Home's shelf, reloaded
+        or come back to), else a new one."""
         lb_user = _listenbrainz_user(user)
-        drawn = rediscover.draw(store, user.id, lb_user)
+        drawn = rediscover.draw(store, user.id, lb_user, seed=draw, per_section=rediscover.SEE_ALL)
         sections = shelves.rediscover_sections(drawn, local_date(utcnow())) if drawn else []
         return templates.TemplateResponse(
             request,
@@ -240,7 +243,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "sections": sections,
                 "library_count": store.library_summary(user.id).release_groups,
                 **tiles_context(store, user, [t for _, _, ts in sections for t in ts]),
-                "here": "/rediscover",
+                "here": f"/rediscover?draw={drawn.seed}" if drawn is not None else "/rediscover",
             },
         )
 

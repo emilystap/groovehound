@@ -477,7 +477,9 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   (`rediscover.py`).
   - **The proportions:** 12 albums: 4 never played by the artists you play most, 3 never played
     by the others, 3 not played in six months, 2 new releases. A section with fewer albums
-    shows what it has; the others don't make up the difference.
+    shows what it has; the others don't make up the difference. That's the home page's
+    shelf (U3); its *See all* opens the same draw with up to 12 albums a section, so it holds
+    what the shelf showed, and a reload or coming back keeps it (`?draw=`).
   - **Artists you play most:** an album artist's plays are the all-time listens (5e) of their
     release groups in the library; the top quarter of the artists with any (at least one),
     Various Artists and [unknown] aside. The rest, including artists never played, are "the

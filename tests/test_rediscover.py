@@ -1,4 +1,4 @@
-import random
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -83,7 +83,7 @@ def mbids(picks) -> set[str]:
 
 
 def draw(store: Store, **kwargs):
-    return rediscover.draw(store, OWNER_ID, USER, now=NOW, rng=random.Random(1), **kwargs)
+    return rediscover.draw(store, OWNER_ID, USER, now=NOW, seed="00000001", **kwargs)
 
 
 def test_sections(tmp_path: Path):
@@ -119,6 +119,25 @@ def test_proportions(tmp_path: Path, monkeypatch):
         first = draw(store)
         assert len(first.not_lately) == 2
         assert {len(draw(store).not_lately) for _ in range(3)} == {2}
+
+
+def test_a_seed_draws_the_same_albums_and_a_larger_size_only_adds(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        set_up(store)
+        whole = draw(store, per_section=100).not_lately
+        assert len(whole) == 4
+        assert draw(store, per_section=2).not_lately == whole[:2]
+        assert draw(store, per_section=100).not_lately == whole
+
+        store.dismiss(OWNER_ID, rediscover.DISMISSED_KIND, whole[0].mbid)
+        assert draw(store, per_section=100).not_lately == whole[1:]  # the rest stay where they were
+
+
+def test_a_seed_that_isnt_one_gets_a_fresh_draw(tmp_path: Path):
+    with Store(tmp_path / "db.sqlite") as store:
+        set_up(store)
+        found = rediscover.draw(store, OWNER_ID, USER, now=NOW, seed="<nope>")
+    assert re.fullmatch("[0-9a-f]{8}", found.seed)
 
 
 def test_dismissed_and_unfilled_history(tmp_path: Path):
