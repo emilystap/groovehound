@@ -1,0 +1,9 @@
+{# What stands for an artist (`picture`: artist.Picture): a mosaic of four covers, one cover, or
+   their initials. Decorative: their name is always beside it. #}
+{% if picture.covers %}
+<span class="artist-picture{% if picture.covers | length == 1 %} one{% endif %}">
+  {%- for cover in picture.covers %}<img src="/cover/{{ cover }}" alt="" width="250" height="250" loading="lazy" onerror="this.remove()">{% endfor -%}
+</span>
+{% else %}
+<span class="artist-picture monogram" aria-hidden="true">{{ picture.initials }}</span>
+{% endif %}

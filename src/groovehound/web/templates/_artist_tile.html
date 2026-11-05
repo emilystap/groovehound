@@ -1,0 +1,18 @@
+{% from "_icons.html" import icon %}
+{# A similar artist on a shelf (`artist`, `picture`): a round picture, their name with *Follow*,
+   and a ⋯ menu with the rest. Its forms post normally without JavaScript and come back. #}
+<li class="tile artist-tile" id="similar-{{ artist.mbid }}">
+  <a class="artist-tile-picture" href="/artists/{{ artist.mbid }}" tabindex="-1" aria-hidden="true">{% include "_artist_picture.html" %}</a>
+  {% with following = artist.mbid in followed, error = none %}{% include "_follow_button.html" %}{% endwith %}
+  <button type="button" class="tile-more" popovertarget="menu-similar-{{ artist.mbid }}" aria-label="More for {{ artist.name }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-similar-{{ artist.mbid }}" popover>
+    <p class="menu-title">{{ artist.name }}</p>
+    <a class="menu-item" href="{{ musicbrainz_web }}/artist/{{ artist.mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+    <form method="post" action="/artists/{{ artist.mbid }}/dismiss" hx-post="/artists/{{ artist.mbid }}/dismiss"
+          hx-target="#similar-{{ artist.mbid }}" hx-swap="outerHTML">
+      <input type="hidden" name="next" value="{{ here }}#similar">
+      <button type="submit" aria-label="Dismiss {{ artist.name }}">Dismiss</button>
+    </form>
+    <button type="button" class="menu-close" popovertarget="menu-similar-{{ artist.mbid }}" popovertargetaction="hide">Close</button>
+  </div>
+</li>

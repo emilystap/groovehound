@@ -81,7 +81,7 @@ def library_artists(
     for mbid, releases in by_artist.items():
         follow = followed.get(mbid)
         disco, _ = follows.cached_discography(store, mbid)
-        name, sort_name = _names(releases, follow, disco)
+        name, sort_name = names(releases, follow, disco)
         types = follow.types if follow else default_types
         found.append(
             LibraryArtist(
@@ -156,7 +156,7 @@ def _gaps(
     )
 
 
-def _names(
+def names(
     releases: list[LibraryRelease], follow: Follow | None, found: Discography | None
 ) -> tuple[str, str]:
     """An artist's name and sort name: as followed, else from their cached browse, else as the

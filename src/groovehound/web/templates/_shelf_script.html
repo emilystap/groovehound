@@ -1,0 +1,9 @@
+{# ‹ › from 768 px: by about a row's width; smooth unless reduced motion is asked for (CSS). #}
+<script>
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest(".shelf-nudge");
+    if (!button) return;
+    const row = button.closest(".shelf").querySelector(".shelf-row");
+    row.scrollBy({ left: button.dataset.by * row.clientWidth * 0.9 });
+  });
+</script>

@@ -26,6 +26,7 @@ from fastapi.templating import Jinja2Templates
 from .. import (
     __version__,
     album,
+    artist,
     buy,
     covers,
     follows,
@@ -306,8 +307,10 @@ def create_app(settings: Settings) -> FastAPI:
         art, else one request to the Cover Art Archive the first time, or when due for a
         refresh). Only for release groups on your wishlist, by artists you follow, in your
         ListenBrainz fresh releases (the home page), in the playlists it created for you or its
-        recommendations (Discover), in your library, or an album whose page you opened (its
-        editions are cached), so this isn't a way to make the server fetch anything else."""
+        recommendations (Discover), in your library, an album whose page you opened (its
+        editions are cached), or already cached (an artist's picture can show a cover from any
+        of those that has since left), so this isn't a way to make the server fetch anything
+        else."""
         mbid = mbid.lower()
         if not is_mbid(mbid) or not (
             store.wishlisted(user.id, [mbid])
@@ -317,6 +320,7 @@ def create_app(settings: Settings) -> FastAPI:
             or playlists.listed(store, _listenbrainz_user(user), mbid)
             or recommended.listed(store, _listenbrainz_user(user), mbid)
             or releases.cached(store, mbid) is not None
+            or store.cached_covers([mbid])
         ):
             raise HTTPException(404, "not on your wishlist, home page, Discover or in your library")
         client = None if _contact_problem(settings) else coverart.client_for(settings)
@@ -776,7 +780,8 @@ def create_app(settings: Settings) -> FastAPI:
         contact_problem = _contact_problem(settings)
         follow = store.follow_of(user.id, mbid)
         types = follow.types if follow else new_follow_types
-        in_library = bool(store.library_of_artist(user.id, mbid))
+        library_releases = store.library_of_artist(user.id, mbid)
+        in_library = bool(library_releases)
         found, error = None, None
         if contact_problem:
             found, _ = follows.cached_discography(store, mbid)
@@ -796,9 +801,34 @@ def create_app(settings: Settings) -> FastAPI:
                 error = str(exc)
         hits = (*found.release_groups, *(found.singles or ())) if found else ()
         gaps = library_artists.gaps(store, user.id, mbid, found, types) if found else None
+        name = found.artist.name if found else follow.name if follow else ""
+        if not name and library_releases:  # MusicBrainz couldn't be asked: as the files name them
+            name = library_artists.names(library_releases, None, None)[0]
+        # the picture and the line under the name are of all of it, even with Missing only on
+        shown = artist.picture(store, name, artist.release_groups(found, library_releases))
+        about = artist.summary(found)
+        mbids = [h.mbid for h in hits]
+        served = None
+        if not follow:
+            served = {
+                *store.cached_covers(mbids),
+                *store.in_library(user.id, mbids),
+                *store.wishlisted(user.id, mbids),
+            }
         missing_only = bool(missing) and gaps is not None
         if missing_only:
             found = library_artists.missing_only(found, gaps)
+        today = local_date(utcnow())
+        main, other, singles = (
+            artist.tiles(group, mbid, today, served)
+            for group in (
+                found.main if found else (),
+                found.other if found else (),
+                (found.singles or ()) if found else (),
+            )
+        )
+        album_context = tiles_context(store, user, (*main, *other, *singles))
+        similar_found = similar_context(store, user, mbid)
         return templates.TemplateResponse(
             request,
             "artist.html",
@@ -807,17 +837,27 @@ def create_app(settings: Settings) -> FastAPI:
                 "mbid": mbid,
                 "found": found,
                 # what to call them when MusicBrainz couldn't be asked: the name as followed
-                "name": found.artist.name if found else follow.name if follow else "",
+                "name": name,
+                "about": about,
+                "picture": shown,
+                "band": {
+                    "dark": tint.band(shown.tint, dark=True),
+                    "light": tint.band(shown.tint, dark=False),
+                },
+                "main": main,
+                "other": other,
+                "singles": singles,
                 "following": follow is not None,
                 "follow": follow,
+                "sheet": True,
                 "error": error,
                 "contact_problem": contact_problem,
                 "gaps": gaps,
                 "types_counted": types,
                 "missing_only": missing_only,
-                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
-                **owned_context(store, user, (h.mbid for h in hits)),
-                **similar_context(store, user, mbid),
+                **album_context,
+                **similar_found,
+                "followed": album_context["followed"] | similar_found["followed"],
                 "here": f"/artists/{mbid}",
             },
         )
@@ -827,10 +867,12 @@ def create_app(settings: Settings) -> FastAPI:
     ) -> dict[str, object]:
         """What the artist page's *Similar artists* card shows (no requests)."""
         found = similar.cached(store, user.id, mbid)
+        artists = found.artists if found else ()
         return {
             "similar": found,
             "similar_error": error,
-            "followed": store.followed(user.id, (a.mbid for a in (found.artists if found else ()))),
+            "similar_pictures": artist.pictures(store, user.id, artists),
+            "followed": store.followed(user.id, (a.mbid for a in artists)),
         }
 
     @app.post("/artists/{mbid}/similar")
@@ -938,6 +980,7 @@ def create_app(settings: Settings) -> FastAPI:
                     "follow": follow,
                     # only pages with a types form (else htmx reports a missing target)
                     "with_types": here in ("/artists", f"/artists/{mbid}"),
+                    "sheet": here == f"/artists/{mbid}",
                     "link": here != f"/artists/{mbid}",  # not to the page it's on
                     "error": error,
                     "here": here,
@@ -987,7 +1030,14 @@ def create_app(settings: Settings) -> FastAPI:
         return templates.TemplateResponse(
             request,
             "_follow_types.html",
-            {"mbid": mbid, "follow": follow, "error": error, "saved": not error, "here": here},
+            {
+                "mbid": mbid,
+                "follow": follow,
+                "sheet": here == f"/artists/{mbid}",
+                "error": error,
+                "saved": not error,
+                "here": here,
+            },
             headers=headers,
         )
 
