@@ -198,18 +198,20 @@ def playlist_key(playlist: Playlist) -> str:
 
 
 def put_on_next(
-    store: Store, user_id: int, user_name: str, *, now: datetime | None = None, rng=None
+    store: Store, user_id: int, user_name: str, *, now: datetime | None = None
 ) -> Shelf | None:
-    """Rediscover's draw as one shelf, mixed; None if there's nothing to draw."""
-    drawn = rediscover.draw(store, user_id, user_name, now=now, rng=rng)
+    """Rediscover's draw as one shelf, mixed; None if there's nothing to draw. See all opens
+    the same draw, with more of each section."""
+    drawn = rediscover.draw(store, user_id, user_name, now=now)
     if not drawn:
         return None
-    return _next_shelf(drawn, _today(now), rng or random.Random())
+    return _next_shelf(drawn, _today(now))
 
 
-def _next_shelf(drawn: Draw, today: str, rng: random.Random) -> Shelf:
-    mixed = rng.sample(drawn.picks, len(drawn.picks))
-    return Shelf("next", "Put on next", picks(mixed, today), "/rediscover", shuffle=True)
+def _next_shelf(drawn: Draw, today: str) -> Shelf:
+    mixed = random.Random(drawn.seed).sample(drawn.picks, len(drawn.picks))
+    see_all = f"/rediscover?draw={drawn.seed}"
+    return Shelf("next", "Put on next", picks(mixed, today), see_all, shuffle=True)
 
 
 def home(
@@ -218,12 +220,11 @@ def home(
     user_name: str,
     *,
     now: datetime | None = None,
-    rng: random.Random | None = None,
 ) -> list[Shelf]:
     """The home page's shelves, in order, leaving out the empty ones."""
     today = _today(now)
     feed = new_releases.feed(store, user_id, user_name, now=now)
-    next_up = put_on_next(store, user_id, user_name, now=now, rng=rng)
+    next_up = put_on_next(store, user_id, user_name, now=now)
     picked = recommended.recommended(store, user_id, user_name)
     found = [
         Shelf("out-now", "Out now", out_now(feed, today)[:SHELF], "/new#out-now"),

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from groovehound import shelves
+from groovehound import rediscover, shelves
 from groovehound.db import OWNER_ID, Store, WishlistItem
 from groovehound.rediscover import Pick
 from groovehound.search import Hit
@@ -60,7 +60,7 @@ def test_shelves_come_in_order(tmp_path: Path):
         found = shelves.home(store, OWNER_ID, USER, now=NOW)
     assert [s.key for s in found] == ["next", "wishlist"]
     following, wished = found
-    assert following.shuffle and following.see_all == "/rediscover" and following.tiles
+    assert following.shuffle and following.see_all.startswith("/rediscover?draw=")
     assert wished.rows and wished.tiles[0].detail == "Heard: the café"
     assert wished.tiles[0].hit is None and not wished.tiles[0].dismiss
 
@@ -81,6 +81,20 @@ def test_home_and_shuffle(tmp_path: Path):
     shelf = client.get("/shelves/next", headers={"HX-Request": "1"}).text
     assert shelf.lstrip().startswith('<section class="shelf" id="next">')
     assert 'value="/"' in shelf  # its forms come back to the home page
+
+
+def test_see_all_has_what_the_shelf_showed_and_more(tmp_path: Path, monkeypatch):
+    settings = settings_for(tmp_path, listenbrainz_user=USER)
+    with Store(settings.database_path) as store:
+        set_up(store)
+        for section in ("FAVOURITES", "OTHERS", "NOT_LATELY", "NEW"):
+            monkeypatch.setattr(rediscover, section, 1)
+        (shelf,) = shelves.home(store, OWNER_ID, USER, now=NOW)
+    client = TestClient(create_app(settings))
+    page = client.get(shelf.see_all).text
+    assert all(f'href="/albums/{t.mbid}"' in page for t in shelf.tiles)
+    assert page.count('class="tile"') > len(shelf.tiles)
+    assert f'value="{shelf.see_all}"' in page  # a dismissal comes back to the same draw
 
 
 def test_shuffle_with_nothing_left_to_draw(tmp_path: Path):

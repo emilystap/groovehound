@@ -16,6 +16,11 @@ album the stats count but the history doesn't (played before its oldest listen) 
 before that, so not lately. Fixed proportions on purpose: no tunable weights or saved mixes.
 A section with fewer albums than its share shows what it has.
 
+A draw is an order, not a sample: each section is sorted by a hash of the draw's `seed` and the
+album, and cut to size. So the same seed gives the same albums, a larger size only adds to them
+(Home's shelf shows the first few of what its *See all* shows, `SEE_ALL` a section), and
+dismissing one leaves the rest where they were.
+
 **No requests**: everything comes from tables and the cache, so *Shuffle* only draws again.
 Dismissed albums (`DISMISSED_KIND`, per user) stay off this page only; new releases dismissed
 on the home page aren't in the feed either.
@@ -23,8 +28,10 @@ on the home page aren't in the feed either.
 
 from __future__ import annotations
 
+import hashlib
 import math
-import random
+import re
+import secrets
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
@@ -37,9 +44,12 @@ FAVOURITES = 4  # albums drawn for each section
 OTHERS = 3
 NOT_LATELY = 3
 NEW = 2
+SEE_ALL = 12  # albums a section on the page: divides by 2, 3 and 4 columns, so rows end full
 LATELY = timedelta(days=182)  # played within this: not "not played lately"
 TOP_SHARE = 0.25  # the artists you play most: this share of the album artists played
 DISMISSED_KIND = "rediscover"  # in the dismissed table
+
+_SEED = re.compile(r"[0-9a-f]{8}")
 
 
 @dataclass(frozen=True)
@@ -63,6 +73,7 @@ class Draw:
     new: tuple[Pick, ...] = ()
     history_ready: bool = False  # the history's first fill is done, so "lately" is known
     history_since: str = ""  # its oldest listen, UTC ISO
+    seed: str = ""  # draws these albums again
 
     @property
     def picks(self) -> tuple[Pick, ...]:
@@ -77,15 +88,17 @@ def draw(
     user_id: int,
     user_name: str,
     *,
+    seed: str = "",
+    per_section: int | None = None,
     now: datetime | None = None,
-    rng: random.Random | None = None,
 ) -> Draw | None:
-    """A fresh draw, or None while there's nothing to draw from: no ListenBrainz user or no
-    stats yet (so nothing is called unplayed on a guess). No request."""
+    """A draw: the one `seed` names, else a fresh one, with `per_section` albums a section
+    instead of the fixed proportions. None while there's nothing to draw from: no ListenBrainz
+    user or no stats yet (so nothing is called unplayed on a guess). No request."""
     if listens.stats(store, user_name) is None:
         return None
     now = now or datetime.now(UTC)
-    rng = rng or random.Random()
+    seed = seed if _SEED.fullmatch(seed) else secrets.token_hex(4)
     dismissed = store.dismissed(user_id, DISMISSED_KIND)
     status = history.status(store, user_id, user_name)
     history_ready = status is not None and not status.filling
@@ -147,17 +160,21 @@ def draw(
         )
 
     return Draw(
-        favourites=_sample(rng, favourites, FAVOURITES),
-        others=_sample(rng, others, OTHERS),
-        not_lately=_sample(rng, not_lately, NOT_LATELY),
-        new=_sample(rng, new, NEW),
+        favourites=_sample(seed, favourites, per_section or FAVOURITES),
+        others=_sample(seed, others, per_section or OTHERS),
+        not_lately=_sample(seed, not_lately, per_section or NOT_LATELY),
+        new=_sample(seed, new, per_section or NEW),
         history_ready=history_ready,
         history_since=status.since if status else "",
+        seed=seed,
     )
 
 
-def _sample(rng: random.Random, picks: list[Pick], count: int) -> tuple[Pick, ...]:
-    return tuple(rng.sample(picks, min(count, len(picks))))
+def _sample(seed: str, picks: list[Pick], count: int) -> tuple[Pick, ...]:
+    def order(pick: Pick) -> bytes:
+        return hashlib.sha256(f"{seed}:{pick.mbid}".encode()).digest()
+
+    return tuple(sorted(picks, key=order)[:count])
 
 
 def _iso(when: datetime) -> str:

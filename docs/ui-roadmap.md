@@ -474,7 +474,9 @@ needs something new (the album page's header) gets a function outside `web/`.
   on Search; a shared text that isn't "song by artist" still opens Home with the form filled
   in. *Shuffle* swaps its shelf with HTMX (`/shelves/next`; a plain request goes back to
   `/#next`). Grids show what a shelf leaves out: the songs on a recommended album, listens and
-  last played. A tile's artists are in its ⋯ menu, each with *Follow*. The album page's own ⋯
+  last played. *See all* for *Put on next* opens the shelf's own draw (`?draw=`, a seed: each
+  section is an order cut to size) with up to 12 albums a section, so it holds what the shelf
+  showed. A tile's artists are in its ⋯ menu, each with *Follow*. The album page's own ⋯
   menu has nothing to hold yet.
 - **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
 - **U5 Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
