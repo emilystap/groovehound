@@ -38,8 +38,12 @@ played since March").
 
 The constraints from `CLAUDE.md` stay: logic outside `web/` (routes parse, call, pick a
 template), root-relative URLs, the attribution footer on every page, external links in a new
-tab, the manifest, no JS build (vendored HTMX, plus at most a few lines of inline script), and
-every form working without JavaScript (the `next` field) as it does today.
+tab, the manifest, and no JS build (vendored HTMX, plus at most a few lines of inline script).
+
+**JavaScript** (narrowed 2026-11-04): every action that changes something is a real form that
+works as a plain post and comes back (the `next` field). Reading and browsing may need
+JavaScript, but a page's main content mustn't: new parts loaded after the page shows need no
+`<noscript>` fallback, and an endless list no *Next page* link.
 
 ## Inventory: what there is today
 
@@ -238,8 +242,7 @@ Groovehound's side*, not a second player:
 - **No new data, no requests:** a sorted, filtered, paged query over the `library` table (with
   the listen history and wishlist for the chips) in a function outside `web/`, the album tile,
   and HTMX `revealed` to load the next page. Filter and sort live in the URL
-  (`/library/albums?filter=partial&sort=artist`), so it works without JavaScript and can be
-  bookmarked.
+  (`/library/albums?filter=partial&sort=artist`), so it can be bookmarked.
 
 Ideas that turn it into a player (queues, editing, genre browsing, statistics) stay out under
 the Non-goals and "Decided against".
@@ -495,6 +498,14 @@ needs something new (the album page's header) gets a function outside `web/`.
   wishlist's segments and plain rows, with the item's sections now only on the album page. The
   Library tab has no mockup yet: mock it up (phone and desktop, on the Direction A page) when U5
   starts, from the tile, shelf and grid as built by then.
+  - ✅ **The wishlist:** segments *To buy* / *Bought* / *To look up* (`?show=look-up`, with the
+    quick capture box at its top) and plain rows (`.row`), each with one action and a ⋯ menu
+    (*Follow*, *Open on MusicBrainz*, *Remove*). Notes, editions and where to buy are only on the
+    album page, so the wishlist's own routes for them went. Decided in place: a row shows
+    `heard`, else its notes, on one line, since a filed capture lands in the notes; an item found
+    in the library says *Mark bought* instead of *Bought it*, its date moving to the album page;
+    the badges are the ones albums have elsewhere, plus *Out 14 Nov* for one not out yet.
+  - **The Library tab:** next, starting with its mockup.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
   capture box at its top. Then a last pass for anything still on the old CSS.
@@ -565,6 +576,9 @@ Gathered from the "Check first" notes above; settle each before the phase that n
 - **Before the artist photos (with 5g):** whether `getArtistInfo2`'s image URLs point at
   Navidrome or straight at Deezer; how an artist is found by MusicBrainz id; the biographies'
   licence (Last.fm's are CC BY-SA, as far as known) and the credit to show.
-- **With U2:** that 5k's default edition (the earliest official one with the most common track
-  count), used for albums not in the library or on the wishlist, gives sensible track lists in
-  practice.
+- ✅ **With U2:** that 5k's default edition (the earliest official one with the most common
+  track count), used for albums not in the library or on the wishlist, gives sensible track
+  lists in practice. Checked 2026-11-04 on the 5 browses with media in a real database: each
+  picked the main edition (11 tracks, as 34 of 36 editions have, not a 12-track one, for
+  example); on an even split (5 × 12 tracks, 5 × 13) it takes the earliest's count. A sixth,
+  cached before 1g, has no media, so no default until it's refreshed.

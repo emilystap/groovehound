@@ -220,19 +220,55 @@ def wishlist_app(tmp_path: Path) -> tuple[TestClient, int]:
 def test_wishlist_page_notes_and_where_heard(tmp_path: Path):
     client, item_id = wishlist_app(tmp_path)
     page = client.get("/wishlist").text
-    assert "Brat" in page and 'Still to buy <span class="muted">(1)' in page
-    assert "Add notes" in page
+    assert "Brat" in page and 'To buy <span class="muted">(1)' in page
+    assert "Add notes" not in page and "Add notes" in client.get(f"/albums/{RG}").text
 
-    saved = client.post(
+    back = client.post(
         f"/wishlist/{item_id}/notes",
-        data={"heard": "  the café   on Main St ", "notes": "the 2×CD one\r\n\r\nask Sam  "},  # noqa: RUF001
-        headers={"HX-Request": "true"},
+        data={
+            "heard": "  the café   on Main St ",
+            "notes": "the 2×CD one\r\n\r\nask Sam  ",  # noqa: RUF001
+            "next": f"/albums/{RG}",
+        },
     )
-    assert saved.text.lstrip().startswith("<li") and "Heard: the café on Main St" in saved.text
+    assert back.headers["location"] == f"/albums/{RG}"
+    assert "Edit notes" in client.get(f"/albums/{RG}").text
     with Store(tmp_path / "groovehound.db") as store:
         item = store.wishlist_item(OWNER_ID, item_id)
     assert (item.heard, item.notes) == ("the café on Main St", "the 2×CD one\n\nask Sam")  # noqa: RUF001
-    assert "Edit notes" in client.get("/wishlist").text
+    assert "Heard: the café on Main St" in client.get("/wishlist").text
+
+
+def test_a_wishlist_row_is_plain(tmp_path: Path):
+    """One action inline; the album page has the rest. A note stands in when nowhere was heard."""
+    client, item_id = wishlist_app(tmp_path)
+    page = client.get("/wishlist").text
+    assert page.count('type="submit" class="chip">Bought it<') == 1
+    assert "Where to buy" not in page and "Choose edition" not in page
+    assert page.index(f'popovertarget="menu-wish-{item_id}"') < page.index("Open on MusicBrainz")
+    client.post(f"/wishlist/{item_id}/notes", data={"notes": "ask Sam"})
+    assert '<span class="row-note">ask Sam</span>' in client.get("/wishlist").text
+
+
+def test_a_wishlist_row_says_when_it_comes_out(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)))
+    form = {"release_group": RG, "title": "Soon", "first_release_date": "2999-11-14"}
+    client.post("/wishlist", data=form)
+    assert '<span class="badge">Out 14 Nov 2999</span>' in client.get("/wishlist").text
+
+
+def test_wishlist_rows_work_without_javascript(tmp_path: Path):
+    client, item_id = wishlist_app(tmp_path)
+    client.follow_redirects = False
+    here = "/wishlist?show=bought"
+    for action in ("bought", "remove"):
+        back = client.post(f"/wishlist/{item_id}/{action}", data={"next": here})
+        assert (back.status_code, back.headers["location"]) == (303, here)
+
+
+def test_an_unknown_wishlist_list_is_the_list_to_buy(tmp_path: Path):
+    client, _ = wishlist_app(tmp_path)
+    assert "Brat" in client.get("/wishlist", params={"show": "nope"}).text
 
 
 def test_bought_items_are_kept_but_hidden(tmp_path: Path):
@@ -300,21 +336,27 @@ def test_quick_capture_and_remove(tmp_path: Path):
     card = client.post(
         "/captures", data={"text": "x" * 600, "next": "/wishlist"}, headers={"HX-Request": "1"}
     )
-    assert card.text.lstrip().startswith("<section") and "To look up (2)" in card.text
+    assert card.text.lstrip().startswith("<section")
     assert 'value="/wishlist"' in card.text
+    # the count on the wishlist's tab follows; on Home there's no tab to update
+    assert 'hx-swap-oob="true"' in card.text and 'To look up <span class="muted">(2)' in card.text
+    home = client.post("/captures", data={"text": "x", "next": "/"}, headers={"HX-Request": "1"})
+    assert "hx-swap-oob" not in home.text
     assert client.post("/captures", data={"text": "   "}).status_code == 400
 
     with Store(tmp_path / "groovehound.db") as store:
-        long, sax = store.captures(OWNER_ID)
+        long, sax, *_ = sorted(store.captures(OWNER_ID), key=lambda c: -len(c.text))
     assert sax.text == "sax song at the café" and len(long.text) == 500
-    assert "sax song at the café" in client.get("/wishlist").text
+    look_up = "/wishlist?show=look-up"
+    assert "sax song at the café" in client.get(look_up).text
+    assert "sax song" not in client.get("/wishlist").text
     assert "sax song" not in client.get("/wishlist", params={"show": "bought"}).text
 
-    removed = client.post(f"/captures/{sax.id}/remove", data={"next": "/wishlist"})
-    assert (removed.status_code, removed.headers["location"]) == (303, "/wishlist")
+    removed = client.post(f"/captures/{sax.id}/remove", data={"next": look_up})
+    assert (removed.status_code, removed.headers["location"]) == (303, look_up)
     assert client.post(f"/captures/{sax.id}/remove").status_code == 404
     with Store(tmp_path / "groovehound.db") as store:
-        assert store.captures(OWNER_ID) == [long]
+        assert long in store.captures(OWNER_ID) and sax not in store.captures(OWNER_ID)
         store.conn.execute("INSERT INTO users (id, name, created_at) VALUES (2, 'other', '')")
         store.conn.commit()
         assert store.captures(2) == [] and store.capture(2, long.id) is None
@@ -435,7 +477,9 @@ def test_dates_are_shown_in_the_tz_time_zone(tmp_path: Path, monkeypatch):
         store.conn.commit()
         (capture,) = store.captures(OWNER_ID)
     page = client.get("/wishlist").text
-    assert "Added 2026-11-01" in page and "sax song</span>\n      <span" in page
+    assert "added 2026-11-01" in page and "2026-11-02" not in page
+    page = client.get("/wishlist", params={"show": "look-up"}).text
+    assert "sax song</span>\n      <span" in page
     assert "2026-11-01</span>" in page and "2026-11-02" not in page
     with Store(tmp_path / "groovehound.db") as store:
         assert store.file_capture(OWNER_ID, capture.id, RG)

@@ -161,36 +161,34 @@ def item_id(tmp_path: Path) -> int:
     return item.id
 
 
-def test_wishlist_page_shows_searches_and_asks_musicbrainz_only_when_opened(
+def test_album_page_shows_searches_and_asks_musicbrainz_only_when_opened(
     tmp_path: Path, monkeypatch
 ):
     client, opener = links_app(tmp_path, monkeypatch, RELEASES, qobuz_store="fr-fr")
-    page = client.get("/wishlist").text
+    page = client.get(f"/albums/{RG}").text
     assert "Where to buy" in page and "qobuz.com/fr-fr/search/albums/Charli%20xcx%20Brat" in page
-    item = item_id(tmp_path)
-    assert f'hx-get="/wishlist/{item}/links"' in page
+    assert f'hx-get="/albums/{RG}/links"' in page
     assert opener.requests == []  # nothing asked when the item was added or the page shown
 
-    fragment = client.get(f"/wishlist/{item}/links", headers={"HX-Request": "1"}).text
+    fragment = client.get(f"/albums/{RG}/links", headers={"HX-Request": "1"}).text
     assert "charlixcx.bandcamp.com/album/brat" in fragment and "(physical)" in fragment
     assert "javascript:" not in fragment
-    page = client.get("/wishlist").text
-    assert "open.spotify.com/album/r1" in page and "hx-get" not in page  # cached, not due
+    page = client.get(f"/albums/{RG}").text
+    assert "open.spotify.com/album/r1" in page  # cached, not due
+    assert f'hx-get="/albums/{RG}/links"' not in page
     assert len(opener.requests) == 1
 
 
-def test_links_without_javascript_go_back_to_the_item(tmp_path: Path, monkeypatch):
+def test_links_without_javascript_go_back_to_the_album(tmp_path: Path, monkeypatch):
     client, _ = links_app(tmp_path, monkeypatch, {"releases": []})
-    item = item_id(tmp_path)
-    back = client.get(f"/wishlist/{item}/links", params={"next": "//evil.example"})
-    assert (back.status_code, back.headers["location"]) == (303, f"/#wish-{item}")
-    assert "no purchase or streaming links" in client.get("/wishlist").text
-    assert client.get(f"/wishlist/{item + 1}/links").status_code == 404
+    back = client.get(f"/albums/{RG}/links")
+    assert (back.status_code, back.headers["location"]) == (303, f"/albums/{RG}#buy")
+    assert "no purchase or streaming links" in client.get(f"/albums/{RG}").text
 
 
 def test_links_errors_are_shown(tmp_path: Path, monkeypatch):
     client, _ = links_app(tmp_path, monkeypatch, 500)
-    fragment = client.get(f"/wishlist/{item_id(tmp_path)}/links", headers={"HX-Request": "1"})
+    fragment = client.get(f"/albums/{RG}/links", headers={"HX-Request": "1"})
     assert "MusicBrainz answered 500" in fragment.text
 
 

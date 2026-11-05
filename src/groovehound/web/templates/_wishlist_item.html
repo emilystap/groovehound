@@ -1,82 +1,52 @@
-{# One item on the wishlist page. With HTMX, its forms replace (or remove) just this item; without
-   JavaScript they post normally and come back to the list (`next`). #}
-<li class="hit wish" id="wish-{{ item.id }}">
-  {% with mbid = item.release_group_mbid, cached = true %}{% include "_cover.html" %}{% endwith %}
-  <div class="hit-body">
-    <a class="hit-title" href="/albums/{{ item.release_group_mbid }}">{{ item.title }}</a>
-    <div>{{ item.artist_credit }}</div>
-    <div class="muted small">
-      {{ item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
-      {% if item.release_mbid and not editions[item.id].chosen %} · a specific edition{% endif %}
+{% from "_icons.html" import icon %}
+{# One item on the wishlist page, as a plain row: the row opens its album page, which has the
+   notes, editions and where to buy. One action inline, the rest in its ⋯ menu (a popover). With
+   HTMX, its forms remove just this item; without JavaScript they post normally and come back
+   (`next`). *Mark bought* is only ever pressed by you, never done for you: an edition you
+   already have may not be the one you want. #}
+{% set mbid = item.release_group_mbid %}
+{% set in_library = found[item.id] %}
+{% set part = (partial or {}).get(mbid) %}
+<li class="row" id="wish-{{ item.id }}">
+  <a class="row-link" href="/albums/{{ mbid }}">
+    <span class="row-cover"><img src="/cover/{{ mbid }}" alt="" width="56" height="56" loading="lazy" onerror="this.remove()"></span>
+    <span class="row-names">
+      <span class="row-title">{{ item.title }}</span>
+      <span class="row-artist">{{ item.artist_credit }}</span>
+      <span class="row-detail">
+        {{- item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
+        {%- if editions[item.id].chosen %} · {{ editions[item.id].chosen.details }}{% elif item.release_mbid %} · a specific edition{% endif %}
+        {%- if item.bought_at %} · bought {{ item.bought_at | local_date }}{% else %} · added {{ item.added_at | local_date }}{% endif -%}
+      </span>
+      {% if item.heard %}<span class="row-note">Heard: {{ item.heard }}</span>
+      {% elif item.notes %}<span class="row-note">{{ item.notes }}</span>{% endif %}
+    </span>
+  </a>
+  <div class="row-extra">
+    <div class="badges">
+      {% if in_library %}<span class="badge">{% if in_library.other_edition %}Another edition in your library{% else %}In your library{% endif %}</span>{% endif %}
+      {% if mbid in (unplayed or ()) %}<span class="badge">Never played</span>{% endif %}
+      {% if part %}<span class="badge">{{ part.have }} of {{ part.of }} tracks</span>{% endif %}
+      {% if item.first_release_date > today %}<span class="badge">{{ item.first_release_date | out_label }}</span>{% endif %}
     </div>
-    {% with credits = followable(item.artist_mbids, item.artist_names, item.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
-    {% if editions[item.id].chosen %}<div class="muted small">Edition: <a href="{{ musicbrainz_web }}/release/{{ item.release_mbid }}" rel="noopener" target="_blank">{{ editions[item.id].chosen.details }}</a></div>{% endif %}
-    <div class="muted small">
-      Added {{ item.added_at | local_date }}{% if item.bought_at %} · bought {{ item.bought_at | local_date }}{% endif %}
-    </div>
-    {% with found = found[item.id] %}{% if found %}
-    {% if item.bought_at %}
-    <div class="small owned">✓ In your library{% if found.other_edition %} (another edition){% endif %}</div>
-    {% else %}
-    {# offered, never done for you: an edition you already have may not be the one you want #}
-    <form class="owned found" method="post" action="/wishlist/{{ item.id }}/bought"
-          hx-post="/wishlist/{{ item.id }}/bought" hx-target="closest li" hx-swap="outerHTML">
-      <span class="small">✓ {% if found.other_edition %}Another edition{% else %}Found{% endif %} in your library on {{ found.since | local_date }}.</span>
-      <input type="hidden" name="bought" value="1">
+    <form method="post" action="/wishlist/{{ item.id }}/bought"
+          hx-post="/wishlist/{{ item.id }}/bought" hx-target="#wish-{{ item.id }}" hx-swap="outerHTML">
+      <input type="hidden" name="bought" value="{{ '0' if item.bought_at else '1' }}">
       <input type="hidden" name="next" value="{{ here }}">
-      <button type="submit" class="secondary">Mark bought</button>
+      <button type="submit" class="chip">{% if item.bought_at %}Still want it{% elif in_library %}Mark bought{% else %}Bought it{% endif %}</button>
     </form>
-    {% endif %}
-    {% endif %}{% endwith %}
-    {% if item.heard %}<p class="heard">Heard: {{ item.heard }}</p>{% endif %}
-    {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
-
-    {% with choice = editions[item.id] %}
-    <details class="edit editions"{% if choice.due %} hx-get="/wishlist/{{ item.id }}/editions?next={{ here | urlencode }}"
-             hx-trigger="toggle once" hx-target="find .edition-list" hx-swap="outerHTML"{% endif %}>
-      <summary>{% if item.release_mbid %}Change edition{% else %}Choose edition{% endif %}</summary>
-      {% include "_editions.html" %}
-    </details>
-    {% endwith %}
-
-    {% with where = where_to_buy[item.id], links_url = "/wishlist/%d/links?next=%s" | format(item.id, here | urlencode) %}
-    <details class="edit buy"{% if where.due %} hx-get="/wishlist/{{ item.id }}/links"
-             hx-trigger="toggle once" hx-target="find .mb-links" hx-swap="outerHTML"{% endif %}>
-      <summary>Where to buy</summary>
-      <p class="links"><span class="muted">Search:</span>
-        {% for link in where.searches %}<a href="{{ link.url }}" rel="noreferrer" target="_blank">{{ link.site }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
-      </p>
-      {% include "_buy_links.html" %}
-    </details>
-    {% endwith %}
-
-    <details class="edit">
-      <summary>{% if item.notes or item.heard %}Edit notes{% else %}Add notes{% endif %}</summary>
-      <form class="annotate" method="post" action="/wishlist/{{ item.id }}/notes"
-            hx-post="/wishlist/{{ item.id }}/notes" hx-target="closest li" hx-swap="outerHTML">
-        <label>Where I heard it
-          <input type="text" name="heard" value="{{ item.heard }}" maxlength="200"
-                 placeholder="e.g. the café on Main St, 2026-11-01"></label>
-        <label>Notes
-          <textarea name="notes" rows="3" maxlength="2000">{{ item.notes }}</textarea></label>
-        <input type="hidden" name="next" value="{{ here }}">
-        <button type="submit">Save</button>
-      </form>
-    </details>
-
-    <div class="actions">
-      <form method="post" action="/wishlist/{{ item.id }}/bought"
-            hx-post="/wishlist/{{ item.id }}/bought" hx-target="closest li" hx-swap="outerHTML">
-        <input type="hidden" name="bought" value="{{ '0' if item.bought_at else '1' }}">
-        <input type="hidden" name="next" value="{{ here }}">
-        <button type="submit">{% if item.bought_at %}Still want it{% else %}Bought it{% endif %}</button>
-      </form>
-      <form method="post" action="/wishlist/{{ item.id }}/remove"
-            hx-post="/wishlist/{{ item.id }}/remove" hx-target="closest li" hx-swap="outerHTML"
-            hx-confirm="Remove “{{ item.title }}” from your wishlist?">
-        <input type="hidden" name="next" value="{{ here }}">
-        <button type="submit" class="secondary">Remove</button>
-      </form>
-    </div>
+  </div>
+  <button type="button" class="row-more" popovertarget="menu-wish-{{ item.id }}" aria-label="More for {{ item.title }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-wish-{{ item.id }}" popover>
+    <p class="menu-title">{{ item.title }}</p>
+    {% with credits = followable(item.artist_mbids, item.artist_names, item.artist_credit) %}{% if credits %}{% include "_follow_row.html" %}{% endif %}{% endwith %}
+    <a class="menu-item" href="{{ musicbrainz_web }}/release-group/{{ mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+    <form method="post" action="/wishlist/{{ item.id }}/remove"
+          hx-post="/wishlist/{{ item.id }}/remove" hx-target="#wish-{{ item.id }}" hx-swap="outerHTML"
+          hx-confirm="Remove “{{ item.title }}” from your wishlist?">
+      <input type="hidden" name="next" value="{{ here }}">
+      <button type="submit" aria-label="Remove {{ item.title }}">Remove</button>
+    </form>
+    <button type="button" class="menu-close" popovertarget="menu-wish-{{ item.id }}" popovertargetaction="hide">Close</button>
   </div>
 </li>

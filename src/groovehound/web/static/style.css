@@ -241,7 +241,7 @@ select { max-width: 100%; }
 .saved { display: inline-block; margin-top: 8px; color: var(--muted); }
 .more { margin-top: 12px; }
 
-/* Two-way tabs (Following / In your library, Still to buy / Bought), as segments. */
+/* Tabs (Following / In your library, To buy / Bought / To look up), as segments. */
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .tabs a {
   display: inline-flex;
@@ -262,8 +262,6 @@ select { max-width: 100%; }
 
 .wish .heard, .wish .notes { margin: 6px 0 0; overflow-wrap: anywhere; }
 .wish .notes { white-space: pre-line; }
-.wish .edit { margin-top: 8px; }
-.wish .edit summary { color: var(--accent); cursor: pointer; width: fit-content; }
 .annotate { display: grid; gap: 8px; margin-top: 8px; max-width: 480px; }
 .annotate label { display: grid; gap: 4px; }
 .annotate input, .annotate textarea { width: 100%; }
@@ -273,8 +271,7 @@ select { max-width: 100%; }
 .actions .saved { margin-top: 0; align-self: center; }
 .capture { display: flex; flex-wrap: wrap; gap: 8px; max-width: 480px; }
 .capture input { flex: 1 1 16em; min-width: 0; }
-#captures h3 { font-weight: normal; margin: 12px 0 0; }
-.captures { list-style: none; margin: 0; padding: 0; }
+.captures { list-style: none; margin: 12px 0 0; padding: 0; }
 .captures li { padding: 8px 0; border-top: 1px solid var(--divider); }
 .captures li:first-child { border-top: 0; }
 .capture-text { overflow-wrap: anywhere; margin-right: 6px; }
@@ -308,7 +305,6 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 .follow-types fieldset { border: 0; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .follow-types legend { padding: 0; margin-bottom: 4px; }
 .follow-types form > button { margin-right: 8px; }
-.wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
 .edition {
@@ -431,6 +427,44 @@ button.link { min-height: 0; padding: 0; border: 0; background: none; color: var
   .rows .tile-more { top: 50%; right: 0; translate: 0 -50%; width: 44px; height: 44px; background: none; color: var(--muted); }
 }
 
+/* Album rows (the wishlist): cover and names open the album page; badges and one action under
+   them on a phone, beside them from 768 px; the ⋯ at the end. */
+.rows-list { margin: 0; padding: 0; list-style: none; }
+.row { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 44px 10px 0; border-top: 1px solid var(--divider); }
+.row:first-child { border-top: 0; }
+.row-link { flex: 1 1 100%; display: flex; gap: 12px; min-width: 0; color: var(--text); }
+.row-link:hover { text-decoration: none; }
+.row-cover { flex: none; width: 56px; aspect-ratio: 1; border-radius: 4px; overflow: hidden; background: var(--surface); }
+.row-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.row-names { display: grid; align-content: center; min-width: 0; }
+.row-title, .row-artist, .row-note { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.row-title { font-weight: 600; }
+.row-artist, .row-note { color: var(--muted); font-size: 13px; }
+.row-detail { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.row-extra { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding-left: 68px; }
+.row-extra form { margin: 0; }
+.row-more {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+.row-more .icon { width: 18px; height: 18px; }
+@media (min-width: 768px) {
+  .row { flex-wrap: nowrap; }
+  .row-link { flex: 1 1 0; }
+  .row-extra { flex: 0 1 auto; flex-wrap: nowrap; justify-content: flex-end; padding-left: 0; }
+  .row-extra .badges { justify-content: flex-end; }
+  .row-extra form { flex: none; }
+  .row-more { top: 50%; translate: 0 -50%; }
+}
+
 /* See all: auto-filling tiles, with what a shelf leaves out. */
 .grid-section { padding-bottom: 24px; scroll-margin-top: 16px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 12px; margin: 0; padding: 0; list-style: none; }
@@ -510,7 +544,7 @@ button.link { min-height: 0; padding: 0; border: 0; background: none; color: var
 .album-side { display: grid; gap: 16px; align-content: start; }
 .album-side .card { margin: 0; }
 .album-side h2 { font-size: 18px; margin-bottom: 6px; }
-.album-side .wish .edit summary { color: var(--accent); cursor: pointer; width: fit-content; }
+.album-side .wish .edit summary { display: flex; align-items: center; min-height: 40px; color: var(--accent); cursor: pointer; width: fit-content; }
 .album-side .wish .edit, .album-side .wish .actions { margin-top: 8px; }
 .more-about > summary {
   display: grid;
@@ -655,9 +689,8 @@ button.link { min-height: 0; padding: 0; border: 0; background: none; color: var
 @media (max-width: 480px) {
   .card { padding: 12px; }
   .cover { width: 48px; height: 48px; }
-  button, a.button, .wish .edit summary { min-height: 40px; }
+  button, a.button { min-height: 40px; }
   button.chip { min-height: 32px; }
-  .wish .edit summary { display: flex; align-items: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

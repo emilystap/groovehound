@@ -96,38 +96,39 @@ def test_a_response_cached_before_editions_is_asked_for_again(tmp_path: Path):
 def test_choose_edition_on_the_wishlist(tmp_path: Path, monkeypatch):
     client, opener = links_app(tmp_path, monkeypatch, RELEASES)
     item = item_id(tmp_path)
-    page = client.get("/wishlist").text
-    assert "Choose edition" in page and f'hx-get="/wishlist/{item}/editions?next=' in page
+    page = client.get(f"/albums/{RG}").text
+    assert f'hx-get="/albums/{RG}/editions"' in page
     assert opener.requests == []
 
     hx = {"HX-Request": "1"}
-    fragment = client.get(f"/wishlist/{item}/editions", headers=hx).text
+    fragment = client.get(f"/albums/{RG}/editions", headers=hx).text
     assert "2024-06-07 · GB · CD · 15 tracks" in fragment
     assert "Atlantic · 075678" in fragment and "075678612345" not in fragment  # no barcode
     assert f'value="{R2}"' in fragment
-    client.get(f"/wishlist/{item}/links", headers=hx)  # the same browse: no second request
+    client.get(f"/albums/{RG}/links", headers=hx)  # the same browse: no second request
     assert len(opener.requests) == 1
 
-    chosen = client.post(
-        f"/wishlist/{item}/edition", data={"release": R2.upper(), "next": "/wishlist"}, headers=hx
-    ).text
+    back = client.post(
+        f"/wishlist/{item}/edition", data={"release": R2.upper(), "next": f"/albums/{RG}"}
+    )
+    assert (back.status_code, back.headers["location"]) == (303, f"/albums/{RG}")
+    chosen = client.get(f"/albums/{RG}").text
     assert "2024-06-07 · Worldwide · Digital Media · 15 tracks</a>" in chosen
-    assert "Change edition" in chosen and f"release/{R2}" in chosen
+    assert f"release/{R2}" in chosen
+    assert "2024-06-07 · Worldwide · Digital Media · 15 tracks" in client.get("/wishlist").text
     # its links come first under Where to buy: R2's Bandcamp before R1's Qobuz
     assert chosen.index("charlixcx.bandcamp.com") < chosen.index("qobuz.com/gb-en/album")
 
-    back = client.post(f"/wishlist/{item}/edition", data={"release": "", "next": "/wishlist"})
-    assert (back.status_code, back.headers["location"]) == (303, f"/wishlist#wish-{item}")
-    assert "Choose edition" in client.get("/wishlist").text
+    client.post(f"/wishlist/{item}/edition", data={"release": ""})
+    assert "Digital Media" not in client.get("/wishlist").text
     assert client.post(f"/wishlist/{item}/edition", data={"release": "nope"}).status_code == 400
     assert client.post(f"/wishlist/{item + 1}/edition", data={"release": ""}).status_code == 404
-    assert client.get(f"/wishlist/{item + 1}/editions").status_code == 404
     assert len(opener.requests) == 1
 
 
 def test_editions_errors_are_shown(tmp_path: Path, monkeypatch):
     client, _ = links_app(tmp_path, monkeypatch, 500)
-    fragment = client.get(f"/wishlist/{item_id(tmp_path)}/editions", headers={"HX-Request": "1"})
+    fragment = client.get(f"/albums/{RG}/editions", headers={"HX-Request": "1"})
     assert "MusicBrainz answered 500" in fragment.text
 
 

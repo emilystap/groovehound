@@ -1,6 +1,7 @@
 {# Quick capture (roadmap 1d): a one-line form for when there's no time to search, and what's
    waiting to be looked up. With HTMX, its forms replace this whole card; without JavaScript they
-   post normally and come back to the page (`next`). #}
+   post normally and come back to the page (`next`). On the wishlist page this is the *To look up*
+   list; its tab's count follows out of band (`tabs_oob`). #}
 <section class="card" id="captures">
   <h2>Quick capture</h2>
   {% if draft %}
@@ -15,7 +16,6 @@
     <button type="submit">Save for later</button>
   </form>
   {% if captures %}
-  <h3 class="muted small">To look up ({{ captures | length }})</h3>
   <ul class="captures">
     {% for capture in captures %}
     <li>
@@ -35,3 +35,4 @@
   </ul>
   {% endif %}
 </section>
+{% if tabs_oob %}{% with oob = true, show = "look-up" %}{% include "_wishlist_tabs.html" %}{% endwith %}{% endif %}

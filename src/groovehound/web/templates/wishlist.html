@@ -1,18 +1,19 @@
 {% extends "base.html" %}
-{% block title %}{% if bought %}Bought{% else %}Wishlist{% endif %} · Groovehound{% endblock %}
+{# The wishlist's three lists (`show`): to buy, bought, and the quick captures still to look up.
+   An item is a plain row; everything else about it is on its album page. #}
+{% block title %}{% if show == "bought" %}Bought{% elif show == "look-up" %}To look up{% else %}Wishlist{% endif %} · Groovehound{% endblock %}
 {% block heading %}Wishlist{% endblock %}
 {% block content %}
-{% if not bought %}{% include "_captures.html" %}{% endif %}
-<section class="card">
-  {% include "_wishlist_tabs.html" %}
-  {% if items %}
-  <ul class="hits">
-    {% for item in items %}{% include "_wishlist_item.html" %}{% endfor %}
-  </ul>
-  {% elif bought %}
-  <p class="muted">Nothing marked as bought yet.</p>
-  {% else %}
-  <p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
-  {% endif %}
-</section>
+{% include "_wishlist_tabs.html" %}
+{% if show == "look-up" %}
+{% include "_captures.html" %}
+{% elif items %}
+<ul class="rows-list">
+  {% for item in items %}{% include "_wishlist_item.html" %}{% endfor %}
+</ul>
+{% elif show == "bought" %}
+<p class="muted">Nothing marked as bought yet.</p>
+{% else %}
+<p class="muted">Nothing on your wishlist yet. <a href="/search">Search</a> for something you heard.</p>
+{% endif %}
 {% endblock %}

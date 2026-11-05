@@ -524,7 +524,7 @@ def test_wishlist_offers_found_items_as_bought(tmp_path: Path):
         owning(store, release(R_CD, RG_BRAT, "Brat"))
         (item,) = store.wishlist(OWNER_ID)
     page = client.get("/wishlist").text
-    assert "Found in your library on 2026-10-30" in page and "Mark bought" in page
+    assert "In your library" in page and "Mark bought" in page and "Bought it" not in page
     assert "In your library" in client.get("/").text
     with Store(tmp_path / "groovehound.db") as store:
         assert store.wishlist_item(OWNER_ID, item.id).bought_at is None  # offered, not done

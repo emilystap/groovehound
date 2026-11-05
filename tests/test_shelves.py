@@ -116,7 +116,8 @@ def test_dismissing_from_a_tile_comes_back_without_javascript(tmp_path: Path):
 
 def test_quick_capture_from_home(tmp_path: Path):
     client = TestClient(create_app(settings_for(tmp_path)))
-    assert '<a class="button" href="/wishlist#captures">Quick capture</a>' in client.get("/").text
+    quick_capture = '<a class="button" href="/wishlist?show=look-up">Quick capture</a>'
+    assert quick_capture in client.get("/").text
     client.post("/captures", data={"text": "sax song"})
     page = client.get("/").text
     assert "To look up · 1" in page and "sax song" not in page  # the list is on the wishlist
