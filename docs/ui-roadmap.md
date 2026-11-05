@@ -38,8 +38,12 @@ played since March").
 
 The constraints from `CLAUDE.md` stay: logic outside `web/` (routes parse, call, pick a
 template), root-relative URLs, the attribution footer on every page, external links in a new
-tab, the manifest, no JS build (vendored HTMX, plus at most a few lines of inline script), and
-every form working without JavaScript (the `next` field) as it does today.
+tab, the manifest, and no JS build (vendored HTMX, plus at most a few lines of inline script).
+
+**JavaScript** (narrowed 2026-11-04): every action that changes something is a real form that
+works as a plain post and comes back (the `next` field). Reading and browsing may need
+JavaScript, but a page's main content mustn't: new parts loaded after the page shows need no
+`<noscript>` fallback, and an endless list no *Next page* link.
 
 ## Inventory: what there is today
 
@@ -238,8 +242,7 @@ Groovehound's side*, not a second player:
 - **No new data, no requests:** a sorted, filtered, paged query over the `library` table (with
   the listen history and wishlist for the chips) in a function outside `web/`, the album tile,
   and HTMX `revealed` to load the next page. Filter and sort live in the URL
-  (`/library/albums?filter=partial&sort=artist`), so it works without JavaScript and can be
-  bookmarked.
+  (`/library/albums?filter=partial&sort=artist`), so it can be bookmarked.
 
 Ideas that turn it into a player (queues, editing, genre browsing, statistics) stay out under
 the Non-goals and "Decided against".
