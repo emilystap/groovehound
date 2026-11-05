@@ -1,6 +1,7 @@
-{# The wishlist's two lists with their counts. Also sent out of band (`oob`) after an item moves
-   between them or is removed, so the counts stay right without reloading the page. #}
+{# The wishlist's three lists with their counts. Also sent out of band (`oob`) after an item moves
+   between them or a capture comes or goes, so the counts stay right without reloading the page. #}
 <nav class="tabs" id="wishlist-tabs" aria-label="Wishlist" {% if oob %}hx-swap-oob="true"{% endif %}>
-  <a href="/wishlist" {% if not bought %}aria-current="page"{% endif %}>Still to buy <span class="muted">({{ wanted_count }})</span></a>
-  <a href="/wishlist?show=bought" {% if bought %}aria-current="page"{% endif %}>Bought <span class="muted">({{ bought_count }})</span></a>
+  <a href="/wishlist" {% if show != "bought" and show != "look-up" %}aria-current="page"{% endif %}>To buy <span class="muted">({{ wanted_count }})</span></a>
+  <a href="/wishlist?show=bought" {% if show == "bought" %}aria-current="page"{% endif %}>Bought <span class="muted">({{ bought_count }})</span></a>
+  <a href="/wishlist?show=look-up" {% if show == "look-up" %}aria-current="page"{% endif %}>To look up <span class="muted">({{ capture_count }})</span></a>
 </nav>

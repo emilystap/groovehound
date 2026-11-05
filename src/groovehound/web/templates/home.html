@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block heading %}Home{% endblock %}
-{# Quick capture is on the wishlist page, and on Search's top from U6; until then this is the way
-   to it from here even with nothing waiting. #}
-{% block actions %}<a class="button" href="/wishlist#captures">{% if captures %}To look up · {{ captures | length }}{% else %}Quick capture{% endif %}</a>{% endblock %}
+{# Quick capture is the wishlist's *To look up*, and on Search's top from U6; until then this is
+   the way to it from here even with nothing waiting. #}
+{% block actions %}<a class="button" href="/wishlist?show=look-up">{% if captures %}To look up · {{ captures | length }}{% else %}Quick capture{% endif %}</a>{% endblock %}
 {% block content %}
 {% if contact_problem %}
 <section class="card notice">
