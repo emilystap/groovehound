@@ -167,7 +167,7 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
     hx = {"HX-Request": "true"}
     followed = client.post(f"/artists/{ARTIST}/follow", data={"next": here}, headers=hx).text
     assert f'id="follow-types-{ARTIST}" hx-swap-oob="true"' in followed
-    assert "For Albums, EPs" in followed
+    assert "New releases: Albums, EPs" in followed
     gone = client.post(f"/artists/{ARTIST}/unfollow", data={"next": "/search"}, headers=hx).text
     assert "follow-types" not in gone
     client.post(f"/artists/{ARTIST}/follow")
@@ -177,7 +177,7 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
     refused = client.post(
         f"/artists/{ARTIST}/types", data={"type": ["live"], "next": here}, headers=hx
     )
-    assert "at least one" in refused.text and "For Albums, EPs" in refused.text
+    assert "at least one" in refused.text and "New releases: Albums, EPs" in refused.text
 
     saved = client.post(
         f"/artists/{ARTIST}/types",
@@ -185,7 +185,7 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
         headers=hx,
     )
     assert saved.headers["HX-Refresh"] == "true"  # the page reloads to list the singles
-    assert "For Albums, EPs, Singles" in saved.text and "Saved." in saved.text
+    assert "New releases: Albums, EPs, Singles" in saved.text and "Saved." in saved.text
     page = client.get(here).text
     assert "Singles (1)" in page and "Von dutch" in page
     assert len(opener.requests) == 2
@@ -196,7 +196,7 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
         headers=hx,
     )
     assert "HX-Refresh" not in again.headers
-    assert "For Albums, Singles + Live" in again.text
+    assert "New releases: Albums, Singles + Live" in again.text
 
 
 def test_follow_types_from_the_config(tmp_path: Path, monkeypatch):

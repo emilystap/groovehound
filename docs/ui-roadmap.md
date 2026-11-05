@@ -478,7 +478,19 @@ needs something new (the album page's header) gets a function outside `web/`.
   section is an order cut to size) with up to 12 albums a section, so it holds what the shelf
   showed. A tile's artists are in its ⋯ menu, each with *Follow*. The album page's own ⋯
   menu has nothing to hold yet.
-- **U4 Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf.
+- **U4 ✅ Artist pages.** Header, discography grid, *Missing only* chip, similar artists shelf
+  (`artist.py`, `_artist_picture.html`, `_artist_tile.html`), all from what's stored. Decided in
+  place: the picture uses **cached covers only**, so similar artists cost no requests: four make
+  a mosaic, one to three show the newest alone, none the monogram (on a neutral colour, as with
+  no cover there's no tint), so an artist nothing of theirs has been seen of starts as a monogram
+  and fills in once followed. `/cover` now serves any cover already cached, as a mosaic can show
+  one that has left the page that brought it. A tile's cover is linked straight from the archive
+  only where `/cover` wouldn't serve it (`Tile.archive`), as the old rows did. Singles, live etc.
+  and *Also in your library* open in place (`.fold`) instead of on pages of their own, which
+  needs no routes. *Add to wishlist* moves into the tile's ⋯ menu, and a tile's *Follow* offers
+  only the other artists on it. There's no ⋯ on the header, as it has nothing to hold yet
+  (*MusicBrainz* is a button), and *Change* (the release types) is a sheet on the artist's page
+  while `/artists` keeps its fold until U5. The ‹ › script moved to `_shelf_script.html`.
 - **U5 Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
   wishlist's segments and plain rows, with the item's sections now only on the album page. The
   Library tab has no mockup yet: mock it up (phone and desktop, on the Direction A page) when U5

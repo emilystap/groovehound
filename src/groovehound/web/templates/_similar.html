@@ -1,7 +1,9 @@
-{# The artist page's *Similar artists* card (roadmap 4b): from the cache only; ListenBrainz is
-   asked when you press the button (one request, then cached for weeks). Each artist gets
-   *Follow* and *Dismiss*. Without JavaScript the forms post normally and come back. Expects
-   `similar` (None until asked), `similar_error`, `followed`, `mbid`, `name` and `here`. #}
+{% from "_icons.html" import icon %}
+{# The artist page's *Similar artists* (roadmap 4b): from the cache only; ListenBrainz is asked
+   when you press the button (one request, then cached for weeks). A shelf of artist tiles, each
+   with *Follow* and, in its ⋯ menu, *Dismiss*. Without JavaScript the forms post normally and
+   come back. Expects `similar` (None until asked), `similar_pictures`, `similar_error`,
+   `followed`, `mbid`, `name` and `here`. #}
 {% macro ask(label) %}
 <form method="post" action="/artists/{{ mbid }}/similar" hx-post="/artists/{{ mbid }}/similar"
       hx-target="#similar" hx-swap="outerHTML" hx-disabled-elt="find button">
@@ -9,8 +11,16 @@
   <button type="submit"{% if label != "Find similar artists" %} class="secondary"{% endif %}>{{ label }}</button>
 </form>
 {% endmacro %}
-<section class="card" id="similar">
-  <h2>Similar artists{% if similar and similar.artists %} <span class="muted">({{ similar.artists | length }})</span>{% endif %}</h2>
+<section class="shelf similar" id="similar">
+  <div class="shelf-head">
+    <h2>Similar artists</h2>
+    {% if similar and similar.artists %}
+    <div class="shelf-actions">
+      <button type="button" class="shelf-nudge" data-by="-1" aria-label="Scroll similar artists back">{{ icon("back") }}</button>
+      <button type="button" class="shelf-nudge" data-by="1" aria-label="Scroll similar artists on">{{ icon("forward") }}</button>
+    </div>
+    {% endif %}
+  </div>
   {% if similar_error %}<p class="follow-error">{{ similar_error }}</p>{% endif %}
   {% if similar is none %}
   <p class="muted">ListenBrainz can suggest artists like {{ name or "this one" }}: one request, then
@@ -18,16 +28,9 @@
   {% if not contact_problem %}{{ ask("Find similar artists") }}{% endif %}
   {% else %}
   {% if similar.artists %}
-  <ul class="artists">
+  <ul class="shelf-row">
     {% for artist in similar.artists %}
-    <li class="similar-artist" id="similar-{{ artist.mbid }}">
-      {% with following = artist.mbid in followed, error = none %}{% include "_follow_button.html" %}{% endwith %}
-      <form method="post" action="/artists/{{ artist.mbid }}/dismiss" hx-post="/artists/{{ artist.mbid }}/dismiss"
-            hx-target="#similar-{{ artist.mbid }}" hx-swap="outerHTML">
-        <input type="hidden" name="next" value="{{ here }}#similar">
-        <button type="submit" class="chip secondary" aria-label="Dismiss {{ artist.name }}">Dismiss</button>
-      </form>
-    </li>
+    {% with picture = similar_pictures[artist.mbid] %}{% include "_artist_tile.html" %}{% endwith %}
     {% endfor %}
   </ul>
   {% elif not similar.hidden %}

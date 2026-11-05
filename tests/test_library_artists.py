@@ -122,7 +122,7 @@ def test_artist_page_has_and_missing(tmp_path: Path, monkeypatch):
     with Store(tmp_path / "groovehound.db") as store:
         owning(store)
     page = " ".join(client.get(f"/artists/{ARTIST}").text.split())
-    assert "You have 3 of 5" in page and "Missing only (2)" in page
+    assert "You have 3 of 5" in page and "Missing only · 2" in page
     assert "Also in your library (2)" in page and "Live in Leeds" in page
 
     page = client.get(f"/artists/{ARTIST}?missing=1").text

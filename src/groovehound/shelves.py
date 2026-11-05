@@ -40,6 +40,7 @@ class Tile:
     badge: str = ""  # why it's here, if it's for a reason of its own
     detail: str = ""  # a line under it, on a grid or as a row
     dismiss: str = ""  # the URL that stops showing it, if it can be dismissed
+    archive: bool = False  # its cover linked straight from the archive, not through /cover
 
 
 @dataclass(frozen=True)

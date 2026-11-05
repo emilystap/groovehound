@@ -308,8 +308,6 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 .follow-types fieldset { border: 0; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .follow-types legend { padding: 0; margin-bottom: 4px; }
 .follow-types form > button { margin-right: 8px; }
-.more-groups { margin-top: 12px; }
-.more-groups summary { color: var(--accent); cursor: pointer; width: fit-content; }
 .wish .buy .links, .wish .buy .mb-links p { margin: 6px 0 0; overflow-wrap: anywhere; }
 .edition-list p { margin: 6px 0 0; }
 .edition-list fieldset { border: 0; padding: 0; margin: 6px 0 8px; }
@@ -400,7 +398,7 @@ form.found { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
 
 /* Shelves: one row that scrolls sideways, on every screen; the next tile peeks in. */
 .shelf { padding-bottom: 24px; }
-.shelf:not(:has(.tile)) { display: none; }
+.shelf:not(.similar):not(:has(.tile)) { display: none; }
 .shelf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; }
 .shelf-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .shelf-actions { flex: none; display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; }
@@ -439,7 +437,7 @@ button.link { min-height: 0; padding: 0; border: 0; background: none; color: var
 .grid .tile-detail { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 
 @media (min-width: 768px) {
-  main > .shelf, main > .grid-section { max-width: none; }
+  main > .shelf, main > .grid-section, main > .folds { max-width: none; }
   .shelf { padding-bottom: 28px; }
   .shelf-row { gap: 20px; margin: 0; padding: 0 0 4px; scroll-padding: 0; }
   .shelf-row .tile { width: 184px; }
@@ -564,6 +562,93 @@ button.link { min-height: 0; padding: 0; border: 0; background: none; color: var
   .album-head .follows, .album-head .badges { justify-content: flex-start; }
   .album-actions { padding: 24px 0; }
   .album-body { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; gap: 32px; }
+}
+
+/* The artist page (U4): the album page's band, with a picture that isn't one cover. Centred on
+   a phone; from 768 px the picture sits left of the name, never stretched into a banner. */
+.artist-picture {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 220px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--divider);
+}
+.artist-picture.one { grid-template-columns: 1fr; }
+.artist-picture img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.artist-picture.monogram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  border-radius: 50%;
+  background: var(--button-bg);
+  color: var(--text);
+  font-size: 60px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.artist-actions { display: grid; justify-items: center; gap: 12px; padding: 16px 0 8px; text-align: center; }
+.artist-actions p { margin: 0; overflow-wrap: anywhere; }
+.artist-buttons { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.artist-buttons .button { gap: 6px; min-height: 40px; }
+.artist-buttons button.chip { min-height: 40px; padding: 6px 18px; font-size: 14px; }
+.artist-buttons .icon { width: 16px; height: 16px; }
+.types-line button.link { font-weight: 600; }
+.types-sheet { text-align: left; }
+.types-sheet form { display: grid; justify-items: start; gap: 4px; }
+.types-sheet fieldset { width: 100%; }
+.types-sheet > form > button {
+  width: auto;
+  min-height: 40px;
+  padding: 6px 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  justify-content: center;
+}
+.discography { padding: 16px 0 8px; }
+.discography .shelf-head { padding-bottom: 8px; }
+
+/* What a page folds away, as rows that open in place. */
+.folds { padding-bottom: 16px; }
+.fold { border-top: 1px solid var(--divider); }
+.fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary .icon { width: 18px; height: 18px; color: var(--muted); }
+.fold[open] > summary .icon { rotate: 90deg; }
+.fold > .grid, .fold > .hits { padding-bottom: 16px; }
+
+/* Artist tiles: round, on a shelf (similar artists). */
+.shelf-row .artist-tile { width: 120px; align-items: center; gap: 8px; text-align: center; }
+.artist-tile-picture { display: block; width: 100%; }
+.artist-tile-picture:hover { text-decoration: none; }
+.artist-tile .artist-picture { gap: 0; border-radius: 50%; }
+.artist-tile .artist-picture, .artist-tile .artist-picture.monogram { width: 100%; }
+.artist-tile .artist-picture.monogram { font-size: 34px; }
+.artist-tile .follow { flex-direction: column; justify-content: center; gap: 4px; max-width: 100%; }
+.artist-tile .follow > a { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.artist-tile .tile-more { top: 0; right: 0; }
+
+@media (min-width: 768px) {
+  .artist-picture { width: 232px; }
+  .album-head .artist-picture.monogram { width: 200px; font-size: 72px; }
+  .artist-actions { justify-items: start; padding: 24px 0 8px; text-align: left; }
+  .artist-buttons { justify-content: flex-start; }
+  .shelf-row .artist-tile { width: 144px; }
 }
 
 /* Phones: bigger touch targets, and the cover doesn't take room from the text. */

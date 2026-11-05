@@ -1327,6 +1327,19 @@ class Store:
             row["tint"],
         )
 
+    def cached_covers(self, release_group_mbids: Iterable[str]) -> dict[str, str]:
+        """Which of these release groups have a cover cached, with each one's tint."""
+        mbids = list(set(release_group_mbids))
+        if not mbids:
+            return {}
+        marks = ", ".join("?" * len(mbids))
+        rows = self.conn.execute(
+            "SELECT release_group_mbid, tint FROM covers WHERE file != '' "
+            f"AND release_group_mbid IN ({marks})",
+            mbids,
+        )
+        return {r[0]: r[1] for r in rows}
+
     def _write_cover(self, release_group_mbid: str, image: bytes, content_type: str) -> str:
         """Write a cover's image to its file (whole or not at all); its path in `covers_dir`."""
         extension = COVER_EXTENSIONS.get(content_type, ".jpg")
