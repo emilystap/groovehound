@@ -737,7 +737,30 @@ changes.
     isn't musicbrainz.org (`musicbrainz.is_public_server`). Setting `api_root` alone isn't
     enough: it could be someone else's server, which deserves the public rules.
   - **Prefixes:** MusicBrainz search (Lucene) matches whole words, so the word being typed gets
-    a `*` ("demon da*").
+    a `*` ("demon da*"). `*` doesn't work inside a quoted phrase, so these queries can't use
+    `search_query`; each word is escaped on its own instead, so punctuation can't change the
+    query. Wildcards ignored case and matched accents when tried (`ró*` found Sigur Rós).
+  - **Ranking albums** (tried on a real mirror, 2026-11-05): a plain wildcard on the title ranks
+    poorly, since every match scores about the same: `dark AND side AND of*` left Pink Floyd out
+    of the top 5, and `nevermi*` left out Nirvana's album. Re-ranking only reorders what comes
+    back, so the query has to do some of the work:
+    - **Edition count stands in for popularity:** `releases` is searchable, and each result
+      returns it as `count`. `(Q AND primarytype:album) OR (Q AND primarytype:album AND
+      releases:[5 TO *]^50)` kept all 62 `nevermi*` matches with Nirvana's *Nevermind* (100
+      editions) in the top 2; filtering on `releases` also found *The Dark Side of the Moon*
+      (152) and *The Loneliest Time* (30). An album with few editions, a new one especially,
+      stays in the results but ranks lower; followed artists should help there. As written this
+      leaves out EPs, so try the album type as a boost rather than a filter.
+    - **Each word in the title or the artist:** `(releasegroup:nirvana OR artist:nirvana) AND
+      (releasegroup:nevermi* OR artist:nevermi*)` came down to 16 matches, for someone typing
+      "nirvana nevermind". Tried on its own, not yet with the edition boost.
+    - **Then re-rank locally:** titles and names starting with what was typed first, then by
+      `count`. A name containing the word can otherwise win (`beyon*` put Above & Beyond ahead
+      of Beyoncé, though artists ranked well in general). Exact-phrase boosts didn't help.
+  - **Speed** (2026-11-05, 95 keystrokes replayed on the mirror's own machine, nothing else
+    running, `limit=10`, plain wildcards): p95 35 ms for artists, 91 ms for albums and 195 ms for
+    recordings, slowest 288 ms, on a 12 GiB LXC with a DRAM-less NVMe. Fast enough for the pause
+    below. Still to measure: the boosted query, and search during replication and indexing.
   - **Requests:** after a short pause in typing (HTMX `delay:300ms`), from 3 characters, a small
     `limit` (10), through `JsonClient` as always; a newer keystroke replaces a request still
     waiting (`hx-sync="this:replace"`). Best with `interval = 0`; at 1.5 s it works but lags.
