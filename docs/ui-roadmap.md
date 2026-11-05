@@ -91,7 +91,7 @@ A phone's bottom bar has room for four or five; Groovehound has seven links. Pro
 | Tab | What | Today's pages |
 |---|---|---|
 | **Home** | Shelves of what to listen to or get next | `/`, `/discover`, `/rediscover` (as *See all*) |
-| **Search** | Search MusicBrainz, quick capture | `/search` |
+| **Search** | Search MusicBrainz, *Save for later* | `/search` |
 | **Library** | Your albums that want attention, then all of them; your artists, the scan | `/library`, `/artists`, `/artists/library` |
 | **Wishlist** | What you want, what you've bought, what's waiting to be looked up | `/wishlist` |
 
@@ -118,7 +118,8 @@ today's page as a grid. Proposed order, empty shelves left out:
 7. **On your wishlist**, newest first.
 
 A *To look up (2)* chip under the app bar when captures are waiting, linking to the wishlist's
-list of them. The contact notice stays at the top until a contact is set. The order is for the
+list of them, and nothing with none waiting (from U6, when saving moves to Search; see "Saving
+for later"). The contact notice stays at the top until a contact is set. The order is for the
 mockups to try out; all of it is read locally, as the home page already is, so Home makes no
 requests.
 
@@ -251,8 +252,38 @@ the Non-goals and "Decided against".
 
 Segments *To buy* / *Bought* / *To look up* (the captures). Items as rows (cover, title,
 artist, the badges, "heard at the café") with one inline action (*Bought it*) and the rest on
-the album page. The quick capture box stays at the top of *To look up*, and moves to the Search
-tab's top as well, since "I heard something and can't search now" starts there.
+the album page. *To look up* stays here as the list of what you've saved: things you want but
+haven't identified yet. Saving itself moves to Search (next section).
+
+### Saving for later (decided 2026-11-04)
+
+Quick capture (1d) stays, but as something you do from Search, not a place you go. As first
+built it was a form on a page, and the four destinations left it no natural page: the box was
+two steps from Home and missing from Search, and a Now Playing share couldn't be saved without
+running a search (*Save for later* appeared only after one). This replaces U6's earlier plan of
+a capture box at the top of Search, which would have stacked two text boxes on one screen.
+
+- **One box.** A *Save for later* button under the search bar (see the next section): Enter
+  searches, the button saves whatever is typed. A real submit button with its own `formaction`
+  and `formmethod="post"`, so it works without JavaScript; `/captures` takes the bar's field.
+  No request to MusicBrainz.
+- **Every share opens Search.** `/share` fills the bar whether or not the text reads as "song
+  by artist", and *Save for later* is there before any search runs. Home no longer shows the
+  capture form, so `home_page`'s `draft` goes.
+- **A launcher shortcut.** A manifest `shortcuts` entry, *Save for later*, opening Search: long
+  press the app's icon. Android only; nothing is needed on a wide screen.
+- **The list.** *To look up* on the wishlist, as plain rows (`.row`) like the items above it: the
+  text, its date, *Look it up*, and *Remove* in a ⋯ menu. The card and its form go.
+- **Looking one up.** *Look it up* fills the bar with the text, so "title by artist" and the
+  rest of the Search section's rules apply. It still searches only on Enter, and saving a result
+  still files the text in that item's notes (the capture banner says so). A saved search ends
+  in "(song)" or "(album)" (`_capture_search.html`): read that as the chip and leave it out of
+  the bar, or it would end up in the artist.
+- **Names.** *Save for later* is the action and *To look up* the list. "Quick capture" goes from
+  the UI (it stays the name in the code and `docs/roadmap.md`'s 1d).
+
+No "+" button on every page: the Search tab is one tap from anywhere, so it would be a second
+way to do the same thing.
 
 ### Search: one bar (decided 2026-11-02)
 
@@ -296,9 +327,10 @@ results layout and one place where Enter asks MusicBrainz. The page itself is th
 wider.
 
 Search results are seen once, so they keep the archive's 250 px covers, linked directly.
-*Not what you were looking for?* (save as a capture) and the capture banner stay. This
-changes 1a's form, not its requests: still one search per press, never as you type (on
-musicbrainz.org; a mirror of your own may, see above).
+*Not what you were looking for?* (save as a capture) stays below the results, where a long list
+has scrolled the bar away, and so does the capture banner; *Save for later* sits under the bar
+(see "Saving for later"). This changes 1a's form, not its requests: still one search per press,
+never as you type (on musicbrainz.org; a mirror of your own may, see above).
 
 ## Design language
 
@@ -507,8 +539,11 @@ needs something new (the album page's header) gets a function outside `web/`.
     the badges are the ones albums have elsewhere, plus *Out 14 Nov* for one not out yet.
   - **The Library tab:** next, starting with its mockup.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
-  outside `web/`), the three ways of reading what's typed, the local re-ranking, and the
-  capture box at its top. Then a last pass for anything still on the old CSS.
+  outside `web/`), the three ways of reading what's typed, the local re-ranking, and *Save for
+  later* under the bar, with *To look up* as plain rows and *Look it up* filling the bar (see
+  "Saving for later"). Then a last pass for anything still on the old CSS. Two pieces of "Saving
+  for later" needn't wait, as a small PR of their own any time before it: *Save for later* on a
+  shared search that hasn't run yet, and the launcher shortcut.
 - **Later, only with a mirror of your own: MusicBrainz as you type** (phase 7b in
   `docs/roadmap.md`, which has the details): an *On MusicBrainz* group under U6's local matches,
   on the same bar and debounce, re-ranked as U6's results are. Without a mirror, nothing
@@ -559,6 +594,12 @@ Decided 2026-11-02:
 13. System fonts, one breakpoint at 768 px, inline SVG icons from one macro file, plain page
     loads (no `hx-boost`), and the header tint computed when a cover is cached (see Design
     language).
+
+Decided 2026-11-04:
+
+14. Quick capture stays, as *Save for later* under the search bar, with every share opening
+    Search and a launcher shortcut; *To look up* stays on the wishlist as plain rows (see Saving
+    for later).
 
 ## Still to check
 
