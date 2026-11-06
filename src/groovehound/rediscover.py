@@ -32,12 +32,13 @@ import hashlib
 import math
 import re
 import secrets
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from . import history, listens, new_releases
+from . import history, library_albums, listens, new_releases
 from .db import Store
 from .follows import NOT_FOLLOWABLE
+from .library_albums import LATELY
 from .search import Hit
 
 FAVOURITES = 4  # albums drawn for each section
@@ -45,7 +46,6 @@ OTHERS = 3
 NOT_LATELY = 3
 NEW = 2
 SEE_ALL = 12  # albums a section on the page: divides by 2, 3 and 4 columns, so rows end full
-LATELY = timedelta(days=182)  # played within this: not "not played lately"
 TOP_SHARE = 0.25  # the artists you play most: this share of the album artists played
 DISMISSED_KIND = "rediscover"  # in the dismissed table
 
@@ -103,30 +103,13 @@ def draw(
     status = history.status(store, user_id, user_name)
     history_ready = status is not None and not status.filling
 
-    albums: dict[str, Pick] = {}  # release group -> its first edition's names
-    artist_of: dict[str, tuple[str, ...]] = {}  # release group -> its album artist key
-    for release in store.library(user_id):
-        mbid = release.release_group_mbid
-        if not mbid or mbid in albums:
-            continue
-        first = release.album_artist_mbids[0] if release.album_artist_mbids else ""
-        albums[mbid] = Pick(
-            mbid=mbid,
-            title=release.title,
-            artist=release.artist,
-            artist_mbid=first if first not in NOT_FOLLOWABLE else "",
-        )
-        artist_of[mbid] = release.album_artist_mbids or (release.artist.casefold(),)
-
-    counts = store.listened(user_id, albums)
+    owned = library_albums.albums(store, user_id)
+    albums = {
+        a.mbid: Pick(a.mbid, a.title, a.artist, a.artist_mbid, a.listens, a.last_played)
+        for a in owned
+    }
+    artist_of = {a.mbid: a.artist_key for a in owned}
     plays = store.album_plays(user_id)
-    for mbid, pick in albums.items():
-        heard = plays.get(mbid)
-        albums[mbid] = replace(
-            pick,
-            listens=max(counts.get(mbid, 0), heard.listens if heard else 0),
-            last_played=_iso(datetime.fromtimestamp(heard.last_listened_at, UTC)) if heard else "",
-        )
 
     by_artist: dict[tuple[str, ...], int] = {}
     for mbid, key in artist_of.items():

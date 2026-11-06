@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Scan · Groovehound{% endblock %}
+{% block back %}<a class="appbar-back" href="/library" aria-label="Back to Library">{{ icon("back") }}</a>{% endblock %}
+{% block heading %}Scan{% endblock %}
+{# The library folder, its latest scan and what that couldn't use: maintenance, one tap from the
+   Library tab's app bar. #}
+{% block actions %}
+{% if library_path %}
+<form method="post" action="/library/scan" hx-post="/library/scan" hx-target="#library-status" hx-swap="outerHTML">
+  <button type="submit" class="primary">Rescan</button>
+</form>
+{% endif %}
+{% endblock %}
+{% macro fold(title) %}
+<details class="fold">
+  <summary>{{ title }}{{ icon("forward") }}</summary>
+  {{ caller() }}
+</details>
+{% endmacro %}
+{% block content %}
+{% include "_library_status.html" %}
+
+{% if history %}
+<p class="muted small listen-history">{% if history.filling %}Fetching your listen history in the
+  background: {% else %}Listen history: {% endif %}{{ history.listens }}
+  listen{{ "" if history.listens == 1 else "s" }}{% if history.since %} since
+  {{ history.since | local_date }}{% endif %}, {{ history.with_album }} matched to an
+  album{% if history.capped %} (the newest 10,000: older ones are counted by your stats){% endif %}.</p>
+{% endif %}
+
+{% if problems.count %}
+<section class="folds">
+  <h2>To look at</h2>
+  {% if problems.untagged %}
+  {% set count = problems.untagged | length %}
+  {% call fold("Without MusicBrainz tags (" ~ count ~ " folder" ~ ("" if count == 1 else "s") ~ ")") %}
+  <p class="muted small">Files with no <em>MusicBrainz Album Id</em> aren't matched by name: tag
+    them with <a href="https://picard.musicbrainz.org" rel="noopener" target="_blank">Picard</a>
+    and they're picked up on the next scan.</p>
+  <ul class="plain">
+    {% for folder, files in problems.untagged %}
+    <li><code>{{ folder }}</code> <span class="muted small">{{ files }} file{{ "" if files == 1 else "s" }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endcall %}
+  {% endif %}
+  {% if problems.no_release_group %}
+  {% call fold("Without a release group (" ~ problems.no_release_group | length ~ ")") %}
+  <p class="muted small">These have an album id but no <em>MusicBrainz Release Group Id</em>, so
+    they only match wishlist items for that edition. Picard adds it when you save them again.</p>
+  <ul class="plain">
+    {% for release in problems.no_release_group %}
+    <li>{{ release.artist or "?" }} – {{ release.title or "?" }} <code class="muted small">{{ release.folder }}</code></li>
+    {% endfor %}
+  </ul>
+  {% endcall %}
+  {% endif %}
+  {% if problems.unreadable %}
+  {% call fold("Unreadable (" ~ problems.unreadable | length ~ ")") %}
+  <ul class="plain">
+    {% for file in problems.unreadable %}
+    <li><code>{{ file.path }}</code> <span class="muted small">{{ file.problem }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endcall %}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

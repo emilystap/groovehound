@@ -37,7 +37,7 @@ Or with Docker: see `compose.yaml`.
 
 To tell Groovehound what you already have, point `[library] path` (or `GROOVEHOUND_LIBRARY`) at
 your music folder, mounted read-only in Docker. It reads the *MusicBrainz Album Id* and
-*Release Group Id* tags Picard writes; untagged files are listed on the Library page, not
+*Release Group Id* tags Picard writes; untagged files are listed on the Library tab's Scan page, not
 guessed at. Scans run on their own every few hours, or now with *Rescan* or
 `uv run groovehound scan`.
 

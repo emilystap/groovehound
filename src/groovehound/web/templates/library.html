@@ -1,94 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Library · Groovehound{% endblock %}
 {% block heading %}Library{% endblock %}
-{# The artists belong to Library until its own artists section (U5). #}
-{% block actions %}<a class="button" href="/artists">Artists</a>{% endblock %}
+{# What Groovehound adds to the library: the albums that want attention, then all of them, a
+   filter and a sort away (no requests). #}
+{% block actions %}{% include "_scan_link.html" %}{% endblock %}
 {% block content %}
-{% include "_library_status.html" %}
-
-{% if summary.release_groups %}
-<section class="card">
-  <h2>Never played</h2>
-  {% if not listenbrainz_user %}
-  <p class="muted">Set your ListenBrainz username (<code>[listenbrainz] user</code> or
-    <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see which albums you've never played.</p>
-  {% elif not stats %}
-  <p class="muted">Your ListenBrainz stats haven't been fetched yet (or ListenBrainz hasn't
-    calculated them): they're fetched in the background about once a day.</p>
-  {% else %}
-  {% set never = unplayed_artists | sum(attribute="unplayed") %}
-  <p>{{ never }} of your {{ summary.release_groups }} album{{ "" if summary.release_groups == 1 else "s" }}
-    never played{% if unplayed_artists %}, by {{ unplayed_artists | length }} artist{{ "" if unplayed_artists | length == 1 else "s" }}{% endif %}.</p>
-  <p class="muted small">From your all-time
-    <a href="https://listenbrainz.org/user/{{ listenbrainz_user | urlencode }}/stats/?range=all_time" rel="noopener" target="_blank">ListenBrainz stats</a>{% if stats.last_updated %}
-    as of {{ stats.last_updated | local_time }}{% endif %}{% if history %} and your listen
-    history{% endif %}, matched by MusicBrainz id: listens ListenBrainz couldn't link to
-    MusicBrainz{% if stats.unlinked %} ({{ stats.unlinked }}
-    album{{ "" if stats.unlinked == 1 else "s" }} in your stats){% endif %}, or linked to the
-    song on another album (a compilation, a single), don't count, so a few of these may be
-    albums you have played.</p>
-  {% if unplayed_artists %}
-  <ul class="plain unplayed-artists">
-    {% for artist in unplayed_artists %}
-    <li>
-      <details>
-        <summary>{% if artist.mbid %}<a href="/artists/{{ artist.mbid }}">{{ artist.name or "?" }}</a>{% else %}{{ artist.name or "?" }}{% endif %}
-          <span class="muted small">{{ artist.unplayed }} of {{ artist.owned }} never played</span></summary>
-        <ul class="small">
-          {% for title in artist.never_played %}<li>{{ title or "?" }}</li>{% endfor %}
-        </ul>
-      </details>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-  {% endif %}
-  {% if history %}
-  <p class="muted small listen-history">{% if history.filling %}Fetching your listen history in
-    the background: {% else %}Listen history: {% endif %}{{ history.listens }}
-    listen{{ "" if history.listens == 1 else "s" }}{% if history.since %} since
-    {{ history.since | local_date }}{% endif %}, {{ history.with_album }} matched to an
-    album{% if history.capped %} (the newest 10,000: older ones are counted by the stats
-    above){% endif %}.</p>
-  {% endif %}
+{% include "_library_tabs.html" %}
+{% if not grid.of %}
+<p class="muted">Nothing in your library yet. <a href="/library/scan">Scan</a> shows what's been found, and why not.</p>
+{% else %}
+{% for shelf in shelves %}{% include "_shelf.html" %}{% endfor %}
+<section class="grid-section" id="all-albums">
+  <h2>All albums</h2>
+  {% include "_all_albums.html" %}
 </section>
+{% if not listenbrainz_user %}
+<p class="muted small">Set your ListenBrainz username (<code>[listenbrainz] user</code> or
+  <code>GROOVEHOUND_LISTENBRAINZ_USER</code>) to see which albums you've never played.</p>
+{% elif not stats %}
+<p class="muted small">Your ListenBrainz stats haven't been fetched yet (or ListenBrainz hasn't
+  calculated them): they're fetched in the background about once a day.</p>
 {% endif %}
-
-{% if untagged %}
-<section class="card">
-  <h2>Without MusicBrainz tags <span class="muted">({{ untagged | length }} folder{{ "" if untagged | length == 1 else "s" }})</span></h2>
-  <p class="muted small">Files with no <em>MusicBrainz Album Id</em> aren't matched by name: tag
-    them with <a href="https://picard.musicbrainz.org" rel="noopener" target="_blank">Picard</a>
-    and they're picked up on the next scan.</p>
-  <ul class="plain">
-    {% for folder, count in untagged %}
-    <li><code>{{ folder }}</code> <span class="muted small">{{ count }} file{{ "" if count == 1 else "s" }}</span></li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
-
-{% if no_release_group %}
-<section class="card">
-  <h2>Without a release group <span class="muted">({{ no_release_group | length }})</span></h2>
-  <p class="muted small">These have an album id but no <em>MusicBrainz Release Group Id</em>, so
-    they only match wishlist items for that edition. Picard adds it when you save them again.</p>
-  <ul class="plain">
-    {% for release in no_release_group %}
-    <li>{{ release.artist or "?" }} – {{ release.title or "?" }} <code class="muted small">{{ release.folder }}</code></li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
-
-{% if unreadable %}
-<section class="card">
-  <h2>Unreadable <span class="muted">({{ unreadable | length }})</span></h2>
-  <ul class="plain">
-    {% for file in unreadable %}
-    <li><code>{{ file.path }}</code> <span class="muted small">{{ file.problem }}</span></li>
-    {% endfor %}
-  </ul>
-</section>
+{% include "_shelf_script.html" %}
 {% endif %}
 {% endblock %}

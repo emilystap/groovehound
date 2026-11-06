@@ -1,0 +1,4 @@
+{# A page of *All albums* (`grid`: library_albums.Page, `tiles`): its tiles, then what asks for the
+   next page once it's scrolled to. #}
+{% for tile in tiles %}{% include "_album_tile.html" %}{% endfor %}
+{% if grid.next_url %}<li class="grid-more" hx-get="{{ grid.next_url }}" hx-trigger="revealed" hx-swap="outerHTML"></li>{% endif %}

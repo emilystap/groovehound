@@ -1,0 +1,8 @@
+{% from "_icons.html" import icon %}
+{# The way to Scan from the Library tab's app bar: maintenance, not browsing. An icon on a phone,
+   a dot on it when there's something to look at; from 768 px it says so in words. #}
+{% set things = scan_problems ~ (" thing" if scan_problems == 1 else " things") ~ " to look at" %}
+<a class="button secondary scan-link" href="/library/scan" aria-label="Scan{% if scan_problems %}: {{ things }}{% endif %}">
+  {{ icon("scan") }}<span class="scan-words">Scan{% if scan_problems %} · {{ scan_problems }} to look at{% endif %}</span>
+  {% if scan_problems %}<span class="scan-dot"></span>{% endif %}
+</a>

@@ -17,9 +17,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from . import follows, new_releases, personal, playlists, recommended, rediscover
+from . import follows, library_albums, new_releases, personal, playlists, recommended, rediscover
 from .db import Store, WishlistItem, local_date
 from .follows import Credited
+from .library_albums import Album, Library
 from .new_releases import Feed, NewRelease
 from .playlists import Playlist
 from .rediscover import Draw, Pick
@@ -41,6 +42,7 @@ class Tile:
     detail: str = ""  # a line under it, on a grid or as a row
     dismiss: str = ""  # the URL that stops showing it, if it can be dismissed
     archive: bool = False  # its cover linked straight from the archive, not through /cover
+    quiet: bool = False  # no badge but `badge`: the page says the rest (the Library tab)
 
 
 @dataclass(frozen=True)
@@ -275,6 +277,49 @@ def new_page(
         Shelf("out-now", "Out now", out_now(feed, today)),
         Shelf("coming-up", "Coming up", coming_up(feed, today)),
         Shelf("suggested", "You might care about", suggested(hits, today)),
+    ]
+
+
+def library_tiles(
+    albums: Iterable[Album], found: Library, today: str, filter_key: str = ""
+) -> tuple[Tile, ...]:
+    """Library albums as tiles. They're all yours, so *In your library* would say nothing: the
+    badge is what wants attention, unless the filter they're shown under already says it."""
+    return tuple(_library_tile(a, found, today, filter_key) for a in albums)
+
+
+def _library_tile(album: Album, found: Library, today: str, filter_key: str) -> Tile:
+    part = found.partial.get(album.mbid)
+    if part:
+        badge = f"{part.have} of {part.of} tracks"
+    elif album.mbid in found.never_played and filter_key != library_albums.NEVER_PLAYED:
+        badge = "Never played"
+    elif filter_key == library_albums.NOT_LATELY:
+        badge = _not_since(album.last_played, today)
+    else:
+        badge = ""
+    credits = (Credited(album.artist_mbid, album.artist),) if album.artist_mbid else ()
+    return Tile(album.mbid, album.title, album.artist, credits, badge=badge, quiet=True)
+
+
+def library(found: Library, today: str) -> list[Shelf]:
+    """The Library tab's shelves: the albums that want attention, leaving out the empty ones.
+    See all opens *All albums* with the shelf's filter on, in the shelf's order."""
+    return [
+        shelf
+        for key, title in (
+            (library_albums.NEVER_PLAYED, "Never played"),
+            (library_albums.PARTIAL, "Partial"),
+            (library_albums.NOT_LATELY, "Not played lately"),
+        )
+        if (
+            shelf := Shelf(
+                key,
+                title,
+                library_tiles(library_albums.chosen(found, key)[:SHELF], found, today, key),
+                f"/library/albums?filter={key}",
+            )
+        ).tiles
     ]
 
 

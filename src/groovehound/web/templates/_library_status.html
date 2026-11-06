@@ -1,8 +1,7 @@
-{# The library folder and its latest scan. While a scan runs, it asks for itself again every few
+{# The library folder and its latest scan; *Rescan* is in the app bar. While a scan runs, it asks for itself again every few
    seconds (HTMX); the answer after the scan has no trigger, so the polling stops. #}
 <section class="card" id="library-status"
   {% if scanning %}hx-get="/library/status" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
-  <h2>Your library</h2>
   {% if not library_path %}
   <p>No music folder yet. Set <code>library.path</code> in <code>config.toml</code> (or
     <code>GROOVEHOUND_LIBRARY</code>) to the folder with your music; in Docker, mount it
@@ -30,10 +29,7 @@
     Last scanned {{ scan.finished_at | local_time }}: {{ scan.files }} audio file{{ "" if scan.files == 1 else "s" }}, {{ scan.read }} read{% if scan.left_over %}, {{ scan.left_over }} left for later{% endif %}.
     {% endif %}
   </p>
-  <form method="post" action="/library/scan" hx-post="/library/scan" hx-target="#library-status" hx-swap="outerHTML">
-    <button {% if scanning %}disabled{% endif %}>Rescan</button>
-    <span class="muted small">Scans also run on their own every few hours, reading at most a
-      couple of thousand changed files at a time.</span>
-  </form>
+  <p class="muted small">Scans also run on their own every few hours, reading at most a couple
+    of thousand changed files at a time.</p>
   {% endif %}
 </section>

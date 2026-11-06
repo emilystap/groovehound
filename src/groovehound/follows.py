@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -109,6 +110,27 @@ def credited(mbids: tuple[str, ...], names: tuple[str, ...], credit: str = "") -
             name = credit if len(mbids) == 1 and credit else f"artist {index + 1}"
         found.append(Credited(mbid, name))
     return found
+
+
+def credit_links(text: str, credits: Iterable[Credited]) -> list[tuple[str, str]]:
+    """A credit as (text, artist MBID) pieces, each artist's name as a piece with their MBID and
+    what's between them ("" for no link): "A feat. B" as A, " feat. ", B. Text that doesn't name
+    them stays as it is."""
+    named = sorted(
+        (text.find(c.name), c.name, c.mbid) for c in credits if c.name and c.name in text
+    )
+    pieces = []
+    at = 0
+    for start, name, mbid in named:
+        if start < at:  # one name inside another's
+            continue
+        if start > at:
+            pieces.append((text[at:start], ""))
+        pieces.append((name, mbid))
+        at = start + len(name)
+    if at < len(text):
+        pieces.append((text[at:], ""))
+    return pieces
 
 
 def wanted(types: tuple[str, ...], hit: Hit) -> bool:

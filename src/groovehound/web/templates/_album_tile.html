@@ -1,25 +1,25 @@
 {% from "_icons.html" import icon %}
 {# One album (`tile`: shelves.Tile) on a shelf or a grid, or as a row (.rows, CSS); `section`
-   tells apart the copies of an album on one page. The picture and names open its album page; its
-   ⋯ menu has the rest (a popover, so no script). Its forms are the usual ones: without JavaScript
+   tells apart the copies of an album on one page. The picture and title open its album page, an
+   artist's name their page; its ⋯ menu has the rest (a popover, so no script). Its forms are the usual ones: without JavaScript
    they post normally and come back (`next`). One badge at most: the reason it's here, else what's
    true of it. #}
 {% set row = section ~ "-" ~ tile.mbid %}
 {% set part = (partial or {}).get(tile.mbid) %}
-{% set badge = tile.badge or (
+{% set badge = tile.badge or (not tile.quiet and (
      part and (part.have ~ " of " ~ part.of ~ " tracks")
      or (tile.mbid in owned and (tile.mbid in (unplayed or ()) and "Owned · never played" or "In your library"))
      or (tile.hit and tile.mbid in saved_ids and "On your wishlist")
-   ) %}
+   )) %}
 <li class="tile" id="{{ row }}">
-  <a class="tile-link" href="/albums/{{ tile.mbid }}">
+  <a class="tile-link" href="/albums/{{ tile.mbid }}" tabindex="-1" aria-hidden="true">
     <span class="tile-cover"><img src="{% if tile.archive %}https://coverartarchive.org/release-group/{{ tile.mbid }}/front-250{% else %}/cover/{{ tile.mbid }}{% endif %}" alt="" width="184" height="184" loading="lazy" onerror="this.remove()"></span>
-    <span class="tile-names">
-      <span class="tile-title">{{ tile.title }}</span>
-      <span class="tile-artist">{{ tile.artist }}</span>
-      {% if tile.detail %}<span class="tile-detail">{{ tile.detail }}</span>{% endif %}
-    </span>
   </a>
+  <span class="tile-names">
+    <a class="tile-title" href="/albums/{{ tile.mbid }}">{{ tile.title }}</a>
+    <span class="tile-artist">{% with text = tile.artist, credits = tile.credits %}{% include "_artist_links.html" %}{% endwith %}</span>
+    {% if tile.detail %}<span class="tile-detail">{{ tile.detail }}</span>{% endif %}
+  </span>
   {% if badge %}<span class="badge">{{ badge }}</span>{% endif %}
   <button type="button" class="tile-more" popovertarget="menu-{{ row }}" aria-label="More for {{ tile.title }}">{{ icon("more") }}</button>
   <div class="menu" id="menu-{{ row }}" popover>

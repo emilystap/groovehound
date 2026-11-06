@@ -21,8 +21,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from . import follows
-from .db import LibraryRelease, Store
+from .db import Follow, LibraryRelease, Store
 from .follows import Discography
+from .library_artists import LibraryArtist
 from .search import Hit
 from .shelves import Tile, out_label
 
@@ -75,6 +76,25 @@ def pictures(store: Store, user_id: int, artists: Iterable[Named]) -> dict[str, 
         groups = release_groups(disco, store.library_of_artist(user_id, artist.mbid))
         found[artist.mbid] = picture(store, artist.name, groups)
     return found
+
+
+def followed_picture(store: Store, user_id: int, follow: Follow) -> Picture:
+    """The picture of an artist you follow, in the list of them."""
+    disco, _ = follows.cached_discography(store, follow.artist_mbid)
+    groups = release_groups(disco, store.library_of_artist(user_id, follow.artist_mbid))
+    return picture(store, follow.name, groups)
+
+
+def library_pictures(
+    store: Store, user_id: int, artists: Iterable[LibraryArtist]
+) -> dict[str, Picture]:
+    """The pictures of the library's album artists, by MBID, from their albums in the library."""
+    owned: dict[str, list[str]] = {}
+    for release in store.library(user_id):
+        if release.release_group_mbid:
+            for mbid in release.album_artist_mbids:
+                owned.setdefault(mbid, []).append(release.release_group_mbid)
+    return {a.mbid: picture(store, a.name, dict.fromkeys(owned.get(a.mbid, ()))) for a in artists}
 
 
 def summary(found: Discography | None) -> str:

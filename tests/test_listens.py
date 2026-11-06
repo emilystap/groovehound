@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -176,13 +177,14 @@ def test_the_library_page_and_badges(tmp_path: Path):
         )
         fetch(store, FakeOpener(STATS))
     client = TestClient(create_app(settings))
-    page = client.get("/library").text
-    assert "1 of your 2 albums" in page and "never played, by 1 artist." in page
+    assert "Never played · 1" in client.get("/library").text
+    page = client.get("/library/albums?filter=never-played").text
+    assert "1 of 2" in page and "By artist (1)" in page
     assert f'href="/artists/{ARTIST}">Charli xcx</a>' in page
-    assert "1 of 2 never played" in page and "<li>Crash</li>" in page
+    assert "1 of 2 never played" in page and "Crash" in page and "Brat" not in page
     assert " ".join(page.split()).count("(1 album in your stats)") == 1  # the unlinked one
 
-    page = TestClient(create_app(settings_for(tmp_path))).get("/library").text
+    page = TestClient(create_app(replace(settings, listenbrainz_user=""))).get("/library").text
     assert "Set your ListenBrainz username" in page
 
 

@@ -1,0 +1,6 @@
+{# The Library tab's three lists. Expects `here`, `follow_count` and `library_count`. #}
+<nav class="tabs" aria-label="Library">
+  <a href="/library" {% if here == "/library" %}aria-current="page"{% endif %}>Albums</a>
+  <a href="/artists/library" {% if here == "/artists/library" %}aria-current="page"{% endif %}>Artists <span class="muted">({{ library_count }})</span></a>
+  <a href="/artists" {% if here == "/artists" %}aria-current="page"{% endif %}>Following <span class="muted">({{ follow_count }})</span></a>
+</nav>

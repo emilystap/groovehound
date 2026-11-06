@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}All albums · Groovehound{% endblock %}
+{% block back %}<a class="appbar-back" href="/library" aria-label="Back to Library">{{ icon("back") }}</a>{% endblock %}
+{% block heading %}All albums{% endblock %}
+{# Every album in the library, or a filter's (a shelf's See all), a page at a time (no requests). #}
+{% block content %}
+{% include "_all_albums.html" %}
+{% endblock %}

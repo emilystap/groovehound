@@ -1,0 +1,20 @@
+{% from "_icons.html" import icon %}
+{# *Never played* in All albums: the same albums by album artist, and what "never played" can miss. #}
+{% if unplayed_artists %}
+<details class="fold by-artist">
+  <summary>By artist ({{ unplayed_artists | length }}){{ icon("forward") }}</summary>
+  <ul class="plain">
+    {% for artist in unplayed_artists %}
+    <li>{% if artist.mbid %}<a href="/artists/{{ artist.mbid }}">{{ artist.name or "?" }}</a>{% else %}{{ artist.name or "?" }}{% endif %}
+      <span class="muted small">{{ artist.unplayed }} of {{ artist.owned }} never played</span></li>
+    {% endfor %}
+  </ul>
+  <p class="muted small">From your all-time
+    <a href="https://listenbrainz.org/user/{{ listenbrainz_user | urlencode }}/stats/?range=all_time" rel="noopener" target="_blank">ListenBrainz stats</a>{% if stats.last_updated %}
+    as of {{ stats.last_updated | local_time }}{% endif %}, matched by MusicBrainz id: listens
+    ListenBrainz couldn't link to MusicBrainz{% if stats.unlinked %} ({{ stats.unlinked }}
+    album{{ "" if stats.unlinked == 1 else "s" }} in your stats){% endif %}, or linked to the song
+    on another album (a compilation, a single), don't count, so a few of these may be albums you
+    have played.</p>
+</details>
+{% endif %}

@@ -32,6 +32,7 @@ from .. import (
     follows,
     history,
     library,
+    library_albums,
     library_artists,
     listens,
     new_releases,
@@ -131,6 +132,7 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.filters["duration"] = _duration
     templates.env.filters["out_label"] = _out_label
     templates.env.globals["followable"] = follows.credited  # a credit's *Follow* buttons
+    templates.env.globals["credit_links"] = follows.credit_links  # names linked to artist pages
     templates.env.globals.update(  # a follow's release group types (_follow_types.html)
         primary_types=follows.PRIMARY_TYPES,
         secondary_types=follows.SECONDARY_TYPES,
@@ -666,10 +668,12 @@ def create_app(settings: Settings) -> FastAPI:
             request,
             "artists.html",
             {
-                "page": "artists",
+                "page": "library",
                 "follows": follows_,
-                "follow_count": len(follows_),
-                "library_count": library_artists.count(store, user.id),
+                "pictures": {
+                    f.artist_mbid: artist.followed_picture(store, user.id, f) for f in follows_
+                },
+                **library_tabs(store, user),
                 "here": "/artists",
             },
         )
@@ -678,16 +682,18 @@ def create_app(settings: Settings) -> FastAPI:
     def library_artists_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
         """Every album artist in the library, with the suggested follows first (no requests)."""
         found = library_artists.library_artists(store, user.id, new_follow_types)
+        suggested = library_artists.suggestions(store, user.id, found)
         return templates.TemplateResponse(
             request,
             "artists_library.html",
             {
-                "page": "artists",
+                "page": "library",
                 "artists": found,
-                "suggestions": library_artists.suggestions(store, user.id, found),
+                "suggestions": suggested,
                 "suggest_at": library_artists.SUGGEST_AT,
-                "follow_count": len(store.follows(user.id)),
-                "library_count": len(found),
+                "pictures": artist.library_pictures(store, user.id, found),
+                "followed": store.followed(user.id, (a.mbid for a in suggested)),
+                **library_tabs(store, user),
                 "here": "/artists/library",
             },
         )
@@ -916,7 +922,6 @@ def create_app(settings: Settings) -> FastAPI:
                     "follow": follow,
                     # only pages with a types form (else htmx reports a missing target)
                     "with_types": here in ("/artists", f"/artists/{mbid}"),
-                    "sheet": here == f"/artists/{mbid}",
                     "link": here != f"/artists/{mbid}",  # not to the page it's on
                     "error": error,
                     "here": here,
@@ -969,7 +974,6 @@ def create_app(settings: Settings) -> FastAPI:
             {
                 "mbid": mbid,
                 "follow": follow,
-                "sheet": here == f"/artists/{mbid}",
                 "error": error,
                 "saved": not error,
                 "here": here,
@@ -979,29 +983,102 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/library", response_class=HTMLResponse)
     def library_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
-        """What the library scan found, and what of it was never played (no requests)."""
-        untagged = store.library_files(user.id, tagged=False)
+        """The albums that want attention, then all of them (no requests)."""
         lb_user = _listenbrainz_user(user)
+        found = library_albums.library(store, user.id, lb_user)
+        today = local_date(utcnow())
+        shown = library_albums.page(found)
+        tiles = shelves.library_tiles(shown.albums, found, today)
+        shelf_list = shelves.library(found, today)
         return templates.TemplateResponse(
             request,
             "library.html",
             {
                 "page": "library",
-                **library_status(store, user),
-                "untagged": library.untagged_folders(untagged),
-                "unreadable": [f for f in untagged if f.problem],
-                "no_release_group": [r for r in store.library(user.id) if not r.release_group_mbid],
+                "shelves": shelf_list,
+                "grid": shown,
+                "tiles": tiles,
+                "section": "all",
                 "listenbrainz_user": lb_user,
                 "stats": listens.stats(store, lb_user),
-                "unplayed_artists": listens.unplayed_by_artist(store, user.id, lb_user),
-                "history": history.status(store, user.id, lb_user),
+                **library_tabs(store, user),
+                **library_tiles_context(store, user, [*shelves.all_tiles(shelf_list), *tiles]),
                 "here": "/library",
             },
         )
 
+    @app.get("/library/albums", response_class=HTMLResponse)
+    def library_albums_page(
+        request: Request,
+        store: StoreDep,
+        user: UserDep,
+        filter: str = "",
+        sort: str = "",
+        page: int = 1,
+    ) -> HTMLResponse:
+        """*All albums*, filtered and sorted (no requests). HTMX, scrolling down, gets the
+        next page's tiles alone."""
+        lb_user = _listenbrainz_user(user)
+        found = library_albums.library(store, user.id, lb_user)
+        shown = library_albums.page(found, filter, sort, page)
+        today = local_date(utcnow())
+        tiles = shelves.library_tiles(shown.albums, found, today, shown.filter_key)
+        context = {
+            "grid": shown,
+            "tiles": tiles,
+            "section": "all",
+            **library_tiles_context(store, user, tiles),
+            "here": shown.url,
+        }
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse(request, "_album_page.html", context)
+        never_played = shown.filter_key == library_albums.NEVER_PLAYED
+        return templates.TemplateResponse(
+            request,
+            "library_albums.html",
+            {
+                "page": "library",
+                "listenbrainz_user": lb_user,
+                "stats": listens.stats(store, lb_user),
+                "unplayed_artists": (
+                    listens.unplayed_by_artist(store, user.id, lb_user) if never_played else []
+                ),
+                **context,
+            },
+        )
+
+    @app.get("/library/scan", response_class=HTMLResponse)
+    def library_scan_page(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
+        """What the library scan found, and what it couldn't use (no requests)."""
+        return templates.TemplateResponse(
+            request,
+            "library_scan.html",
+            {
+                "page": "library",
+                **library_status(store, user),
+                "problems": library.problems(store, user.id),
+                "history": history.status(store, user.id, _listenbrainz_user(user)),
+                "here": "/library/scan",
+            },
+        )
+
+    def library_tabs(store: Store, user: User) -> dict[str, object]:
+        """What the Library tab's pages show at the top: its segments and the way to Scan."""
+        return {
+            "follow_count": len(store.follows(user.id)),
+            "library_count": library_artists.count(store, user.id),
+            "scan_problems": library.problems(store, user.id).count,
+        }
+
+    def library_tiles_context(
+        store: Store, user: User, tiles: Iterable[shelves.Tile]
+    ) -> dict[str, object]:
+        """What library tiles need besides themselves: their badges are their own."""
+        return {"followed": store.followed(user.id, (a.mbid for t in tiles for a in t.credits))}
+
     @app.get("/library/status", response_class=HTMLResponse)
     def library_status_part(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
-        """The Library page's status, which polls itself while a scan runs."""
+        """The Scan page's status, which polls itself while a scan runs."""
         return templates.TemplateResponse(
             request, "_library_status.html", library_status(store, user)
         )
@@ -1014,7 +1091,7 @@ def create_app(settings: Settings) -> FastAPI:
         scanner.request()
         if request.headers.get("HX-Request"):
             return library_status_part(request, store, user)
-        return RedirectResponse("/library", status_code=303)
+        return RedirectResponse("/library/scan", status_code=303)
 
     def library_status(store: Store, user: User) -> dict[str, object]:
         """The library folder (the owner's, from config, until per-user settings exist), its

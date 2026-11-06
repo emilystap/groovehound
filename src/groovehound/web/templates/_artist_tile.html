@@ -1,18 +1,22 @@
 {% from "_icons.html" import icon %}
-{# A similar artist on a shelf (`artist`, `picture`): a round picture, their name with *Follow*,
-   and a ⋯ menu with the rest. Its forms post normally without JavaScript and come back. #}
-<li class="tile artist-tile" id="similar-{{ artist.mbid }}">
+{# An artist on a shelf (`artist`, `picture`): a round picture, their name with *Follow*, and a ⋯
+   menu with the rest. Its forms post normally without JavaScript and come back. A similar artist,
+   unless `kind` says otherwise: a suggested follow, with `note` under the name. #}
+{% set row = (kind or "similar") ~ "-" ~ artist.mbid %}
+{% set dismiss = "/artists/" ~ artist.mbid ~ ("/dismiss-suggestion" if kind else "/dismiss") %}
+<li class="tile artist-tile" id="{{ row }}">
   <a class="artist-tile-picture" href="/artists/{{ artist.mbid }}" tabindex="-1" aria-hidden="true">{% include "_artist_picture.html" %}</a>
   {% with following = artist.mbid in followed, error = none %}{% include "_follow_button.html" %}{% endwith %}
-  <button type="button" class="tile-more" popovertarget="menu-similar-{{ artist.mbid }}" aria-label="More for {{ artist.name }}">{{ icon("more") }}</button>
-  <div class="menu" id="menu-similar-{{ artist.mbid }}" popover>
+  {% if note %}<span class="tile-artist">{{ note }}</span>{% endif %}
+  <button type="button" class="tile-more" popovertarget="menu-{{ row }}" aria-label="More for {{ artist.name }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-{{ row }}" popover>
     <p class="menu-title">{{ artist.name }}</p>
     <a class="menu-item" href="{{ musicbrainz_web }}/artist/{{ artist.mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
-    <form method="post" action="/artists/{{ artist.mbid }}/dismiss" hx-post="/artists/{{ artist.mbid }}/dismiss"
-          hx-target="#similar-{{ artist.mbid }}" hx-swap="outerHTML">
-      <input type="hidden" name="next" value="{{ here }}#similar">
+    <form method="post" action="{{ dismiss }}" hx-post="{{ dismiss }}"
+          hx-target="#{{ row }}" hx-swap="outerHTML">
+      <input type="hidden" name="next" value="{{ here }}{% if not kind %}#similar{% endif %}">
       <button type="submit" aria-label="Dismiss {{ artist.name }}">Dismiss</button>
     </form>
-    <button type="button" class="menu-close" popovertarget="menu-similar-{{ artist.mbid }}" popovertargetaction="hide">Close</button>
+    <button type="button" class="menu-close" popovertarget="menu-{{ row }}" popovertargetaction="hide">Close</button>
   </div>
 </li>

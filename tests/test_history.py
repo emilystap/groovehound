@@ -226,6 +226,6 @@ def test_the_library_page_says_how_much_history_is_kept(tmp_path: Path):
         lb = lb_client(FakeOpener(STATS, page(listen(T, sent=RG_OTHER), listen(T - 60))))
         listens.fetch(store, lb, ServicePause(), OWNER_ID, USER, now=NOW)
         history.fetch(store, lb, ServicePause(), OWNER_ID, USER, now=NOW)
-    page_text = " ".join(TestClient(create_app(settings)).get("/library").text.split())
+    page_text = " ".join(TestClient(create_app(settings)).get("/library/scan").text.split())
     assert "Listen history: 2 listens since" in page_text
     assert "1 matched to an album." in page_text

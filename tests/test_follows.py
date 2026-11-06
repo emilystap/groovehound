@@ -319,3 +319,14 @@ def test_items_saved_before_names_still_render(tmp_path: Path):
         )
     page = TestClient(create_app(settings_for(tmp_path))).get("/wishlist").text
     assert f'href="/artists/{ARTIST}">Charli xcx</a>' in page
+
+
+def test_credit_links_split_a_credit_at_its_artists():
+    a, b = follows.Credited("a", "Gwen Stefani"), follows.Credited("b", "Eve")
+    assert follows.credit_links("Gwen Stefani feat. Eve", (b, a)) == [
+        ("Gwen Stefani", "a"),
+        (" feat. ", ""),
+        ("Eve", "b"),
+    ]
+    assert follows.credit_links("Album · 2023", (a,)) == [("Album · 2023", "")]  # names no one
+    assert follows.credit_links("Various Artists", ()) == [("Various Artists", "")]

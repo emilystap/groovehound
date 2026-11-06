@@ -1,0 +1,21 @@
+{% from "_icons.html" import icon %}
+{# The *All albums* grid (`grid`: library_albums.Page) with its filter chips and sort; each is a
+   link, so the URL says what's shown. Expects what `_album_page.html` does. #}
+{% if grid.chips %}
+<nav class="filters" aria-label="Which albums">
+  {% for chip in grid.chips %}<a href="{{ chip.url }}"{% if chip.on %} aria-current="page"{% endif %}>{{ chip.label }}</a>{% endfor %}
+</nav>
+{% endif %}
+<div class="grid-bar">
+  <span class="muted small">{% if grid.filter_key %}{{ grid.total }} of {{ grid.of }}{% else %}{{ grid.total }} album{{ "" if grid.total == 1 else "s" }}{% endif %}</span>
+  <button type="button" class="link sort-button" popovertarget="album-sort" aria-label="Sort: {{ grid.sort.label }}">{{ grid.sort.label }}{{ icon("down") }}</button>
+  <div class="menu" id="album-sort" popover>
+    <p class="menu-title">Sort albums</p>
+    {% for sort in grid.sorts %}<a class="menu-item" href="{{ sort.url }}"{% if sort.on %} aria-current="true"{% endif %}><span>{{ sort.label }}</span>{% if sort.on %}{{ icon("check") }}{% endif %}</a>{% endfor %}
+    <button type="button" class="menu-close" popovertarget="album-sort" popovertargetaction="hide">Close</button>
+  </div>
+</div>
+{% if unplayed_artists %}{% include "_unplayed_artists.html" %}{% endif %}
+<ul class="grid">
+  {% include "_album_page.html" %}
+</ul>

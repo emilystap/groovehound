@@ -1,25 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Artists · Groovehound{% endblock %}
-{% block heading %}Artists{% endblock %}
+{% from "_icons.html" import icon %}
+{% block title %}Following · Groovehound{% endblock %}
+{% block heading %}Library{% endblock %}
+{# Who you follow, in the library or not (no requests). Each row's ⋯ menu has *Following*, which
+   stops following them; its forms post normally without JavaScript and come back. #}
+{% block actions %}{% include "_scan_link.html" %}{% endblock %}
 {% block content %}
-{% include "_artist_tabs.html" %}
-<section class="card">
-  <h2>Artists you follow{% if follows %} <span class="muted">({{ follows | length }})</span>{% endif %}</h2>
-  {% if follows %}
-  <ul class="artists">
-    {% for follow in follows %}
-    <li>
-      {% with artist = {"mbid": follow.artist_mbid, "name": follow.name}, following = true %}{% include "_follow_button.html" %}{% endwith %}
-      <div class="muted small">
-        {% if follow.disambiguation %}{{ follow.disambiguation }} · {% endif %}since {{ follow.followed_at | local_date }}
-      </div>
-      {% with mbid = follow.artist_mbid, oob = false, saved = false, error = none %}{% include "_follow_types.html" %}{% endwith %}
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">You don't follow anyone yet. <em>Follow</em> an artist from a
-    <a href="/search">search</a> result or your <a href="/wishlist">wishlist</a>.</p>
-  {% endif %}
-</section>
+{% include "_library_tabs.html" %}
+{% if follows %}
+<ul class="rows-list">
+  {% for follow in follows %}
+  <li class="row artist-row">
+    <a class="row-link" href="/artists/{{ follow.artist_mbid }}">
+      <span class="row-cover">{% with picture = pictures[follow.artist_mbid] %}{% include "_artist_picture.html" %}{% endwith %}</span>
+      <span class="row-names">
+        <span class="row-title">{{ follow.name }}</span>
+        <span class="row-artist">{% if follow.disambiguation %}{{ follow.disambiguation }} · {% endif %}since {{ follow.followed_at | local_date }}</span>
+      </span>
+    </a>
+    <div class="row-extra">{% with mbid = follow.artist_mbid, oob = false, saved = false, error = none %}{% include "_follow_types.html" %}{% endwith %}</div>
+    <button type="button" class="row-more" popovertarget="menu-follow-{{ follow.artist_mbid }}" aria-label="More for {{ follow.name }}">{{ icon("more") }}</button>
+    <div class="menu" id="menu-follow-{{ follow.artist_mbid }}" popover>
+      <p class="menu-title">{{ follow.name }}</p>
+      {% with artist = {"mbid": follow.artist_mbid, "name": follow.name}, following = true, error = none %}{% include "_follow_button.html" %}{% endwith %}
+      <a class="menu-item" href="{{ musicbrainz_web }}/artist/{{ follow.artist_mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+      <button type="button" class="menu-close" popovertarget="menu-follow-{{ follow.artist_mbid }}" popovertargetaction="hide">Close</button>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">You don't follow anyone yet. <em>Follow</em> an artist from a
+  <a href="/search">search</a> result or your <a href="/wishlist">wishlist</a>.</p>
+{% endif %}
 {% endblock %}

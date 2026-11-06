@@ -1,6 +1,6 @@
 {% from "_icons.html" import icon %}
-{# One item on the wishlist page, as a plain row: the row opens its album page, which has the
-   notes, editions and where to buy. One action inline, the rest in its ⋯ menu (a popover). With
+{# One item on the wishlist page, as a plain row: its cover and title open its album page, which has
+   the notes, editions and where to buy. One action inline, the rest in its ⋯ menu (a popover). With
    HTMX, its forms remove just this item; without JavaScript they post normally and come back
    (`next`). *Mark bought* is only ever pressed by you, never done for you: an edition you
    already have may not be the one you want. #}
@@ -8,11 +8,11 @@
 {% set in_library = found[item.id] %}
 {% set part = (partial or {}).get(mbid) %}
 <li class="row" id="wish-{{ item.id }}">
-  <a class="row-link" href="/albums/{{ mbid }}">
-    <span class="row-cover"><img src="/cover/{{ mbid }}" alt="" width="56" height="56" loading="lazy" onerror="this.remove()"></span>
+  <div class="row-link">
+    <a class="row-cover" href="/albums/{{ mbid }}" tabindex="-1" aria-hidden="true"><img src="/cover/{{ mbid }}" alt="" width="56" height="56" loading="lazy" onerror="this.remove()"></a>
     <span class="row-names">
-      <span class="row-title">{{ item.title }}</span>
-      <span class="row-artist">{{ item.artist_credit }}</span>
+      <a class="row-title" href="/albums/{{ mbid }}">{{ item.title }}</a>
+      <span class="row-artist">{% with text = item.artist_credit, credits = followable(item.artist_mbids, item.artist_names, item.artist_credit) %}{% include "_artist_links.html" %}{% endwith %}</span>
       <span class="row-detail">
         {{- item.type_label or "Unknown type" }}{% if item.first_release_date %} · {{ item.first_release_date }}{% endif %}
         {%- if editions[item.id].chosen %} · {{ editions[item.id].chosen.details }}{% elif item.release_mbid %} · a specific edition{% endif %}
@@ -21,7 +21,7 @@
       {% if item.heard %}<span class="row-note">Heard: {{ item.heard }}</span>
       {% elif item.notes %}<span class="row-note">{{ item.notes }}</span>{% endif %}
     </span>
-  </a>
+  </div>
   <div class="row-extra">
     <div class="badges">
       {% if in_library %}<span class="badge">{% if in_library.other_edition %}Another edition in your library{% else %}In your library{% endif %}</span>{% endif %}

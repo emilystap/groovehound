@@ -220,10 +220,11 @@ The Library tab leads with what Groovehound adds to the library, not an A–Z li
 - **Albums:** shelves (each with *See all*) of *Never played*, *Partial* (5k's *8 of 12 tracks*,
   best covered first) and *Not played lately*; the never-played-by-artist list as today's
   folding list under *See all*. Below them, *All albums* (next section).
-- **Artists:** segments *Following* / *In your library*, with the suggested follows (5d) at the
-  top of the second, as today.
-- **Scan:** status, *Rescan* and the problem lists (untagged, no release group, unreadable),
-  behind an icon in the app bar: maintenance, not browsing.
+- **Artists and Following:** segments beside *Albums* (*Albums* / *Artists* / *Following*, one
+  row rather than two levels, decided 2026-11-05), with the suggested follows (5d) at the top of
+  *Artists*.
+- **Scan:** status, *Rescan*, the listen history line and the problem lists (untagged, no release
+  group, unreadable), on `/library/scan` behind an icon in the app bar: maintenance, not browsing.
 
 ### All albums: the library browser
 
@@ -241,9 +242,9 @@ Groovehound's side*, not a second player:
 - **Nothing to play.** Tiles open the album page; where a player would have *Play*, the album
   page has *Open in Navidrome* (5g).
 - **No new data, no requests:** a sorted, filtered, paged query over the `library` table (with
-  the listen history and wishlist for the chips) in a function outside `web/`, the album tile,
-  and HTMX `revealed` to load the next page. Filter and sort live in the URL
-  (`/library/albums?filter=partial&sort=artist`), so it can be bookmarked.
+  the listen history and wishlist for the chips) in a function outside `web/`
+  (`library_albums.py`), the album tile, and HTMX `revealed` to load the next page. Filter and
+  sort live in the URL (`/library/albums?filter=partial&sort=artist`), so it can be bookmarked.
 
 Ideas that turn it into a player (queues, editing, genre browsing, statistics) stay out under
 the Non-goals and "Decided against".
@@ -526,10 +527,8 @@ needs something new (the album page's header) gets a function outside `web/`.
   only the other artists on it. There's no ⋯ on the header, as it has nothing to hold yet
   (*MusicBrainz* is a button), and *Change* (the release types) is a sheet on the artist's page
   while `/artists` keeps its fold until U5. The ‹ › script moved to `_shelf_script.html`.
-- **U5 Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
-  wishlist's segments and plain rows, with the item's sections now only on the album page. The
-  Library tab has no mockup yet: mock it up (phone and desktop, on the Direction A page) when U5
-  starts, from the tile, shelf and grid as built by then.
+- **U5 ✅ Library and Wishlist.** The Library tab's shelves, *All albums*, artists and scan; the
+  wishlist's segments and plain rows, with the item's sections now only on the album page.
   - ✅ **The wishlist:** segments *To buy* / *Bought* / *To look up* (`?show=look-up`, with the
     quick capture box at its top) and plain rows (`.row`), each with one action and a ⋯ menu
     (*Follow*, *Open on MusicBrainz*, *Remove*). Notes, editions and where to buy are only on the
@@ -537,7 +536,24 @@ needs something new (the album page's header) gets a function outside `web/`.
     `heard`, else its notes, on one line, since a filed capture lands in the notes; an item found
     in the library says *Mark bought* instead of *Bought it*, its date moving to the album page;
     the badges are the ones albums have elsewhere, plus *Out 14 Nov* for one not out yet.
-  - **The Library tab:** next, starting with its mockup.
+  - ✅ **Artist names link to their pages** on album tiles and wishlist rows: the cover and title
+    open the album, each credited artist their page (`follows.credit_links`).
+  - ✅ **The Library tab** (`library_albums.py`, mocked up on the Direction A page): *Never
+    played*, *Partial* and *Not played lately* shelves over *All albums*, which is `/library`'s
+    first page and, with a filter or a sort, `/library/albums`, so a chip or a sort on Library
+    opens that page instead of filtering in place. Rediscover now draws from the same
+    `library_albums.albums`. Decided in place: each filter has its own default order, the shelf's
+    (*Never played* mixed, *Partial* best covered, *Not played lately* longest since played; an
+    album played before the history began counts as longest). *Mixed* spreads each artist's
+    albums evenly through the list, in an order fixed for the day: a first scan dates nearly
+    everything alike, so *Recently added* came out as A–Z, one artist at a time, and ties in
+    the other two are mixed for the same reason; a chip with nothing in
+    it isn't offered, but a bookmark to one says so; library tiles are `quiet`, so they say only
+    what wants attention and not what their filter already says. *Never played* keeps its list
+    by artist as links, not folds, since the grid has the titles. Following rows keep the types
+    line in the row, not the ⋯ menu, so *Change* updates in place, and with that every *Change*
+    is a sheet. Artists' pictures in *Artists* come from their albums in the library alone.
+    `/library/scan` is new; `/library/status` and the `POST` are where they were.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and *Save for
   later* under the bar, with *To look up* as plain rows and *Look it up* filling the bar (see
