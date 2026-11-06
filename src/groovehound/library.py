@@ -466,6 +466,29 @@ def owned_last[T](things: Iterable[T], owned: Iterable[str], mbid: Callable[[T],
     return [t for t in things if mbid(t) not in owned] + [t for t in things if mbid(t) in owned]
 
 
+@dataclass(frozen=True)
+class Problems:
+    """What a scan couldn't use, for the Scan page."""
+
+    untagged: list[tuple[str, int]]  # folders, with how many files
+    no_release_group: list[LibraryRelease]
+    unreadable: list[LibraryFile]
+
+    @property
+    def count(self) -> int:
+        return len(self.untagged) + len(self.no_release_group) + len(self.unreadable)
+
+
+def problems(store: Store, user_id: int) -> Problems:
+    """What the latest scan couldn't use (no requests)."""
+    untagged = store.library_files(user_id, tagged=False)
+    return Problems(
+        untagged_folders(untagged),
+        [r for r in store.library(user_id) if not r.release_group_mbid],
+        [f for f in untagged if f.problem],
+    )
+
+
 def untagged_folders(files: Iterable[LibraryFile]) -> list[tuple[str, int]]:
     """Folders with files that have no album id, and how many, by folder."""
     counts: dict[str, int] = {}

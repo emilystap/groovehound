@@ -102,7 +102,7 @@ def test_library_tab_and_suggestions(tmp_path: Path, monkeypatch):
     client = TestClient(create_app(settings_for(tmp_path)))
     with Store(tmp_path / "groovehound.db") as store:
         owning(store)
-    assert 'In your library <span class="muted">(2)</span>' in client.get("/artists").text
+    assert 'Artists <span class="muted">(2)</span>' in client.get("/artists").text
     page = " ".join(client.get("/artists/library").text.split())
     assert "Artists to follow?" in page and f'id="suggested-follow-{GUEST}"' in page
     assert "3 in your library · not checked yet" in page

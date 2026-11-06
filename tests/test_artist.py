@@ -150,8 +150,7 @@ def test_release_types_are_a_sheet_that_works_without_javascript(tmp_path: Path,
     page = " ".join(client.get(here).text.split())
     assert "New releases: Albums, EPs ·" in page and f'popovertarget="types-{ARTIST}"' in page
     assert f'id="types-{ARTIST}" popover' in page
-    assert '<details class="edit"' not in page  # that's the list of artists
-    assert "For Albums, EPs" in client.get("/artists").text
+    assert "New releases: Albums, EPs ·" in client.get("/artists").text
 
     back = client.post(f"{here}/types", data={"type": ["album"], "next": here})
     assert back.status_code == 303 and back.headers["location"] == here

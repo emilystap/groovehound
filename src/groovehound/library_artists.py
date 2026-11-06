@@ -162,15 +162,15 @@ def names(
     """An artist's name and sort name: as followed, else from their cached browse, else as the
     files name them (a release with them alone as album artist, if there is one)."""
     if follow is not None:
-        return follow.name, follow.sort_name or _sort_name(follow.name)
+        return follow.name, follow.sort_name or sort_name(follow.name)
     if found is not None:
-        return found.artist.name, found.artist.sort_name or _sort_name(found.artist.name)
+        return found.artist.name, found.artist.sort_name or sort_name(found.artist.name)
     alone = Counter(r.artist for r in releases if len(r.album_artist_mbids) == 1 and r.artist)
     name = alone.most_common(1)[0][0] if alone else releases[0].artist or "Unknown artist"
-    return name, _sort_name(name)
+    return name, sort_name(name)
 
 
-def _sort_name(name: str) -> str:
+def sort_name(name: str) -> str:
     """Roughly MusicBrainz's sort name, when it isn't known: "The Clash" as "Clash"."""
     return name[4:] if name.casefold().startswith("the ") else name
 

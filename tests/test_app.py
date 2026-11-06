@@ -58,8 +58,10 @@ def test_home_and_healthz(tmp_path: Path):
         ("/rediscover", "Home", "Rediscover"),
         ("/search", "Search", "Search"),
         ("/library", "Library", "Library"),
-        ("/artists", "Library", "Artists"),
-        ("/artists/library", "Library", "Artists"),
+        ("/library/albums", "Library", "All albums"),
+        ("/library/scan", "Library", "Scan"),
+        ("/artists", "Library", "Library"),
+        ("/artists/library", "Library", "Library"),
         ("/wishlist", "Wishlist", "Wishlist"),
     ],
 )

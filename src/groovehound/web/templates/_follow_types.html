@@ -1,7 +1,6 @@
 {# Which release group types a follow is for (roadmap 2b), on the artist pages; empty when not
    following. Sent out of band (`oob`) after following or unfollowing there, so it shows up or
-   goes away with the button. `sheet`: one line with *Change*, which opens the form as a sheet
-   (the artist's own page); otherwise it folds open in place (the list of artists). Without
+   goes away with the button. One line with *Change*, which opens the form as a sheet. Without
    JavaScript the form posts normally and comes back. #}
 {% set result %}{% if error %}<span class="follow-error small">{{ error }}</span>{% elif saved %}<span class="muted small">Saved.</span>{% endif %}{% endset %}
 {% set form %}
@@ -21,11 +20,10 @@
   </fieldset>
   <input type="hidden" name="next" value="{{ here }}">
   <button type="submit">Save</button>
-  {% if not sheet %}{{ result }}{% endif %}
 </form>
 {% endset %}
 <div class="follow-types" id="follow-types-{{ mbid }}"{% if oob %} hx-swap-oob="true"{% endif %}>
-  {% if follow and sheet %}
+  {% if follow %}
   <p class="types-line muted small">
     New releases: {{ types_label(follow.types) }} ·
     <button type="button" class="link" popovertarget="types-{{ mbid }}">Change</button>
@@ -36,10 +34,5 @@
     {{ form }}
     <button type="button" class="menu-close" popovertarget="types-{{ mbid }}" popovertargetaction="hide">Close</button>
   </div>
-  {% elif follow %}
-  <details class="edit"{% if error or saved %} open{% endif %}>
-    <summary>For {{ types_label(follow.types) }}</summary>
-    {{ form }}
-  </details>
   {% endif %}
 </div>

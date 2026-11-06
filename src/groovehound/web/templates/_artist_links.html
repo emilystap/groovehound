@@ -1,0 +1,2 @@
+{# A credit (`text`), with each of its artists (`credits`) linking to their page. #}
+{% for piece, mbid in credit_links(text, credits) %}{% if mbid %}<a href="/artists/{{ mbid }}">{{ piece }}</a>{% else %}{{ piece }}{% endif %}{% endfor %}

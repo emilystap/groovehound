@@ -171,7 +171,7 @@ def test_types_form_on_the_artist_pages(tmp_path: Path, monkeypatch):
     gone = client.post(f"/artists/{ARTIST}/unfollow", data={"next": "/search"}, headers=hx).text
     assert "follow-types" not in gone
     client.post(f"/artists/{ARTIST}/follow")
-    assert "For Albums, EPs" in client.get("/artists").text
+    assert "New releases: Albums, EPs ·" in client.get("/artists").text
 
     # none of albums, EPs and singles: refused, nothing changed
     refused = client.post(
@@ -206,7 +206,7 @@ def test_follow_types_from_the_config(tmp_path: Path, monkeypatch):
     followed = client.post(
         f"/artists/{ARTIST}/follow", data={"next": "/artists"}, headers={"HX-Request": "true"}
     )
-    assert "For Albums, EPs, Singles" in followed.text
+    assert "New releases: Albums, EPs, Singles ·" in " ".join(followed.text.split())
     assert len(opener.requests) == 2
     with pytest.raises(ValueError, match="at least one"):
         create_app(settings_for(tmp_path, follow_types=("live",)))

@@ -56,6 +56,7 @@
     {# The album page has its title in its header instead #}
     {% block appbar %}
     <header class="appbar">
+      {% block back %}{% endblock %}
       <h1>{% block heading %}Groovehound{% endblock %}</h1>
       {# a page's one or two actions (Shuffle, links to its other pages), when it has any #}
       {% set actions = self.actions() %}

@@ -435,8 +435,9 @@ def test_cli_scan(
 
 def test_library_page_without_a_folder(tmp_path: Path):
     client = TestClient(create_app(settings_for(tmp_path)))
-    page = client.get("/library").text
-    assert "No music folder yet" in page
+    assert "Nothing in your library yet" in client.get("/library").text
+    page = client.get("/library/scan").text
+    assert "No music folder yet" in page and "Rescan" not in page
     assert client.post("/library/scan").status_code == 404
 
 
@@ -447,7 +448,7 @@ def test_library_page_and_rescan(tmp_path: Path):
     settings = settings_for(tmp_path, library_path=root)
     app = create_app(settings)
     client = TestClient(app)
-    assert "Not scanned yet" in client.get("/library").text
+    assert "Not scanned yet" in client.get("/library/scan").text
 
     status = client.post("/library/scan", headers={"HX-Request": "true"}).text
     assert 'hx-trigger="every 3s"' in status and "Scanning" in status
@@ -455,13 +456,14 @@ def test_library_page_and_rescan(tmp_path: Path):
 
     app.state.scanner.run_once(full=True)  # what the background thread would do
     app.state.scanner._asked = False
-    page = client.get("/library").text
+    page = client.get("/library/scan").text
+    assert 'action="/library/scan"' in page and "Rescan" in page
     assert "1 release (1 album) from 3 files" in " ".join(page.split())
     assert "Last scanned" in page and "every 3s" not in page
     assert "<code>Loose</code>" in page
 
     response = client.post("/library/scan", follow_redirects=False)
-    assert response.status_code == 303 and response.headers["location"] == "/library"
+    assert response.status_code == 303 and response.headers["location"] == "/library/scan"
 
 
 # --- "In your library" (5b) ---------------------------------------------------------------

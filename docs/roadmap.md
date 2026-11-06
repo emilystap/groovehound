@@ -414,7 +414,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     guessed at by name; unreadable files are listed with why. A release with an album id but no
     release group id is listed too and will match wishlist editions only; resolving it would
     cost a lookup per release, so it's left alone.
-  - **When:** on demand (*Rescan* on the Library page, a full scan in the background, the page
+  - **When:** on demand (*Rescan* on the Scan page, a full scan in the background, the page
     showing progress; `groovehound scan`) and on a trickle of its own (it runs without a
     contact, unlike 2c's): a random 1-3 hours asleep, then a walk of the folder (a `stat` per
     file) reading at most 2,000 changed files. A missing folder, or one with no audio files
@@ -451,7 +451,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
 - 5e ✅ **Unplayed.** With a ListenBrainz username: your all-time listen counts per release
   group (`/1/stats/user/<name>/release-groups`, `range=all_time`; public, no token), kept in a
   per-user `listened` table (`listens.py`). Library minus played = unplayed: *never played* next
-  to *In your library* wherever an album shows, and on the Library page how many albums were
+  to *In your library* wherever an album shows, and in *All albums* how many albums were
   never played, by album artist (most first, each folding out its titles).
   - **Requests:** fetched by 2c's trickle after 4a, cached raw for a randomized 22–26 hours; a
     page holds 1,000 release groups (`count=1000`), longer lists are paged with `offset`, up to
@@ -460,7 +460,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
     The artist stats aren't fetched: what's played per artist follows from these (5f too).
   - **Checked 2026-11-02:** the lists aren't cut to a top N. All 238 release groups of a real
     user came back in one request, down to those played once, so no export is needed. 6 of the
-    238 had no release group (listens ListenBrainz couldn't link), and the Library page says
+    238 had no release group (listens ListenBrainz couldn't link), and *Never played* says
     those, and songs linked to another album (a compilation, a single), don't count.
   - **Played also counts 5f's listen history** (decided 2026-11-02): in a real snapshot, 38
     library albums with 279 listens in the history were missing from the stats, which had
@@ -580,7 +580,7 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
   (today's `/artists`) and *In your library* (`/artists/library`), built from the `library`
   table's album artist MBIDs, sorted by sort name, each with how many of their release groups
   you have, a *Follow* button and a link to their artist page. Files with no album artist id
-  aren't listed (they're already on the Library page).
+  aren't listed (they're already on the Scan page).
   - **Missing releases:** the artist page already lists every album and EP with *In your
     library* badges (5b); for an artist in the library it adds a *Missing only* toggle (local,
     no requests) and a count, "You have 7 of 12".
