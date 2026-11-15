@@ -608,8 +608,8 @@ only phase 1 and could move earlier; 5d needs phase 2; 5f works best with phases
 - 5k **Tracks** (needs 5a/5b; `tracks.py`): see which songs of an album you have, mostly for
   albums you own only part of. **Backend done** (scan, partial counts, editions, cached lookup);
   the track list and badges wait for the UI overhaul (decided 2026-11-02), which gives albums a
-  page of their own where the track list belongs, with track lists fetched ahead of time for the
-  albums Groovehound shows (see `docs/ui-roadmap.md`, "Album pages").
+  page of their own where the track list belongs, listed from your files or loaded on view (see
+  `docs/ui-roadmap.md`, "Album pages").
   - **Scan:** also read *MusicBrainz Release Track Id* and *MusicBrainz Track Id* (the
     recording) into `library_files`; a migration, and every file read once more after it (local
     only, no requests). Matching by recording means a song you own on a compilation or a single
@@ -714,7 +714,7 @@ mirror is the operator's to set up and keep running; Groovehound only talks to i
 (`/ws/2`), like any MusicBrainz server, and never to its database. Without a mirror nothing here
 changes.
 
-- 7a **Setting it up** (`docs/mirror.md`, written from a real build): what musicbrainz-docker
+- 7a ✅ **Setting it up** (`docs/mirror.md`, written from a real build, 2026-11-14): what musicbrainz-docker
   needs (with indexed search its README recommends 16 threads, 16 GB of RAM and 350 GB of disk;
   4 GB and 100 GB without), the pre-built search indexes (about 60 GB to download) rather than
   a reindex, replication with a MetaBrainz access token, live indexing (marked experimental
@@ -799,6 +799,13 @@ See "Non-goals". Each entry gives the date and the reason.
   API, a build and signing to keep up, for little gain: now playing comes from the server (5l),
   and the one thing a web page can't do, sending Symfonium's broadcasts, takes a small bridge
   app (5m), not a whole one.
+- **Track lists ahead of time** ("tracks ahead", a trickle planned with U2, 2026-11-14): it
+  would have fetched the track lists for the wishlist, Home's shelves and the library in the
+  background, ~800 requests of backlog for ~600 albums and then ~30–60 a day, to spare the
+  2.5–4 s an album page takes to load one from musicbrainz.org. From a mirror of your own the
+  same load took 0.07–0.16 s (median, 52 albums), and track lists from your files already
+  cover most of the library, so every album loads on view instead. Fewer requests either way;
+  revisit only if the wait on musicbrainz.org proves a nuisance.
 
 ## Open questions
 

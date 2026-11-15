@@ -142,8 +142,8 @@ item's folded sections move to, so wishlist rows can be as plain as any other.
   *Mark bought* / *Bought it*, *Remove*.
 - **Where to buy** and **Editions** (1c, 1g), as today, loaded when opened.
 
-**Requests** (decided 2026-11-02): **albums Groovehound shows you are prepared ahead of time;
-albums you look up yourself load on view.** The header is built from what's already stored:
+**Requests** (decided 2026-11-02, revised 2026-11-14): **the header comes from what's stored;
+the track list from your files or the cache, else on view.** The header is built from what's already stored:
 whichever of the wishlist, library, cached browses, feeds, playlists and recommendations knows
 the release group (every link to the page comes from one of them). The track list, editions and
 buy links come from two cached responses: 1g's releases browse (`inc=media labels url-rels`, plus `release-groups artist-credits`:
@@ -159,27 +159,19 @@ default from the browse.
   still comes first; an edition you have only part of still needs the lookup, to show what's
   missing. The same counts give *8 of 12 tracks* for any library album whose tags say how
   many, with no browse cached.
-- **Tracks ahead** (a trickle like 2e's, its own thread beside `covers_ahead.py`): fetches
-  those responses in the background for, in this order, the wishlist; the albums on Home's
-  shelves (new and upcoming releases, recommendations, personal fresh releases, the generated
-  playlists, and Rediscover's whole pool, since *Shuffle* draws from all of it); then the rest
-  of the library. An album with a known edition needs only the lookup; others need the browse,
-  then the lookup. A random 20–60 min asleep, then at most ~10 requests; refreshed after the
-  same randomized 30–60 days; nothing without a contact or while MusicBrainz is paused.
-  Estimated for a library of ~600 albums: ~800 requests of backlog (2–3 days at that pace),
-  then ~30–60 a day, mostly the playlists' and recommendations' turnover. The library tier
-  skips editions listed from their files, so most of its ~600 go: only partial albums, and
-  files whose tags don't give the counts, are left.
-- **On view**, for an album the trickle hasn't reached or never will (a search result, a
-  non-followed artist's album): the browse and then the lookup, loaded after the page has shown
-  (HTMX, `hx-trigger="load"`) with a placeholder track list, about 2.5–4 s behind the limiter.
-  An explicit click, like opening an artist page; cached 30–60 days like the rest. A release
-  group no stored data knows (a pasted URL) gets the editions browse first, which names it
-  (`inc=release-groups artist-credits`) for the header.
+- **On view**, for every album whose track list isn't cached or listed from its files: the
+  browse and then the lookup, loaded after the page has shown (HTMX, `hx-trigger="load"`) with
+  a placeholder track list. An explicit click, like opening an artist page; cached 30–60 days
+  like the rest. A release group no stored data knows (a pasted URL) gets the editions browse
+  first, which names it (`inc=release-groups artist-credits`) for the header. About 2.5–4 s
+  behind musicbrainz.org's limiter; from a mirror of your own at `interval = 0`, 0.07–0.16 s
+  (median) and at most 0.39 s, measured 2026-11-14 on 52 albums of a real database.
+- **No tracks ahead** (decided 2026-11-14; see "Decided against" in `docs/roadmap.md`): the
+  planned trickle that would have fetched those responses in the background for the wishlist,
+  Home's shelves and the library (~800 requests of backlog for ~600 albums, then ~30–60 a day)
+  isn't built.
 
-This replaces 5k's "only when *Tracks* is opened". If the trickle's volume ever seems too much,
-the first things to trim are what's left of the library tier and Daily Jams (most of the daily
-turnover).
+This replaces 5k's "only when *Tracks* is opened".
 
 ### Artist pages
 
@@ -481,8 +473,7 @@ needs something new (the album page's header) gets a function outside `web/`.
   cards), `.primary` takes the accent, and light `--owned` is `#237a36` (AA on `--surface`).
 - **U2 The album page, with 5k's tracks.** `/albums/<mbid>`, the track list, *8 of 12 tracks*
   badges, and every album title linking to it. The wishlist item keeps its sections for now;
-  the album page shows them too. Tracks ahead (above) is its own backend PR, before or after
-  the page: without it, every album loads on view.
+  the album page shows them too.
   - ✅ **The page** (`album.py`): the header from what's stored, the tinted band, *Tracks*
     (loaded after the page shows when not cached; `?edition=` shows another edition's), *Your
     copy*, the wishlist item (its forms post plainly and come back), *Editions* and *Where to
@@ -494,9 +485,9 @@ needs something new (the album page's header) gets a function outside `web/`.
   - ✅ **Track lists from your files** (above): decided after the page landed, to take most of
     the library tier out of tracks ahead before it starts. Migration 16 reads every file once
     more (local only).
-  - **Tracks ahead**: the trickle. Held on 2026-11-04 until the MusicBrainz mirror is running:
-    on-view loading from a mirror may be fast enough to shrink it or drop it, and its ~800
-    request backlog shouldn't go to musicbrainz.org a day or two before that's known.
+  - **Tracks ahead**: dropped on 2026-11-14 (held since 2026-11-04 until the mirror was
+    running). From a mirror the track list loads on view in a fraction of a second, so the
+    trickle's ~800 request backlog isn't worth it; see "Album pages" above.
 - **U3 ✅ Home as shelves.** Home absorbs Discover and Rediscover; `/discover` and `/rediscover`
   become *See all* grids. `shelves.py` turns every source into `Tile`s and `Shelf`s; one
   partial (`_album_tile.html`) replaces the four album rows of those pages, with `_shelf.html`,
@@ -576,7 +567,7 @@ the artist photos and biographies (above) come with it or just after, on the sam
 - **Every action still works without JavaScript:** each form posts normally and comes back
   (`next`). A test per new form or menu item posts it without HTMX headers and follows the
   redirect.
-- New logic outside `web/` (the album page's header, tracks ahead, the tint, local search
+- New logic outside `web/` (the album page's header, the tint, local search
   matching, re-ranking) gets its own tests, with recorded responses only; never the network.
 - **Previews:** run the app on a copy of a real database (never the original), with no contact
   set so nothing reaches MetaBrainz, and check each page at phone width and at desktop width, in
@@ -591,6 +582,8 @@ Decided 2026-11-02:
 3. Album pages at `/albums/<mbid>`, and every album links there instead of to MusicBrainz.
 4. Track lists are fetched ahead of time for the wishlist, Home's albums and the library (a
    trickle); anything else loads on view (the editions browse, then the track lookup).
+   Revised 2026-11-14: no trickle; every track list not cached or listed from its files loads
+   on view.
 5. 5k's track list goes on the album page; *8 of 12 tracks* on library albums' tiles and rows
    (Library's *Partial* shelf, the artist page, the album page), from the cached responses or
    the files' tags. An edition you have whole is listed from its files, with no request.
@@ -625,8 +618,8 @@ Gathered from the "Check first" notes above; settle each before the phase that n
   Checked 2026-11-02 on the 135 covers in a copy of a real database: 133 got a tint (two
   near-monochrome ones didn't), and the bands came out muted and close to the mockup's (greys
   for black-and-white covers, browns for skin tones, a dark teal for a pale blue one).
-- **Before tracks ahead (with U2):** the trickle's real volume against the estimate (~800
-  requests of backlog, then ~30–60 a day), from its first days' logs.
+- ✅ **Before tracks ahead (with U2):** no longer needed, as the trickle was dropped on
+  2026-11-14 (on-view loading from a mirror took 0.07–0.16 s per album, median).
 - **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
   case: the album should come first), and whether free-text song searches need more than the
   hint to add the artist.
