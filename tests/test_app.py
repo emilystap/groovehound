@@ -6,12 +6,12 @@ from fastapi.testclient import TestClient
 
 from groovehound.brainz import musicbrainz
 from groovehound.config import Settings, load_settings
-from groovehound.db import OWNER_ID, Store, local_date
+from groovehound.db import OWNER_ID, Follow, Store, local_date
 from groovehound.web import create_app
 
 from .conftest import FakeOpener, settings_for
-from .test_brainz import ARTIST, mb_client
-from .test_search import R1, RECORDINGS, RG
+from .test_brainz import ARTIST, mb_client, params
+from .test_search import ARTISTS, R1, RECORDINGS, RELEASE_GROUPS, RG
 
 
 def test_settings_precedence(tmp_path: Path):
@@ -126,7 +126,7 @@ def test_search_page_without_a_title_makes_no_request(tmp_path: Path, monkeypatc
     opener = search_app(tmp_path, monkeypatch)
     client = TestClient(create_app(settings_for(tmp_path)))
     page = client.get("/search").text
-    assert 'name="title"' in page
+    assert 'name="q"' in page and 'enterkeyhint="search"' in page
     assert opener.requests == []
 
 
@@ -206,6 +206,60 @@ def test_search_without_a_contact_explains_and_makes_no_request(tmp_path: Path, 
     client = TestClient(create_app(Settings(database_path=tmp_path / "db.sqlite")))
     assert "Not connected" in client.get("/search", params={"title": "x"}).text
     assert opener.requests == []
+
+
+def test_the_bar_reads_title_by_artist_and_can_search_the_words(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RELEASE_GROUPS, RELEASE_GROUPS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/search", params={"q": "brat by charli xcx"}).text
+    assert "Albums called “brat” by “charli xcx”." in page
+    assert 'href="/search?q=brat+by+charli+xcx&amp;kind=album&amp;words=1"' in page
+    words = client.get("/search", params={"q": "brat by charli xcx", "words": "1"}).text
+    assert [params(r)["query"] for r in opener.requests] == [
+        ['releasegroup:"brat" AND artist:"charli xcx"'],
+        ["brat by charli xcx"],
+    ]
+    assert "Albums called" not in words
+    assert 'id="hit-' + RG + '"' in words and "front-250" in words  # a row, the archive's cover
+
+
+def test_the_artist_box_and_old_links_search_the_fields(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RECORDINGS, RECORDINGS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get(
+        "/search", params={"q": "360", "kind": "song", "box": "1", "artist": "charli"}
+    ).text
+    assert 'name="box" value="1" checked' in page and 'name="artist" value="charli"' in page
+    assert "Songs are found much better" not in page
+    client.get("/search", params={"kind": "song", "title": "360 by x", "artist": "charli"})
+    assert [params(r)["query"] for r in opener.requests] == [
+        ['recording:"360" AND artist:"charli"'],
+        ['recording:"360 by x" AND artist:"charli"'],  # the old form: the box, never split
+    ]
+
+
+def test_a_song_title_alone_gets_the_hint(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, RECORDINGS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/search", params={"q": "360", "kind": "song", "artist": "left over"}).text
+    assert "Songs are found much better with the artist" in page
+    assert params(opener.requests[0])["query"] == ['recording:"360"']  # the box is closed
+
+
+def test_searching_for_artists(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch, ARTISTS)
+    client = TestClient(create_app(settings_for(tmp_path)))
+    page = client.get("/search", params={"q": "gorillaz", "kind": "artist", "box": "1"}).text
+    assert params(opener.requests[0])["query"] == ['artist:"gorillaz"']
+    assert 'value="artist" checked' in page
+    assert 'name="box" value="1"' in page and 'name="box" value="1" checked' not in page
+    assert f'href="/artists/{ARTIST}"' in page and "Artist · Group · GB · virtual band" in page
+    assert f'action="/artists/{ARTIST}/follow"' in page
+    assert ">GO<" in page or ">G<" in page  # a monogram, as no cover is cached
+    with Store(tmp_path / "groovehound.db") as store:
+        store.follow(OWNER_ID, Follow(ARTIST, "Gorillaz"))
+    page = client.get("/search", params={"q": "gorillaz", "kind": "artist"}).text
+    assert "✓ Following" in page and len(opener.requests) == 1
 
 
 def wishlist_app(tmp_path: Path) -> tuple[TestClient, int]:
@@ -378,10 +432,9 @@ def test_a_shared_song_fills_in_the_search_without_searching(tmp_path: Path, mon
         },
     ).text
     assert 'value="song" checked' in page
-    assert 'name="title" value="Stand by Me"' in page
-    assert 'name="artist" value="Ben E. King"' in page
+    assert 'name="q" value="Stand by Me by Ben E. King"' in page  # split when searched
     assert "Shared to Groovehound" in page
-    assert opener.requests == []  # you still press Search
+    assert opener.requests == []  # you still press Enter
 
 
 def test_a_share_that_does_not_parse_fills_in_quick_capture(tmp_path: Path):

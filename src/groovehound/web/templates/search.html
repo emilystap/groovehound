@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{% if title %}{{ title }} · {% endif %}Search · Groovehound{% endblock %}
+{% from "_icons.html" import icon %}
+{% block title %}{% if q %}{{ q }} · {% endif %}Search · Groovehound{% endblock %}
 {% block heading %}Search{% endblock %}
 {% block content %}
 {% if contact_problem %}
@@ -11,7 +12,7 @@
 
 {% if prefilled %}
 <section class="card looking-up" id="share-banner">
-  <p class="muted small">Shared to Groovehound: check the title and artist, then press <em>Search</em>.</p>
+  <p class="muted small">Shared to Groovehound: check what's in the bar, then press Enter.</p>
 </section>
 {% endif %}
 
@@ -23,59 +24,74 @@
 </section>
 {% endif %}
 
-<section class="card">
-  <h2>Find something you heard</h2>
-  {# A plain GET form: one search per press (no search-as-you-type), and the results page can be
-     reloaded or returned to without asking MusicBrainz again (the answer is cached). #}
-  <form class="search" method="get" action="/search">
-    <fieldset class="kinds">
-      <legend class="muted small">Looking for</legend>
-      <label><input type="radio" name="kind" value="album" {% if kind == "album" %}checked{% endif %}> an album</label>
-      <label><input type="radio" name="kind" value="song" {% if kind == "song" %}checked{% endif %}> a song</label>
+{# One bar, as a plain GET form: one search per Enter (no search-as-you-type), and the results
+   page can be reloaded or returned to without asking MusicBrainz again (the answer is cached).
+   The hidden Search button comes first, so Enter submits even with the artist box showing. The
+   artist box is a checkbox: CSS shows its field, and the server reads it (`box`). A chip
+   changed with something typed searches again (one request, as pressing Enter would). #}
+<form class="searchbar" method="get" action="/search" role="search">
+  <button type="submit" class="visually-hidden" tabindex="-1">Search</button>
+  <label class="bar">
+    {{ icon("search") }}
+    <input type="search" name="q" value="{{ q }}" maxlength="200" autocomplete="off"
+           enterkeyhint="search" placeholder="Albums, songs, artists"
+           aria-label="{% if box %}Title{% else %}Albums, songs, artists{% endif %}"
+           {% if not q or prefilled %}autofocus{% endif %}>
+    {% if q %}<a class="bar-clear" href="/search" aria-label="Clear">{{ icon("close") }}</a>{% endif %}
+  </label>
+  <label class="bar artist-field">
+    <span class="bar-label">Artist</span>
+    <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"
+           enterkeyhint="search">
+  </label>
+  <div class="bar-options">
+    <fieldset class="kinds" onchange="if (this.form.q.value.trim()) this.form.requestSubmit()">
+      <legend class="visually-hidden">Search for</legend>
+      {% for value, label in [("album", "Albums"), ("song", "Songs"), ("artist", "Artists")] %}
+      <label><input type="radio" name="kind" value="{{ value }}" {% if kind == value %}checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
     </fieldset>
-    <label>Title <input type="search" name="title" value="{{ title }}" required maxlength="200"
-                        autocomplete="off" {% if not title %}autofocus{% endif %}></label>
-    <label><span>Artist <span class="muted small">(optional)</span></span>
-      <input type="search" name="artist" value="{{ artist }}" maxlength="200" autocomplete="off"></label>
-    {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
-    <button type="submit" class="primary" {% if prefilled %}autofocus{% endif %}>Search</button>
-  </form>
-</section>
+    <label class="box-toggle"><input type="checkbox" name="box" value="1" {% if box %}checked{% endif %}><span class="box-open">Artist box</span><span class="box-close">Fewer options</span></label>
+  </div>
+  {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
+</form>
 
 {% if error %}
 <section class="card notice"><p>{{ error }}</p></section>
 {% endif %}
 
-{% if hits is not none %}
-<section class="card">
-  <h2>{% if kind == "song" %}Albums with this song{% else %}Albums{% endif %}</h2>
-  {% if not hits %}
+{% if reading and reading.how == "by" and found is not none %}
+<p class="reading">{% if kind == "song" %}Songs{% else %}Albums{% endif %} called “{{ reading.title }}” by “{{ reading.artist }}”.
+  <a href="{{ words_url }}">Search the words instead</a></p>
+{% endif %}
+
+{% if found is not none %}
+<section class="results">
+  <div class="section-head">
+    <h2>On MusicBrainz</h2>
+    <span class="muted small">{% if kind == "song" %}albums with this song{% elif kind == "artist" %}artists{% else %}searched on Enter{% endif %}</span>
+  </div>
+  {% if not hits and not artists %}
   <p class="muted">Nothing found on MusicBrainz. Try fewer words, or check the spelling.</p>
+  {% elif kind == "artist" %}
+  <ul class="rows-list">
+    {% for found_artist in artists %}{% include "_search_artist.html" %}{% endfor %}
+  </ul>
   {% else %}
-  <ul class="hits">
-    {% for hit in hits %}
-    <li class="hit">
-      {% with mbid = hit.mbid %}{% include "_cover.html" %}{% endwith %}
-      <div class="hit-body">
-        <a class="hit-title" href="/albums/{{ hit.mbid }}">{{ hit.title }}</a>
-        <div>{{ hit.artist_credit }}</div>
-        <div class="muted small">
-          {{ hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
-          {% if hit.songs %} · has “{{ hit.songs | join("”, “") }}”{% endif %}
-        </div>
-        {% with mbid = hit.mbid %}{% include "_owned.html" %}{% endwith %}
-        {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% include "_follow_row.html" %}{% endwith %}
-        {% with saved = hit.mbid in saved_ids %}{% include "_wishlist_button.html" %}{% endwith %}
-      </div>
-    </li>
-    {% endfor %}
+  <ul class="rows-list">
+    {% for hit in hits %}{% include "_search_album.html" %}{% endfor %}
   </ul>
   {% endif %}
+  {% if reading.how == "title" %}
+  <p class="hint">Songs are found much better with the artist: type “title by artist”, or open the artist box.</p>
+  {% endif %}
 </section>
+{% elif not q %}
+<p class="hint">Press Enter to search MusicBrainz: one search each time. “Title by artist” searches the two apart, which finds an album best.</p>
 {% endif %}
 
 {# Already looking up a capture: it's saved, and saving a result files it. #}
-{% if title and (hits is not none or error) and not capture %}
+{% if q and (found is not none or error) and not capture %}
 {% include "_capture_search.html" %}
 {% endif %}
 {% endblock %}

@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -53,7 +53,7 @@ from ..config import Settings
 from ..covers_ahead import CoverFetcher
 from ..db import OWNER_ID, Store, User, WishlistItem, local_date, local_time, utcnow
 from ..reconcile import Reconciler
-from ..search import KINDS, clean, search
+from ..search import KINDS, clean, read, search
 from ..share import parse_share
 
 MAX_NOTES = 2000  # characters of a wishlist item's notes
@@ -494,15 +494,25 @@ def create_app(settings: Settings) -> FastAPI:
         request: Request,
         store: StoreDep,
         user: UserDep,
+        q: str = "",
         kind: str = "album",
-        title: str = "",
         artist: str = "",
+        box: str = "",
+        words: str = "",
         capture: int | None = None,
+        title: str = "",
     ) -> HTMLResponse:
-        """The search form; with a title, one MusicBrainz search (or its cached answer). With
-        `capture`, it's looking up that quick capture: its text is shown, and saving a result
-        files it on the item."""
-        return search_page_for(request, store, user, kind, title, artist, capture)
+        """The search bar; with something typed, one MusicBrainz search (or its cached answer),
+        read as `search.read` says. `box=1`: the artist box is open (`artist`); `words=1`:
+        don't split at " by ". With `capture`, it's looking up that quick capture: its text is
+        shown, and saving a result files it on the item. `title` (with `artist`) is the old
+        form's, for links made before the one bar: it opens the artist box."""
+        if title and not q:
+            q, box = title, "1" if artist else box
+        return search_page_for(
+            request, store, user, kind, q, artist, box=box == "1", words=words == "1",
+            capture=capture,
+        )  # fmt: skip
 
     @app.get("/share", response_class=HTMLResponse)
     def share(
@@ -516,10 +526,11 @@ def create_app(settings: Settings) -> FastAPI:
         """Something shared to Groovehound from Android's share sheet (the manifest's
         `share_target`). "<song> by <artist>", as Now Playing shares it, gives the song search
         filled in; anything else, the quick capture form filled in. Nothing is searched or saved
-        until you press the button, so a bad guess can be fixed first."""
+        until you press Enter or the button, so a bad guess can be fixed first."""
         found = parse_share(title, text, url)
         if found:
-            return search_page_for(request, store, user, "song", *found, run=False)
+            song, by = found
+            return search_page_for(request, store, user, "song", f"{song} by {by}", run=False)
         draft = " ".join(" ".join((title, text, url)).split())[:MAX_CAPTURE]
         return home_page(request, store, user, draft)
 
@@ -528,45 +539,61 @@ def create_app(settings: Settings) -> FastAPI:
         store: Store,
         user: User,
         kind: str,
-        title: str,
-        artist: str,
+        q: str,
+        by: str = "",
+        *,
+        box: bool = False,
+        words: bool = False,
         capture: int | None = None,
         run: bool = True,
     ) -> HTMLResponse:
-        """The search page; it searches only if `run` (and there's a title)."""
+        """The search page; it searches only if `run` (and something's typed)."""
         kind = kind if kind in KINDS else "album"
-        title, artist = clean(title), clean(artist)
+        q, by = clean(q), clean(by)
+        box = box and kind != "artist"
         contact_problem = _contact_problem(settings)
-        hits, error = None, None
-        if run and title and not contact_problem:
+        reading = read(kind, q, by, box=box, words=words) if q else None
+        found, error = None, None
+        if run and reading and not contact_problem:
             try:
-                hits = search(
-                    store,
-                    musicbrainz.client_for(settings),
-                    musicbrainz.PAUSE,
-                    kind,
-                    title,
-                    artist,
-                )
+                found = search(store, musicbrainz.client_for(settings), musicbrainz.PAUSE, reading)
             except ServiceError as exc:
                 error = str(exc)
+        hits = found.hits if found else []
+        artists = found.artists if found else []
+        words_query = {"q": q, "kind": kind, "words": "1"}
+        if capture is not None:
+            words_query["capture"] = str(capture)
         return templates.TemplateResponse(
             request,
             "search.html",
             {
                 "page": "search",
                 "kind": kind,
-                "title": title,
-                "artist": artist,
+                "q": q,
+                "artist": by if box else "",
+                "box": box,
+                "reading": reading,
+                "found": found,
                 "hits": hits,
+                "artists": artists,
+                "words_url": "/search?" + urlencode(words_query),
                 "error": error,
                 "contact_problem": contact_problem,
                 "capture": store.capture(user.id, capture) if capture is not None else None,
-                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits or ())),
-                **owned_context(store, user, (h.mbid for h in hits or ())),
+                "saved_ids": store.wishlisted(user.id, (h.mbid for h in hits)),
+                **owned_context(store, user, (h.mbid for h in hits)),
                 "followed": store.followed(
-                    user.id, (a for h in hits or () for a in h.artist_mbids)
+                    user.id,
+                    (*(a for h in hits for a in h.artist_mbids), *(a.mbid for a in artists)),
                 ),
+                "pictures": artist.pictures(store, user.id, artists),
+                "library_albums": {
+                    a.mbid: len(
+                        {r.release_group_mbid for r in store.library_of_artist(user.id, a.mbid)}
+                    )
+                    for a in artists
+                },
                 "prefilled": not run,
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),

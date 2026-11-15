@@ -1,0 +1,26 @@
+{% from "_icons.html" import icon %}
+{# An artist search result (`found_artist`), as a plain row: a round picture from covers already
+   cached (no requests; else their initials), their name opening their page, *Follow* inline,
+   *Open on MusicBrainz* in the ⋯ menu. #}
+{% set picture = pictures[found_artist.mbid] %}
+{% set have = library_albums[found_artist.mbid] %}
+{% set row = "artist-" ~ found_artist.mbid %}
+<li class="row artist-row" id="{{ row }}">
+  <div class="row-link">
+    <a class="row-cover" href="/artists/{{ found_artist.mbid }}" tabindex="-1" aria-hidden="true">{% include "_artist_picture.html" %}</a>
+    <span class="row-names">
+      <a class="row-title" href="/artists/{{ found_artist.mbid }}">{{ found_artist.name }}</a>
+      <span class="row-detail">Artist{% if found_artist.detail %} · {{ found_artist.detail }}{% endif %}</span>
+    </span>
+  </div>
+  <div class="row-extra">
+    {% if have %}<div class="badges"><span class="badge">{{ have }} album{{ "s" if have != 1 }} in your library</span></div>{% endif %}
+    {% with artist = found_artist, following = found_artist.mbid in followed, link = false, error = none %}{% include "_follow_button.html" %}{% endwith %}
+  </div>
+  <button type="button" class="row-more" popovertarget="menu-{{ row }}" aria-label="More for {{ found_artist.name }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-{{ row }}" popover>
+    <p class="menu-title">{{ found_artist.name }}</p>
+    <a class="menu-item" href="{{ musicbrainz_web }}/artist/{{ found_artist.mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+    <button type="button" class="menu-close" popovertarget="menu-{{ row }}" popovertargetaction="hide">Close</button>
+  </div>
+</li>

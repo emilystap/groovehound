@@ -7,9 +7,14 @@ from groovehound.brainz.http import ServiceError, ServicePause
 from groovehound.db import Store
 from groovehound.search import (
     SEARCH_TTL,
+    Hit,
+    Reading,
+    artist_hits,
     clean,
+    read,
     recording_hits,
     release_group_hits,
+    rerank,
     search,
 )
 
@@ -127,54 +132,161 @@ def store_at(tmp_path: Path) -> Store:
     return Store(tmp_path / "db.sqlite")
 
 
+def album(title: str, artist: str = "") -> Reading:
+    return read("album", title, artist, box=bool(artist))
+
+
 def test_search_is_cached_for_a_day(tmp_path: Path):
     opener = FakeOpener(RELEASE_GROUPS)
     client, pause = mb_client(opener), ServicePause()
     with store_at(tmp_path) as store:
-        first = search(store, client, pause, "album", "Brat ", "charli  XCX", now=NOW)
-        again = search(store, client, pause, "album", "brat", "Charli xcx", now=NOW)
-        assert first == again
+        first = search(store, client, pause, album("Brat ", "charli  XCX"), now=NOW)
+        again = search(store, client, pause, read("album", "brat by Charli xcx"), now=NOW)
+        assert first.hits == again.hits  # split at " by ", the same fields
         (request,) = opener.requests
         assert params(request)["query"] == ['releasegroup:"Brat" AND artist:"charli XCX"']
 
         songs = FakeOpener(RECORDINGS)  # a song search with the same words is another request
-        assert search(store, mb_client(songs), pause, "song", "brat", "charli xcx", now=NOW)
-        assert len(songs.requests) == 1
+        found = search(store, mb_client(songs), pause, read("song", "brat by charli xcx"), now=NOW)
+        assert found.hits and len(songs.requests) == 1
 
         later = FakeOpener(RELEASE_GROUPS)
-        search(store, mb_client(later), pause, "album", "brat", "charli xcx", now=NOW + SEARCH_TTL)
+        search(store, mb_client(later), pause, album("brat", "charli xcx"), now=NOW + SEARCH_TTL)
         assert len(later.requests) == 1
+
+
+def test_free_text_is_its_own_search(tmp_path: Path):
+    opener = FakeOpener(RELEASE_GROUPS, RELEASE_GROUPS)
+    client, pause = mb_client(opener), ServicePause()
+    with store_at(tmp_path) as store:
+        words = read("album", "brat charli: (xcx) AND more")
+        assert words.how == "words"
+        search(store, client, pause, words, now=NOW)
+        search(
+            store, client, pause, read("album", "brat charli: (xcx) and more", box=True), now=NOW
+        )
+        assert [params(r)["query"] for r in opener.requests] == [
+            [r"brat charli\: \(xcx\) and more"],  # escaped, "AND" a word
+            ['releasegroup:"brat charli: (xcx) and more"'],  # the box open, though empty
+        ]
+        search(store, client, pause, words, now=NOW)  # cached
+        assert len(opener.requests) == 2
+
+
+def test_artists_are_searched_by_name(tmp_path: Path):
+    opener = FakeOpener(ARTISTS)
+    with store_at(tmp_path) as store:
+        found = search(
+            store, mb_client(opener), ServicePause(), read("artist", "Gorillaz by"), now=NOW
+        )
+    assert params(opener.requests[0])["query"] == ['artist:"Gorillaz by"']  # never split
+    assert opener.requests[0].full_url.split("?")[0].endswith("/ws/2/artist")
+    assert [a.name for a in found.artists] == ["Gorillaz", "Jazz Gorillaz"]
+    assert found.hits == []
 
 
 def test_old_searches_are_dropped(tmp_path: Path):
     pause = ServicePause()
     with store_at(tmp_path) as store:
-        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, "album", "old", now=NOW)
+        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, album("old", "x"), now=NOW)
         later = NOW + timedelta(days=30)
-        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, "album", "new", now=later)
-        assert store.cached("musicbrainz", "search-release-group", "old\x1f") is None
+        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, album("new", "x"), now=later)
+        assert store.cached("musicbrainz", "search-release-group", "oldx") is None
 
 
 def test_failure_pauses_searching_but_not_the_cache(tmp_path: Path):
     clock = FakeClock()
     pause = ServicePause(clock=clock)
     with store_at(tmp_path) as store:
-        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, "album", "cached", now=NOW)
+        search(
+            store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, read("album", "cached"), now=NOW
+        )
         with pytest.raises(ServiceError):
-            search(store, mb_client(FakeOpener(500)), pause, "album", "fails", now=NOW)
+            search(store, mb_client(FakeOpener(500)), pause, read("album", "fails"), now=NOW)
         assert pause.remaining() == 3600
         refused = FakeOpener()
         with pytest.raises(ServiceError, match="paused"):
-            search(store, mb_client(refused), pause, "album", "other", now=NOW)
+            search(store, mb_client(refused), pause, read("album", "other"), now=NOW)
         assert refused.requests == []
-        assert search(store, mb_client(refused), pause, "album", "cached", now=NOW)
+        assert search(store, mb_client(refused), pause, read("album", "cached"), now=NOW).hits
         clock.now += 3600
-        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, "album", "other", now=NOW)
+        search(store, mb_client(FakeOpener(RELEASE_GROUPS)), pause, read("album", "other"), now=NOW)
 
 
-def test_search_rejects_bad_input(tmp_path: Path):
-    with store_at(tmp_path) as store:
-        with pytest.raises(ValueError):
-            search(store, mb_client(FakeOpener()), ServicePause(), "artist", "x")
-        with pytest.raises(ValueError):
-            search(store, mb_client(FakeOpener()), ServicePause(), "album", "   ")
+@pytest.mark.parametrize(
+    ("args", "kw", "expected"),
+    [
+        (("album", "Demon Days by Gorillaz"), {}, Reading("album", "Demon Days", "Gorillaz", "by")),
+        (("album", "Stand by Me by Ben E. King"), {},
+         Reading("album", "Stand by Me", "Ben E. King", "by")),
+        (("album", "Stand by Me by Ben E. King"), {"words": True},
+         Reading("album", "Stand by Me by Ben E. King", how="words")),
+        (("album", "demon  days gorillaz"), {},
+         Reading("album", "demon days gorillaz", how="words")),
+        (("song", "feel good inc"), {}, Reading("song", "feel good inc", how="title")),
+        (("song", "Stand by Me", "Ben E. King"), {"box": True},
+         Reading("song", "Stand by Me", "Ben E. King", "fields")),
+        (("album", "brat", "ignored"), {}, Reading("album", "brat", how="words")),  # box closed
+        (("artist", "Simon by Garfunkel", "x"), {"box": True},
+         Reading("artist", "Simon by Garfunkel", how="name")),
+    ],
+)  # fmt: skip
+def test_reading_what_was_typed(args, kw, expected):
+    assert read(*args, **kw) == expected
+
+
+def test_search_rejects_bad_input():
+    with pytest.raises(ValueError):
+        read("label", "x")
+    with pytest.raises(ValueError):
+        read("album", "   ")
+
+
+def hit(title: str, score: int, primary: str = "Album", *secondary: str, n: int = 1) -> Hit:
+    return Hit(title, title, "", primary_type=primary, secondary_types=secondary, score=score,
+               release_count=n)  # fmt: skip
+
+
+def test_rerank_puts_the_album_first():
+    # "demon days gorillaz" as free text, as a mirror answered it on 2026-11-14
+    found = rerank([
+        hit("remix", 100, "Single", "Remix"),
+        hit("single", 57, "Single"),
+        hit("album", 57, n=32),
+        hit("live", 40, "Album", "Live", n=3),
+        hit("someone else", 35, "Single"),
+        hit("ep", 52, "EP"),
+        hit("other", 55, "Other"),
+    ])  # fmt: skip
+    assert [h.title for h in found] == [
+        "album", "ep", "single", "other", "remix", "live", "someone else"
+    ]  # fmt: skip
+    assert rerank([]) == []
+
+
+def test_rerank_breaks_ties_by_editions():
+    found = rerank([hit("few", 100, n=1), hit("many", 100, n=39), hit("higher", 100, n=39)])
+    assert [h.title for h in found] == ["many", "higher", "few"]
+
+
+def test_release_group_hits_keep_score_and_editions():
+    data = {"release-groups": [{"id": RG, "title": "Brat", "score": "97", "count": 25}]}
+    (found,) = release_group_hits(data)
+    assert (found.score, found.release_count) == (97, 25)
+
+
+ARTISTS = {
+    "count": 2,
+    "artists": [
+        {"id": ARTIST, "name": "Gorillaz", "type": "Group", "country": "GB",
+         "disambiguation": "virtual band", "score": 100},
+        {"id": GUEST, "name": "Jazz Gorillaz", "score": 68},
+        {"name": "no id, skipped"},
+    ],
+}  # fmt: skip
+
+
+def test_artist_hits():
+    first, second = artist_hits(ARTISTS)
+    assert first.detail == "Group · GB · virtual band"
+    assert second.detail == ""

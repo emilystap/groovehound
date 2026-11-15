@@ -13,9 +13,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlsplit
 
-from .search import clean
-
-BY = " by "
+from .search import split_by
 
 
 def parse_share(*fields: str) -> tuple[str, str] | None:
@@ -28,16 +26,9 @@ def parse_share(*fields: str) -> tuple[str, str] | None:
     candidates = [line for line in lines if not _is_link(line)]
     candidates += [q for line in lines if (q := _query(line))]
     for line in candidates:
-        if found := _split(line):
+        if found := split_by(line):
             return found
     return None
-
-
-def _split(line: str) -> tuple[str, str] | None:
-    title, by, artist = clean(line).rpartition(BY)
-    if not by or not title.strip() or not artist.strip():
-        return None
-    return clean(title), clean(artist)
 
 
 def _is_link(line: str) -> bool:

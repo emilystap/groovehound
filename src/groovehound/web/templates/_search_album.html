@@ -1,0 +1,39 @@
+{% from "_icons.html" import icon %}
+{# An album search result (`hit`), as a plain row: its cover and title open its album page. The
+   cover comes straight from the Cover Art Archive at 250 px (results are seen once), unless it's
+   in your library, whose covers the server has. *Add to wishlist* inline (with an edition select
+   for songs), *Follow* and the rest in its ⋯ menu. Every form posts normally without JavaScript
+   and comes back (`next`). #}
+{% set mbid = hit.mbid %}
+{% set part = (partial or {}).get(mbid) %}
+{% set row = "hit-" ~ mbid %}
+<li class="row" id="{{ row }}">
+  <div class="row-link">
+    <a class="row-cover" href="/albums/{{ mbid }}" tabindex="-1" aria-hidden="true"><img src="{% if mbid in owned %}/cover/{{ mbid }}{% else %}https://coverartarchive.org/release-group/{{ mbid }}/front-250{% endif %}" alt="" width="56" height="56" loading="lazy" onerror="this.remove()"></a>
+    <span class="row-names">
+      <a class="row-title" href="/albums/{{ mbid }}">{{ hit.title }}</a>
+      <span class="row-artist">{% with text = hit.artist_credit, credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% include "_artist_links.html" %}{% endwith %}</span>
+      <span class="row-detail">
+        {{- hit.type_label or "Unknown type" }}{% if hit.first_release_date %} · {{ hit.first_release_date }}{% endif %}
+        {%- if hit.songs %} · has “{{ hit.songs | join("”, “") }}”{% endif -%}
+      </span>
+    </span>
+  </div>
+  <div class="row-extra">
+    {% if mbid in owned %}
+    <div class="badges">
+      <span class="badge">In your library</span>
+      {% if mbid in (unplayed or ()) %}<span class="badge">Never played</span>{% endif %}
+      {% if part %}<span class="badge">{{ part.have }} of {{ part.of }} tracks</span>{% endif %}
+    </div>
+    {% endif %}
+    {% with saved = mbid in saved_ids, chip = true %}{% include "_wishlist_button.html" %}{% endwith %}
+  </div>
+  <button type="button" class="row-more" popovertarget="menu-{{ row }}" aria-label="More for {{ hit.title }}">{{ icon("more") }}</button>
+  <div class="menu" id="menu-{{ row }}" popover>
+    <p class="menu-title">{{ hit.title }}</p>
+    {% with credits = followable(hit.artist_mbids, hit.artist_names, hit.artist_credit) %}{% if credits %}{% include "_follow_row.html" %}{% endif %}{% endwith %}
+    <a class="menu-item" href="{{ musicbrainz_web }}/release-group/{{ mbid }}" rel="noopener" target="_blank"><span>Open on MusicBrainz</span>{{ icon("external") }}</a>
+    <button type="button" class="menu-close" popovertarget="menu-{{ row }}" popovertargetaction="hide">Close</button>
+  </div>
+</li>
