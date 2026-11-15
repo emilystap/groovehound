@@ -114,15 +114,15 @@ def test_dismissing_from_a_tile_comes_back_without_javascript(tmp_path: Path):
     assert f'id="next-{rg(2)}"' not in client.get("/").text
 
 
-def test_quick_capture_from_home(tmp_path: Path):
+def test_to_look_up_from_home(tmp_path: Path):
     client = TestClient(create_app(settings_for(tmp_path)))
-    quick_capture = '<a class="button" href="/wishlist?show=look-up">Quick capture</a>'
-    assert quick_capture in client.get("/").text
-    client.post("/captures", data={"text": "sax song"})
+    assert "/wishlist?show=look-up" not in client.get("/").text  # nothing waiting
+    client.post("/captures", data={"q": "sax song", "save": "1"})
     page = client.get("/").text
-    assert "To look up · 1" in page and "sax song" not in page  # the list is on the wishlist
+    assert '<a class="button" href="/wishlist?show=look-up">To look up · 1</a>' in page
+    assert "sax song" not in page  # the list is on the wishlist
     shared = client.get("/share", params={"text": "something odd"}).text
-    assert 'value="something odd"' in shared  # shared text still waits in the form
+    assert 'name="q" value="something odd"' in shared  # a share opens Search
 
 
 def test_the_new_page(tmp_path: Path):

@@ -10,17 +10,17 @@
 </section>
 {% endif %}
 
-{% if prefilled %}
+{% if shared %}
 <section class="card looking-up" id="share-banner">
-  <p class="muted small">Shared to Groovehound: check what's in the bar, then press Enter.</p>
+  <p class="muted small">{% if shared == "song" %}Shared to Groovehound: check what's in the bar, then press Enter, or save it for later.
+    {%- else %}Shared to Groovehound, but it doesn't read as “song by artist”: edit it and press Enter, or save it for later.{% endif %}</p>
 </section>
 {% endif %}
 
 {% if capture %}
 <section class="card looking-up" id="capture-banner">
-  <p class="muted small">Looking up what you wrote down on {{ capture.captured_at | local_date }}:</p>
-  <p class="capture-text">{{ capture.text }}</p>
-  <p class="muted small">Saving a result to your wishlist puts this in its notes.</p>
+  <p class="muted small">Looking up what you wrote down on {{ capture.captured_at | local_date }}{% if prefilled %}: press Enter to search{% endif %}.
+    Saving a result to your wishlist puts it in its notes.</p>
 </section>
 {% endif %}
 
@@ -53,6 +53,15 @@
     </fieldset>
     <label class="box-toggle"><input type="checkbox" name="box" value="1" {% if box %}checked{% endif %}><span class="box-open">Artist box</span><span class="box-close">Fewer options</span></label>
   </div>
+  {# Saves whatever is typed, with no request to MusicBrainz: a second submit button, posting
+     the bar's fields to /captures. Not while looking up something already saved. #}
+  {% if not capture %}
+  <div class="bar-save">
+    <button type="submit" class="secondary" name="save" value="1" formaction="/captures" formmethod="post"
+            hx-post="/captures" hx-target="#saved-note" hx-swap="outerHTML" hx-disabled-elt="this">{{ icon("bookmark") }}<span>Save for later</span></button>
+    {% with saved = saved_capture %}{% include "_saved_note.html" %}{% endwith %}
+  </div>
+  {% endif %}
   {% if capture %}<input type="hidden" name="capture" value="{{ capture.id }}">{% endif %}
 </form>
 

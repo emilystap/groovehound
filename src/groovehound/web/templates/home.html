@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block heading %}Home{% endblock %}
-{# Quick capture is the wishlist's *To look up*, and on Search's top from U6; until then this is
-   the way to it from here even with nothing waiting. #}
-{% block actions %}<a class="button" href="/wishlist?show=look-up">{% if captures %}To look up · {{ captures | length }}{% else %}Quick capture{% endif %}</a>{% endblock %}
+{# What's saved for later waits on the wishlist's *To look up*: the way to it from here, only
+   with something waiting (saving is on Search). #}
+{% block actions %}{% if captures %}<a class="button" href="/wishlist?show=look-up">To look up · {{ captures | length }}</a>{% endif %}{% endblock %}
 {% block content %}
 {% if contact_problem %}
 <section class="card notice">
@@ -12,9 +12,6 @@
     can be reached. It's only sent to them, in the User-Agent.</p>
 </section>
 {% endif %}
-
-{# Shared to Groovehound, but not as "song by artist": it's waiting in the form. #}
-{% if draft %}{% include "_captures.html" %}{% endif %}
 
 {% for shelf in shelves %}{% include "_shelf.html" %}{% endfor %}
 

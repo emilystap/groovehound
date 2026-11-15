@@ -51,9 +51,9 @@ from ..brainz.http import NotFound, ServiceError, validate_contact
 from ..brainz.musicbrainz import is_mbid
 from ..config import Settings
 from ..covers_ahead import CoverFetcher
-from ..db import OWNER_ID, Store, User, WishlistItem, local_date, local_time, utcnow
+from ..db import OWNER_ID, Capture, Store, User, WishlistItem, local_date, local_time, utcnow
 from ..reconcile import Reconciler
-from ..search import KINDS, clean, read, search
+from ..search import KINDS, clean, from_saved, read, saved_text, search
 from ..share import parse_share
 
 MAX_NOTES = 2000  # characters of a wishlist item's notes
@@ -148,8 +148,8 @@ def create_app(settings: Settings) -> FastAPI:
     def home(request: Request, store: StoreDep, user: UserDep) -> HTMLResponse:
         return home_page(request, store, user)
 
-    def home_page(request: Request, store: Store, user: User, draft: str = "") -> HTMLResponse:
-        """The home page (no requests); with `draft`, the quick capture form is filled in."""
+    def home_page(request: Request, store: Store, user: User) -> HTMLResponse:
+        """The home page (no requests)."""
         lb_user = _listenbrainz_user(user)
         found = shelves.home(store, user.id, lb_user)
         return templates.TemplateResponse(
@@ -164,7 +164,6 @@ def create_app(settings: Settings) -> FastAPI:
                 "captures": store.captures(user.id),
                 "listenbrainz_user": lb_user,
                 **tiles_context(store, user, shelves.all_tiles(found)),
-                "draft": draft,
                 "here": "/",
             },
         )
@@ -500,18 +499,25 @@ def create_app(settings: Settings) -> FastAPI:
         box: str = "",
         words: str = "",
         capture: int | None = None,
+        saved: int | None = None,
         title: str = "",
     ) -> HTMLResponse:
         """The search bar; with something typed, one MusicBrainz search (or its cached answer),
         read as `search.read` says. `box=1`: the artist box is open (`artist`); `words=1`:
-        don't split at " by ". With `capture`, it's looking up that quick capture: its text is
-        shown, and saving a result files it on the item. `title` (with `artist`) is the old
-        form's, for links made before the one bar: it opens the artist box."""
+        don't split at " by ". With `capture`, it's looking up that quick capture: *Look it up*
+        opens it with its text in the bar, not yet searched, and saving a result files it on
+        the item. `saved`: a capture just saved from the bar without JavaScript, to say so.
+        `title` (with `artist`) is the old form's, for links made before the one bar: it opens
+        the artist box."""
         if title and not q:
             q, box = title, "1" if artist else box
+        run = True
+        if capture is not None and not q and (found := store.capture(user.id, capture)):
+            (q, kind), run = from_saved(found.text), False
         return search_page_for(
             request, store, user, kind, q, artist, box=box == "1", words=words == "1",
-            capture=capture,
+            capture=capture, run=run,
+            saved=store.capture(user.id, saved) if saved is not None else None,
         )  # fmt: skip
 
     @app.get("/share", response_class=HTMLResponse)
@@ -524,15 +530,17 @@ def create_app(settings: Settings) -> FastAPI:
         url: str = "",
     ) -> HTMLResponse:
         """Something shared to Groovehound from Android's share sheet (the manifest's
-        `share_target`). "<song> by <artist>", as Now Playing shares it, gives the song search
-        filled in; anything else, the quick capture form filled in. Nothing is searched or saved
-        until you press Enter or the button, so a bad guess can be fixed first."""
+        `share_target`): always the search bar, filled in. "<song> by <artist>", as Now Playing
+        shares it, as a song; anything else as it came, with the albums chip. Nothing is
+        searched or saved until you press Enter or *Save for later*, so it can be fixed first."""
         found = parse_share(title, text, url)
         if found:
             song, by = found
-            return search_page_for(request, store, user, "song", f"{song} by {by}", run=False)
-        draft = " ".join(" ".join((title, text, url)).split())[:MAX_CAPTURE]
-        return home_page(request, store, user, draft)
+            return search_page_for(
+                request, store, user, "song", f"{song} by {by}", run=False, shared="song"
+            )
+        everything = " ".join((title, text, url))
+        return search_page_for(request, store, user, "album", everything, run=False, shared="text")
 
     def search_page_for(
         request: Request,
@@ -546,8 +554,11 @@ def create_app(settings: Settings) -> FastAPI:
         words: bool = False,
         capture: int | None = None,
         run: bool = True,
+        shared: str = "",
+        saved: Capture | None = None,
     ) -> HTMLResponse:
-        """The search page; it searches only if `run` (and something's typed)."""
+        """The search page; it searches only if `run` (and something's typed). `shared`:
+        "song" or "text", for a share's banner; `saved`: a capture just saved, to say so."""
         kind = kind if kind in KINDS else "album"
         q, by = clean(q), clean(by)
         box = box and kind != "artist"
@@ -595,6 +606,9 @@ def create_app(settings: Settings) -> FastAPI:
                     for a in artists
                 },
                 "prefilled": not run,
+                "shared": shared,
+                "saved_capture": saved,
+                "save_text": saved_text(q, by if box else "", kind),
                 "here": str(request.url.path)
                 + (f"?{request.url.query}" if request.url.query else ""),
             },
@@ -1133,15 +1147,34 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.post("/captures")
     async def add_capture(request: Request, store: StoreDep, user: UserDep) -> Response:
-        """Save free text to look up later. HTMX gets the quick capture card back (an empty
-        form and the updated list), or, from the search page (`from=search`), a note that it's
-        saved; a plain form post goes back to `next`."""
+        """Save free text to look up later (a quick capture). From the search bar's *Save for
+        later* (`save=1`, the bar's own fields: `search.saved_text`), HTMX gets a note that
+        it's saved and a plain post goes back to Search, saying so. From *Not what you were
+        looking for?* (`text`, `from=search`), HTMX gets that box saying it's saved; a plain
+        post goes back to `next`."""
         form = await _form(request)
-        text = " ".join(form.get("text", "").split())[:MAX_CAPTURE]
+        from_bar = form.get("save") == "1"
+        if from_bar:
+            kind = form.get("kind", "album")
+            box = form.get("box") == "1" and kind != "artist"
+            raw = saved_text(form.get("q", ""), form.get("artist", "") if box else "", kind)
+        else:
+            raw = form.get("text", "")
+        text = " ".join(raw.split())[:MAX_CAPTURE]
+        htmx = bool(request.headers.get("HX-Request"))
         if not text:
-            raise HTTPException(400, "nothing to save")
-        store.add_capture(user.id, text)
-        if request.headers.get("HX-Request") and form.get("from") == "search":
+            if not from_bar:
+                raise HTTPException(400, "nothing to save")
+            if htmx:
+                return templates.TemplateResponse(request, "_saved_note.html", {"empty": True})
+            return RedirectResponse("/search", status_code=303)
+        capture_id = store.add_capture(user.id, text)
+        if from_bar:
+            if htmx:
+                saved = store.capture(user.id, capture_id)
+                return templates.TemplateResponse(request, "_saved_note.html", {"saved": saved})
+            return RedirectResponse(f"/search?saved={capture_id}", status_code=303)
+        if htmx and form.get("from") == "search":
             return templates.TemplateResponse(
                 request, "_capture_search.html", {"saved": True, "text": text}
             )

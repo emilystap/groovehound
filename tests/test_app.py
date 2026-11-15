@@ -383,40 +383,75 @@ def test_home_shows_the_newest_of_the_wishlist(tmp_path: Path, monkeypatch):
     assert '<a href="/wishlist" aria-label="See all of On your wishlist">' in page
 
 
-def test_quick_capture_and_remove(tmp_path: Path):
+def test_save_for_later_and_remove(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch)
     client = TestClient(create_app(settings_for(tmp_path)), follow_redirects=False)
-    assert "Quick capture" in client.get("/").text and "To look up" not in client.get("/").text
+    assert "To look up" not in client.get("/").text  # nothing waiting, nothing on Home
+    page = client.get("/search").text
+    assert 'formaction="/captures" formmethod="post"' in page and "Save for later" in page
 
-    saved = client.post("/captures", data={"text": "  sax song   at the café ", "next": "/"})
-    assert (saved.status_code, saved.headers["location"]) == (303, "/")
-    card = client.post(
-        "/captures", data={"text": "x" * 600, "next": "/wishlist"}, headers={"HX-Request": "1"}
+    bar = {"q": "  sax song   at the café ", "kind": "album", "save": "1"}
+    saved = client.post("/captures", data=bar)  # without JavaScript: back to Search
+    assert saved.status_code == 303 and saved.headers["location"].startswith("/search?saved=")
+    assert "Saved “sax song at the café” for later" in client.get(saved.headers["location"]).text
+    note = client.post(
+        "/captures",
+        data={"q": "360", "kind": "song", "box": "1", "artist": "charli", "save": "1"},
+        headers={"HX-Request": "1"},
     )
-    assert card.text.lstrip().startswith("<section")
-    assert 'value="/wishlist"' in card.text
-    # the count on the wishlist's tab follows; on Home there's no tab to update
-    assert 'hx-swap-oob="true"' in card.text and 'To look up <span class="muted">(2)' in card.text
-    home = client.post("/captures", data={"text": "x", "next": "/"}, headers={"HX-Request": "1"})
-    assert "hx-swap-oob" not in home.text
+    assert note.text.lstrip().startswith('<p class="saved-note"')
+    assert "Saved “360 by charli (song)” for later" in note.text
+    closed = {"q": "gorillaz", "kind": "artist", "box": "1", "artist": "x", "save": "1"}
+    client.post("/captures", data=closed)  # the box doesn't apply to artists
+    empty = client.post("/captures", data={"q": "  ", "save": "1"}, headers={"HX-Request": "1"})
+    assert "Type what you heard first" in empty.text
+    assert client.post("/captures", data={"q": "", "save": "1"}).headers["location"] == "/search"
     assert client.post("/captures", data={"text": "   "}).status_code == 400
+    client.post("/captures", data={"text": "x" * 600, "from": "search", "next": "/search"})
+    assert opener.requests == []  # saving asks MusicBrainz nothing
 
     with Store(tmp_path / "groovehound.db") as store:
-        long, sax, *_ = sorted(store.captures(OWNER_ID), key=lambda c: -len(c.text))
-    assert sax.text == "sax song at the café" and len(long.text) == 500
+        long, *rest = sorted(store.captures(OWNER_ID), key=lambda c: -len(c.text))
+    assert len(long.text) == 500
+    sax = next(c for c in rest if c.text == "sax song at the café")
+    assert {c.text for c in rest} == {"sax song at the café", "360 by charli (song)",
+                                      "gorillaz (artist)"}  # fmt: skip
+    assert "To look up · 4" in client.get("/").text
     look_up = "/wishlist?show=look-up"
-    assert "sax song at the café" in client.get(look_up).text
+    page = client.get(look_up).text
+    assert "sax song at the café" in page and f'href="/search?capture={sax.id}"' in page
+    assert 'class="row capture-row"' in page and "Quick capture" not in page
     assert "sax song" not in client.get("/wishlist").text
     assert "sax song" not in client.get("/wishlist", params={"show": "bought"}).text
 
-    removed = client.post(f"/captures/{sax.id}/remove", data={"next": look_up})
+    listed = client.post(
+        f"/captures/{sax.id}/remove", data={"next": look_up}, headers={"HX-Request": "1"}
+    )
+    assert listed.text.lstrip().startswith('<div id="captures">') and "sax song" not in listed.text
+    assert 'hx-swap-oob="true"' in listed.text
+    assert 'To look up <span class="muted">(3)' in listed.text
+    removed = client.post(f"/captures/{long.id}/remove", data={"next": look_up})
     assert (removed.status_code, removed.headers["location"]) == (303, look_up)
     assert client.post(f"/captures/{sax.id}/remove").status_code == 404
     with Store(tmp_path / "groovehound.db") as store:
-        assert long in store.captures(OWNER_ID) and sax not in store.captures(OWNER_ID)
+        left = store.captures(OWNER_ID)
+        assert len(left) == 2
         store.conn.execute("INSERT INTO users (id, name, created_at) VALUES (2, 'other', '')")
         store.conn.commit()
-        assert store.captures(2) == [] and store.capture(2, long.id) is None
-        assert not store.remove_capture(2, long.id)
+        assert store.captures(2) == [] and store.capture(2, left[0].id) is None
+        assert not store.remove_capture(2, left[0].id)
+
+
+def test_nothing_to_look_up_points_to_search(tmp_path: Path):
+    page = TestClient(create_app(settings_for(tmp_path))).get("/wishlist?show=look-up").text
+    assert "Nothing to look up" in page and "<em>Save for later</em>" in page
+
+
+def test_the_launcher_shortcut_opens_search(tmp_path: Path):
+    client = TestClient(create_app(settings_for(tmp_path)))
+    (shortcut,) = client.get("/static/manifest.webmanifest").json()["shortcuts"]
+    assert (shortcut["name"], shortcut["url"]) == ("Save for later", "/search")
+    assert client.get(shortcut["icons"][0]["src"]).status_code == 200
 
 
 def test_a_shared_song_fills_in_the_search_without_searching(tmp_path: Path, monkeypatch):
@@ -437,12 +472,16 @@ def test_a_shared_song_fills_in_the_search_without_searching(tmp_path: Path, mon
     assert opener.requests == []  # you still press Enter
 
 
-def test_a_share_that_does_not_parse_fills_in_quick_capture(tmp_path: Path):
+def test_a_share_that_does_not_parse_fills_in_the_bar(tmp_path: Path, monkeypatch):
+    opener = search_app(tmp_path, monkeypatch)
     client = TestClient(create_app(settings_for(tmp_path)))
     page = client.get("/share", params={"title": "Look", "text": "sax song  at the café"}).text
-    assert 'value="Look sax song at the café"' in page and "Quick capture" in page
+    assert 'name="q" value="Look sax song at the café"' in page
+    assert 'value="album" checked' in page
+    assert "it doesn't read as “song by artist”" in page and "Save for later" in page
+    assert opener.requests == []
     with Store(tmp_path / "groovehound.db") as store:
-        assert store.captures(OWNER_ID) == []  # saved only when you press Save
+        assert store.captures(OWNER_ID) == []  # saved only when you press Save for later
 
 
 def test_looking_up_a_capture_files_it_on_the_item(tmp_path: Path, monkeypatch):
@@ -453,8 +492,16 @@ def test_looking_up_a_capture_files_it_on_the_item(tmp_path: Path, monkeypatch):
         other_id = store.add_capture(OWNER_ID, "something else")
 
     page = client.get("/search", params={"capture": capture_id}).text
-    assert "Looking up what you wrote down" in page and "sax song at the café" in page
+    assert "Looking up what you wrote down" in page and "press Enter to search" in page
+    assert 'name="q" value="sax song at the café"' in page  # in the bar, not searched yet
     assert f'name="capture" value="{capture_id}"' in page and opener.requests == []
+    assert 'formaction="/captures"' not in page  # it's saved already
+    with Store(tmp_path / "groovehound.db") as store:
+        song_id = store.add_capture(OWNER_ID, "360 by Charli xcx (song)")
+    page = client.get("/search", params={"capture": song_id}).text
+    assert 'name="q" value="360 by Charli xcx"' in page and 'value="song" checked' in page
+    with Store(tmp_path / "groovehound.db") as store:
+        store.remove_capture(OWNER_ID, song_id)
 
     params = {"kind": "song", "title": "360", "capture": capture_id}
     page = client.get("/search", params=params).text
@@ -534,8 +581,8 @@ def test_dates_are_shown_in_the_tz_time_zone(tmp_path: Path, monkeypatch):
     page = client.get("/wishlist").text
     assert "added 2026-11-01" in page and "2026-11-02" not in page
     page = client.get("/wishlist", params={"show": "look-up"}).text
-    assert "sax song</span>\n      <span" in page
-    assert "2026-11-01</span>" in page and "2026-11-02" not in page
+    assert "sax song</span>" in page
+    assert "Saved 2026-11-01</span>" in page and "2026-11-02" not in page
     with Store(tmp_path / "groovehound.db") as store:
         assert store.file_capture(OWNER_ID, capture.id, RG)
         assert store.wishlist_item(OWNER_ID, item_id).notes == "sax song (2026-11-01)"

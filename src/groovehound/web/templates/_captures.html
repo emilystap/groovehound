@@ -1,38 +1,40 @@
-{# Quick capture (roadmap 1d): a one-line form for when there's no time to search, and what's
-   waiting to be looked up. With HTMX, its forms replace this whole card; without JavaScript they
-   post normally and come back to the page (`next`). On the wishlist page this is the *To look up*
-   list; its tab's count follows out of band (`tabs_oob`). #}
-<section class="card" id="captures">
-  <h2>Quick capture</h2>
-  {% if draft %}
-  <p class="muted small">Shared to Groovehound, but it doesn't read as “song by artist”. Save it
-    to look up later, or edit it first.</p>
-  {% endif %}
-  <form class="capture" method="post" action="/captures"
-        hx-post="/captures" hx-target="#captures" hx-swap="outerHTML">
-    <input type="text" name="text" required maxlength="500" autocomplete="off"
-           value="{{ draft }}" {% if draft %}autofocus{% endif %} aria-label="What you heard" placeholder="e.g. song with the saxophone at the café">
-    <input type="hidden" name="next" value="{{ here }}">
-    <button type="submit">Save for later</button>
-  </form>
+{% from "_icons.html" import icon %}
+{# The wishlist's *To look up*: what was saved for later (quick captures, roadmap 1d) as plain
+   rows, each with *Look it up* (Search with it in the bar) and *Remove* in its ⋯ menu. Saving
+   is on Search (*Save for later*). With HTMX, *Remove* replaces this list and the tabs' count
+   follows out of band (`tabs_oob`); without JavaScript it posts normally and comes back. #}
+<div id="captures">
   {% if captures %}
-  <ul class="captures">
+  <ul class="rows-list">
     {% for capture in captures %}
-    <li>
-      <span class="capture-text">{{ capture.text }}</span>
-      <span class="muted small">{{ capture.captured_at | local_date }}</span>
-      <div class="actions">
-        <a class="button" href="/search?capture={{ capture.id }}">Look it up</a>
+    {% set row = "capture-" ~ capture.id %}
+    <li class="row capture-row" id="{{ row }}">
+      <div class="row-link">
+        <span class="row-names">
+          <span class="row-title capture-text">{{ capture.text }}</span>
+          <span class="row-detail">Saved {{ capture.captured_at | local_date }}</span>
+        </span>
+      </div>
+      <div class="row-extra">
+        <a class="button chip" href="/search?capture={{ capture.id }}">Look it up</a>
+      </div>
+      <button type="button" class="row-more" popovertarget="menu-{{ row }}" aria-label="More for {{ capture.text }}">{{ icon("more") }}</button>
+      <div class="menu" id="menu-{{ row }}" popover>
+        <p class="menu-title">{{ capture.text }}</p>
         <form method="post" action="/captures/{{ capture.id }}/remove"
               hx-post="/captures/{{ capture.id }}/remove" hx-target="#captures" hx-swap="outerHTML"
               hx-confirm="Forget “{{ capture.text }}”?">
           <input type="hidden" name="next" value="{{ here }}">
-          <button type="submit" class="secondary">Remove</button>
+          <button type="submit" aria-label="Remove {{ capture.text }}">Remove</button>
         </form>
+        <button type="button" class="menu-close" popovertarget="menu-{{ row }}" popovertargetaction="hide">Close</button>
       </div>
     </li>
     {% endfor %}
   </ul>
+  {% else %}
+  <p class="muted">Nothing to look up. When there's no time to search, type what you heard on
+    <a href="/search">Search</a> and press <em>Save for later</em>.</p>
   {% endif %}
-</section>
+</div>
 {% if tabs_oob %}{% with oob = true, show = "look-up" %}{% include "_wishlist_tabs.html" %}{% endwith %}{% endif %}

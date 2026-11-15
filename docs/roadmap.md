@@ -146,6 +146,9 @@ The core loop: hear something → find it → save it → buy it later.
   (and its date) into that item's notes and the capture is gone. No requests of its own.
   When a search doesn't find it, *Not what you were looking for?* below the results saves the
   query (editable, e.g. "360 by Charli xcx (song)") as a capture to come back to.
+  Since U6 (2026-11-14), saving is *Save for later* under the search bar, the list is the
+  wishlist's *To look up*, and *Look it up* puts the text in the bar (`docs/ui-roadmap.md`,
+  "Saving for later").
 - 1e ✅ **Installable on Android** (a Progressive Web App): a web app manifest (name, icons,
   theme colour, `display: standalone`) so Chrome's *Install app* puts Groovehound on the home
   screen and opens it in its own window, without the browser bar. Chrome only offers this
@@ -167,7 +170,8 @@ The core loop: hear something → find it → save it → buy it later.
   first. The share names only the main artist, not featured artists, which is fine: the
   artist field matches part of a credit ("Gwen Stefani" finds "Gwen Stefani feat. Eve").
   A share that doesn't parse lands in quick capture (1d) as free text, filled in but not saved
-  until you press *Save*. (`/share`, a GET `share_target`; parsing in `share.py`.)
+  until you press *Save*. Since U6 every share opens Search, with the text in the bar and
+  *Save for later* under it. (`/share`, a GET `share_target`; parsing in `share.py`.)
   Also here: the installed app's gesture bar takes the manifest's `theme_color` (checked on a
   Pixel, Chrome 156; `viewport-fit=cover` made no difference), and a manifest has one colour,
   so it's the dark top bar's. The page's `theme-color` still follows the theme for the status
