@@ -11,7 +11,7 @@
   <form class="capture" method="post" action="/captures"
         hx-post="/captures" hx-target="#capture-search" hx-swap="outerHTML">
     <input type="text" name="text" required maxlength="500" autocomplete="off" aria-label="What you heard"
-           value="{{ title }}{% if artist %} by {{ artist }}{% endif %} ({{ 'song' if kind == 'song' else 'album' }})">
+           value="{{ q }}{% if artist %} by {{ artist }}{% endif %} ({{ kind }})">
     <input type="hidden" name="from" value="search">
     <input type="hidden" name="next" value="{{ here }}">
     <button type="submit" class="secondary">Save for later</button>

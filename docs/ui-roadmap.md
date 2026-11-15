@@ -548,9 +548,34 @@ needs something new (the album page's header) gets a function outside `web/`.
 - **U6 Search** as one bar: local matches as you type (a query over the library and wishlist,
   outside `web/`), the three ways of reading what's typed, the local re-ranking, and *Save for
   later* under the bar, with *To look up* as plain rows and *Look it up* filling the bar (see
-  "Saving for later"). Then a last pass for anything still on the old CSS. Two pieces of "Saving
-  for later" needn't wait, as a small PR of their own any time before it: *Save for later* on a
-  shared search that hasn't run yet, and the launcher shortcut.
+  "Saving for later"). Then a last pass for anything still on the old CSS. Four PRs (planned
+  2026-11-14), each leaving `main` working:
+  1. ✅ **The one bar, on Enter.** One box with the *Albums* / *Songs* / *Artists* chips and
+     *Artist box*; the three ways of reading what's typed ("title by artist" with *Search the
+     words instead*, the artist box, free text), which needs a free-text query and artist
+     results in the client; the local re-ranking of album results; the hint for *Songs*
+     without an artist; results as plain rows on the new CSS. Still one cached search per
+     press. Starts with "Before U6" under "Still to check", run against a mirror of your own
+     rather than musicbrainz.org. Decided in place: `search.read` reads what's typed and
+     `search.rerank` orders album results (both outside `web/`); **songs never go as free
+     text**, a title alone is searched as a title with the hint; *Artists* is never split at
+     " by ". The chips are radios and *Artist box* a checkbox, so the bar works without
+     JavaScript (CSS shows the second box); a chip changed with something typed searches
+     again, one request as Enter would. A hidden *Search* button comes first in the form, so
+     Enter submits with two boxes showing (and PR 2's *Save for later* can be a second
+     button). Artist rows link to the artist page, with *Follow* inline and a picture from
+     covers already cached. `/search?title=…&artist=…` (links from before) opens the artist
+     box.
+  2. **Save for later** (the section above): the button under the bar, every share opening
+     Search (Home loses its capture form), *To look up* as plain rows with *Look it up*
+     filling the bar, and the launcher shortcut. Small; can come before or after 3.
+  3. **Local matches as you type:** a query over the library (albums and album artists) and the
+     wishlist, outside `web/`; *In your library* and *On your wishlist* groups after a 300 ms
+     pause, no requests. On desktop, the bar at the top of every page, opening Search as you
+     type.
+  4. **The last pass:** whatever is still on the old CSS goes.
+
+  Then 7b (below) adds an *On MusicBrainz* group under 3's local matches.
 - **Later, only with a mirror of your own: MusicBrainz as you type** (phase 7b in
   `docs/roadmap.md`, which has the details): an *On MusicBrainz* group under U6's local matches,
   on the same bar and debounce, re-ranked as U6's results are. Without a mirror, nothing
@@ -620,9 +645,18 @@ Gathered from the "Check first" notes above; settle each before the phase that n
   for black-and-white covers, browns for skin tones, a dark teal for a pale blue one).
 - ✅ **Before tracks ahead (with U2):** no longer needed, as the trickle was dropped on
   2026-11-14 (on-view loading from a mirror took 0.07–0.16 s per album, median).
-- **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
+- ✅ **Before U6:** how the local re-ranking treats real album searches (the "demon days gorillaz"
   case: the album should come first), and whether free-text song searches need more than the
-  hint to add the artist.
+  hint to add the artist. Checked 2026-11-14 on a mirror of your own (15 searches): as free
+  text, "demon days gorillaz" scored the 2021 remix single 100 and the album 57 (tied with a
+  single), so re-ranking only within equal scores wasn't enough. What works: results within
+  half the best score first, by type (albums, EPs, singles, other types, then anything live,
+  remixed or compiled), then score, then edition count (`count`); the rest after, as ranked.
+  That put *Demon Days*, *BITE ME*, *Nevermind*, *OK Computer* and *BRAT* first. A bare title
+  stays hopeless ("the dark side of the moon": a million matches, Pink Floyd not near the
+  top). Songs as free text found only covers and mashups ("feel good inc gorillaz"), while
+  the two fields found the original: so a song title alone goes as a title, never as free
+  text, with the hint. Artists ranked well as they are.
 - **Before the artist photos (with 5g):** whether `getArtistInfo2`'s image URLs point at
   Navidrome or straight at Deezer; how an artist is found by MusicBrainz id; the biographies'
   licence (Last.fm's are CC BY-SA, as far as known) and the credit to show.

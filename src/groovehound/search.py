@@ -1,15 +1,22 @@
-"""Search for something heard in the wild (roadmap 1a): an album by title, or a song by title to
-find the albums it's on.
+"""Search for something heard in the wild (roadmap 1a, read as one bar in U6): albums, the
+albums a song is on, or artists.
 
-One MusicBrainz search request per *Search* press, never as-you-type. The raw response is cached
-for `SEARCH_TTL`, so reloading the results page, going back to it, or pressing *Search* again with
-the same words doesn't ask again. A failed search starts `musicbrainz.PAUSE`, and while it runs only
+What's typed is read first (`read`), with no request: "title by artist" is split at the last
+" by " into the two fields, which ranks best; an open artist box gives the fields as typed; an
+album search with neither is sent as free text, which MusicBrainz matches against title and
+artist together. Songs never go as free text (it found covers and mashups, not the original:
+checked 2026-11-02 on musicbrainz.org and 2026-11-14 on a mirror), so a song title alone is
+searched as a title, with a hint to add the artist.
+
+One MusicBrainz search request per Enter, never as-you-type. The raw response is cached for
+`SEARCH_TTL`, so reloading the results page, going back to it, or pressing Enter again with the
+same words doesn't ask again. A failed search starts `musicbrainz.PAUSE`, and while it runs only
 cached results are shown.
 
-Results are release groups (the album, whatever the edition). A song search's response says
-enough about each edition (date, country, formats) for *Add to wishlist* to offer them; an album
-search's lists only id, title and status, so its editions are chosen later on the wishlist item
-(`releases.py`). Tags and ratings are CC BY-NC-SA and not used here.
+Album and song results are release groups (the album, whatever the edition). A song search's
+response says enough about each edition (date, country, formats) for *Add to wishlist* to offer
+them; an album search's doesn't, so its editions are chosen later (`releases.py`). Album results
+are re-ranked locally (`rerank`). Tags and ratings are CC BY-NC-SA and not used here.
 """
 
 from __future__ import annotations
@@ -23,10 +30,69 @@ from .brainz.musicbrainz import MusicBrainzClient
 from .db import Store
 from .releases import formats_text
 
-KINDS = {"album": "release-group", "song": "recording"}  # what's searched -> MusicBrainz entity
+KINDS = {"album": "release-group", "song": "recording", "artist": "artist"}  # -> entity
 SEARCH_TTL = timedelta(days=1)  # a repeated search within this reuses the cached response
 SEARCH_KEEP = timedelta(days=7)  # older cached searches are dropped
 MAX_TITLE = 200  # longer input is cut, so the query stays sane
+BY = " by "
+# Re-ranking: results scoring below this share of the best keep MusicBrainz's order, after the
+# rest; the rest go by type (albums, EPs, singles, any other primary type, then secondary types).
+CLOSE = 0.5
+TYPE_RANK = {"Album": 0, "EP": 1, "Single": 2}
+OTHER_TYPE, SECONDARY = 3, 4
+
+
+@dataclass(frozen=True)
+class Reading:
+    """How what was typed is searched.
+
+    `how`: "by" ("title by artist", split), "fields" (the artist box, open), "words" (an album
+    search's free text), "title" (a song title alone) or "name" (an artist)."""
+
+    kind: str
+    title: str  # the title, the free text or the artist's name
+    artist: str = ""
+    how: str = "fields"
+
+    @property
+    def text(self) -> str:
+        """What was searched, as one line ("title by artist")."""
+        return f"{self.title}{BY}{self.artist}" if self.artist else self.title
+
+    @property
+    def cache_key(self) -> str:
+        if self.how == "words":
+            return f"words\x1f{self.title.casefold()}"
+        return f"{self.title.casefold()}\x1f{self.artist.casefold()}"
+
+
+def split_by(text: str) -> tuple[str, str] | None:
+    """(title, artist) from "<title> by <artist>", split at the last " by " (a title can have
+    one: "Stand by Me by Ben E. King"), or None."""
+    title, by, artist = clean(text).rpartition(BY)
+    if not by or not title.strip() or not artist.strip():
+        return None
+    return clean(title), clean(artist)
+
+
+def read(
+    kind: str, text: str, artist: str = "", *, box: bool = False, words: bool = False
+) -> Reading:
+    """How to search what was typed (no request). `box`: the artist box is open (its contents
+    are `artist`, possibly empty); `words`: don't split at " by " (*Search the words instead*).
+    Raises ValueError for an unknown kind or nothing typed."""
+    if kind not in KINDS:
+        raise ValueError(f"unknown search kind: {kind!r}")
+    text, artist = clean(text), clean(artist)
+    if not text:
+        raise ValueError("type something to search for")
+    if kind == "artist":
+        return Reading(kind, text, how="name")
+    if box:
+        return Reading(kind, text, artist, how="fields")
+    if not words and (found := split_by(text)):
+        return Reading(kind, *found, how="by")
+    return Reading(kind, text, how="words" if kind == "album" else "title")
 
 
 @dataclass(frozen=True)
@@ -51,11 +117,38 @@ class Hit:
     first_release_date: str = ""
     editions: tuple[Edition, ...] = ()  # song searches only
     songs: tuple[str, ...] = ()  # song searches: the matching recordings on it
+    score: int = 0  # album searches: MusicBrainz's relevance, 0-100
+    release_count: int = 0  # album searches: how many editions it has
 
     @property
     def type_label(self) -> str:
         """e.g. "Album", "Album · Live", or "" when MusicBrainz has no type."""
         return " · ".join(t for t in (self.primary_type, *self.secondary_types) if t)
+
+
+@dataclass(frozen=True)
+class ArtistHit:
+    """One artist in the results."""
+
+    mbid: str
+    name: str
+    disambiguation: str = ""
+    type: str = ""  # Person, Group, ...
+    country: str = ""
+
+    @property
+    def detail(self) -> str:
+        """e.g. "Group · US · virtual band"."""
+        return " · ".join(p for p in (self.type, self.country, self.disambiguation) if p)
+
+
+@dataclass(frozen=True)
+class Found:
+    """A search's results: release groups for albums and songs, artists for artists."""
+
+    reading: Reading
+    hits: list[Hit] = field(default_factory=list)
+    artists: list[ArtistHit] = field(default_factory=list)
 
 
 @dataclass
@@ -79,24 +172,16 @@ def search(
     store: Store,
     client: MusicBrainzClient,
     pause: ServicePause,
-    kind: str,
-    title: str,
-    artist: str = "",
+    reading: Reading,
     *,
     now: datetime | None = None,
-) -> list[Hit]:
-    """Release groups matching an album (`kind` "album") or a song ("song") search: at most one
-    request, none when the same search is cached. Raises ServiceError if MusicBrainz failed or
-    is paused after a failure, ValueError for an unknown kind or an empty title."""
-    entity = KINDS.get(kind)
-    title, artist = clean(title), clean(artist)
-    if entity is None:
-        raise ValueError(f"unknown search kind: {kind!r}")
-    if not title:
-        raise ValueError("enter a title to search for")
+) -> Found:
+    """The results for `reading`: at most one request, none when the same search is cached.
+    Raises ServiceError if MusicBrainz failed or is paused after a failure."""
+    entity = KINDS[reading.kind]
     now = now or datetime.now(UTC)
     cache_kind = f"search-{entity}"
-    key = f"{title.casefold()}\x1f{artist.casefold()}"
+    key = reading.cache_key
 
     entry = store.cached("musicbrainz", cache_kind, key)
     if entry is not None and entry.data is not None and entry.refresh_after > _iso(now):
@@ -109,10 +194,7 @@ def search(
                 f"try again in {math.ceil(waiting / 60)} min."
             )
         try:
-            if entity == "release-group":
-                data = client.search_release_groups(title, artist)
-            else:
-                data = client.search_recordings(title, artist)
+            data = _ask(client, reading)
         except ServiceError as exc:
             pause.start(exc.retry_after)
             raise
@@ -120,7 +202,41 @@ def search(
         store.save_cached(
             "musicbrainz", cache_kind, key, data, _iso(now + SEARCH_TTL), fetched_at=_iso(now)
         )
-    return release_group_hits(data) if entity == "release-group" else recording_hits(data)
+    if entity == "artist":
+        return Found(reading, artists=artist_hits(data))
+    if entity == "recording":
+        return Found(reading, hits=recording_hits(data))
+    return Found(reading, hits=rerank(release_group_hits(data)))
+
+
+def _ask(client: MusicBrainzClient, reading: Reading) -> dict:
+    if reading.kind == "artist":
+        return client.search_artists(reading.title)
+    if reading.kind == "song":
+        return client.search_recordings(reading.title, reading.artist)
+    if reading.how == "words":
+        return client.search_release_group_words(reading.title)
+    return client.search_release_groups(reading.title, reading.artist)
+
+
+def rerank(hits: list[Hit]) -> list[Hit]:
+    """Album results in a better order than MusicBrainz's scores alone. Free text otherwise
+    puts a remix single ahead of the album ("demon days gorillaz": 100 for the 2021 remix, 57
+    for the album, tried on a mirror 2026-11-14). Those scoring at least `CLOSE` of the best
+    come first: by type, then score, then how many editions it has (a stand-in for how well
+    known it is); the rest after them, as MusicBrainz ranked them."""
+    if not hits:
+        return hits
+    floor = max(h.score for h in hits) * CLOSE
+
+    def key(indexed: tuple[int, Hit]) -> tuple[int, int, int, int, int]:
+        i, h = indexed
+        if h.score < floor:
+            return (1, 0, 0, 0, i)
+        kind = SECONDARY if h.secondary_types else TYPE_RANK.get(h.primary_type, OTHER_TYPE)
+        return (0, kind, -h.score, -h.release_count, i)
+
+    return [h for _, h in sorted(enumerate(hits), key=key)]
 
 
 def _iso(when: datetime) -> str:
@@ -161,9 +277,33 @@ def release_group_hits(data: dict) -> list[Hit]:
                 primary_type=group.get("primary-type") or "",
                 secondary_types=tuple(group.get("secondary-types") or ()),
                 first_release_date=group.get("first-release-date") or "",
+                score=_int(group.get("score")),
+                release_count=_int(group.get("count")),
             )
         )
     return hits
+
+
+def artist_hits(data: dict) -> list[ArtistHit]:
+    """Artists from an artist search, in MusicBrainz's (relevance) order."""
+    return [
+        ArtistHit(
+            mbid=a["id"],
+            name=a.get("name") or "",
+            disambiguation=a.get("disambiguation") or "",
+            type=a.get("type") or "",
+            country=a.get("country") or "",
+        )
+        for a in data.get("artists") or []
+        if a.get("id")
+    ]
+
+
+def _int(value: object) -> int:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 def recording_hits(data: dict) -> list[Hit]:

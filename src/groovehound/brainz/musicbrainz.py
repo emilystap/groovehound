@@ -3,7 +3,7 @@
 Rate limiting, the User-Agent and backoff live in `http.py`. What's specific to MusicBrainz:
 
 - prefer lookups and browses by MBID; `search_*` is only for an explicit search someone typed
-  (one request per *Search* press, never as-you-type);
+  (one request per Enter, never as-you-type);
 - browses ask for `BROWSE_LIMIT` (100, the maximum) per page and stop after `MAX_BROWSE_PAGES`,
   so an artist with a huge discography stays cheap;
 - `inc=` asks for everything a feature will need in the same request (e.g. `media labels url-rels`
@@ -113,6 +113,20 @@ def search_query(**fields: str) -> str:
     return " AND ".join(terms)
 
 
+_LUCENE_SPECIAL = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
+
+
+def lucene_words(text: str) -> str:
+    """`text` as free-text Lucene words, each escaped on its own, so punctuation can't change the
+    query and "and" / "or" / "not" are words, not operators. Unquoted, so MusicBrainz matches
+    them against title and artist together, in any order."""
+    words = [_LUCENE_SPECIAL.sub(r"\\\1", word) for word in text.split()]
+    words = [w.lower() if w in ("AND", "OR", "NOT") else w for w in words if w]
+    if not words:
+        raise ValueError("search needs at least one word")
+    return " ".join(words)
+
+
 class MusicBrainzClient(JsonClient):
     service = "MusicBrainz"
 
@@ -198,6 +212,10 @@ class MusicBrainzClient(JsonClient):
     ) -> dict:
         """Release groups by title (and artist): `{"count": N, "release-groups": [...]}`."""
         return self._search("release-group", search_query(releasegroup=title, artist=artist), limit)
+
+    def search_release_group_words(self, words: str, limit: int = SEARCH_LIMIT) -> dict:
+        """Release groups matching free text (title and artist words in any mix)."""
+        return self._search("release-group", lucene_words(words), limit)
 
     def search_recordings(self, title: str, artist: str = "", limit: int = SEARCH_LIMIT) -> dict:
         """Recordings by title (and artist), each with the releases it's on: for "I heard this
