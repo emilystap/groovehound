@@ -10,7 +10,7 @@ path = "data/groovehound.db"
 contact = "you@example.com"
 
 [musicbrainz]
-# Your own MusicBrainz mirror (e.g. musicbrainz-docker). Empty = musicbrainz.org.
+# Your own MusicBrainz mirror (musicbrainz-docker, see docs/mirror.md). Empty = musicbrainz.org.
 # api_root = "http://mirror:5000"
 # Seconds from each response to the next request. musicbrainz.org: 1.5, never less.
 # interval = 0
