@@ -22,6 +22,7 @@ are re-ranked locally (`rerank`). Tags and ratings are CC BY-NC-SA and not used 
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
@@ -73,6 +74,28 @@ def split_by(text: str) -> tuple[str, str] | None:
     if not by or not title.strip() or not artist.strip():
         return None
     return clean(title), clean(artist)
+
+
+_SAVED_KIND = re.compile(r"\s*\((album|song|artist)\)$", re.IGNORECASE)
+
+
+def saved_text(text: str, artist: str = "", kind: str = "album") -> str:
+    """What's in the bar as one line to save for later (a quick capture): "title by artist"
+    when the artist box has something in it, and "(song)" or "(artist)" at the end for those
+    chips, so *Look it up* can set the chip again (`from_saved`)."""
+    text, artist = clean(text), clean(artist)
+    line = f"{text}{BY}{artist}" if text and artist else text or artist
+    return f"{line} ({kind})" if line and kind in ("song", "artist") else line
+
+
+def from_saved(text: str) -> tuple[str, str]:
+    """(what to put in the bar, the chip) for a saved line: its "(song)", "(album)" or
+    "(artist)" at the end is the chip, and left out of the bar (else it would end up in the
+    artist); without one, albums."""
+    found = _SAVED_KIND.search(text)
+    if not found:
+        return clean(text), "album"
+    return clean(text[: found.start()]), found.group(1).lower()
 
 
 def read(

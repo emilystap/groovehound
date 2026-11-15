@@ -11,10 +11,12 @@ from groovehound.search import (
     Reading,
     artist_hits,
     clean,
+    from_saved,
     read,
     recording_hits,
     release_group_hits,
     rerank,
+    saved_text,
     search,
 )
 
@@ -290,3 +292,13 @@ def test_artist_hits():
     first, second = artist_hits(ARTISTS)
     assert first.detail == "Group · GB · virtual band"
     assert second.detail == ""
+
+
+def test_saved_text_and_back():
+    assert saved_text(" sax  song ") == "sax song"
+    assert saved_text("360", "Charli xcx", "song") == "360 by Charli xcx (song)"
+    assert saved_text("gorillaz", kind="artist") == "gorillaz (artist)"
+    assert saved_text("", "") == "" and saved_text("", kind="song") == ""
+    assert from_saved("360 by Charli xcx (song)") == ("360 by Charli xcx", "song")
+    assert from_saved("Brat (Album)") == ("Brat", "album")  # as saved before the one bar
+    assert from_saved("song with a (sax) solo") == ("song with a (sax) solo", "album")

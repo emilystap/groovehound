@@ -283,6 +283,10 @@ select { max-width: 100%; }
 .box-toggle input:checked ~ .box-open { display: none; }
 .box-toggle input:checked ~ .box-close { display: inline-flex; }
 .searchbar:has(input[value="artist"]:checked) .box-toggle { visibility: hidden; }
+.bar-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.bar-save button { gap: 6px; min-height: 34px; padding: 0 14px; font-size: 13px; }
+.bar-save .icon { width: 16px; height: 16px; }
+.saved-note { margin: 0; color: var(--muted); font-size: 13px; }
 .reading { margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; background: var(--surface); font-size: 13px; }
 .reading a { font-weight: 600; }
 .results { margin-bottom: 16px; }
@@ -340,9 +344,9 @@ select { max-width: 100%; }
 .actions .saved { margin-top: 0; align-self: center; }
 .capture { display: flex; flex-wrap: wrap; gap: 8px; max-width: 480px; }
 .capture input { flex: 1 1 16em; min-width: 0; }
-.captures { list-style: none; margin: 12px 0 0; padding: 0; }
-.captures li { padding: 8px 0; border-top: 1px solid var(--divider); }
-.captures li:first-child { border-top: 0; }
+/* To look up: a saved line wraps, as it's all there is to the row. */
+.capture-row .row-title { white-space: normal; overflow-wrap: anywhere; }
+.capture-row .row-extra { padding-left: 0; }
 .capture-text { overflow-wrap: anywhere; margin-right: 6px; }
 .looking-up .capture-text { font-weight: 600; }
 
@@ -351,7 +355,7 @@ select { max-width: 100%; }
 .follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .follow > a { color: var(--text); }
 .follow form { margin: 0; }
-button.chip { min-height: 28px; padding: 2px 12px; font-size: 0.85rem; }
+button.chip, a.button.chip { min-height: 28px; padding: 2px 12px; font-size: 0.85rem; }
 button.chip.on { background: transparent; color: var(--muted); border-color: var(--button-bg); }
 .follow-error { color: var(--warning); flex-basis: 100%; }
 .artists { list-style: none; margin: 0; padding: 0; }
@@ -822,7 +826,7 @@ button.link.sort-button { display: inline-flex; align-items: center; gap: 4px; m
   .card { padding: 12px; }
   .cover { width: 48px; height: 48px; }
   button, a.button { min-height: 40px; }
-  button.chip { min-height: 32px; }
+  button.chip, a.button.chip { min-height: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

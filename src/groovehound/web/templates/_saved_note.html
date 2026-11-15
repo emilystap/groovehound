@@ -1,0 +1,6 @@
+{# Under the search bar: what *Save for later* saved (`saved`, a capture), or that there was
+   nothing to save (`empty`); otherwise an empty placeholder for HTMX to replace. #}
+<p class="saved-note" id="saved-note" role="status"{% if not saved and not empty %} hidden{% endif %}>
+  {%- if saved %}Saved “{{ saved.text }}” for later: it's under <a href="/wishlist?show=look-up">To look up</a> on your wishlist.
+  {%- elif empty %}Type what you heard first, then save it for later.{% endif -%}
+</p>

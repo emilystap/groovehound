@@ -566,9 +566,17 @@ needs something new (the album page's header) gets a function outside `web/`.
      button). Artist rows link to the artist page, with *Follow* inline and a picture from
      covers already cached. `/search?title=…&artist=…` (links from before) opens the artist
      box.
-  2. **Save for later** (the section above): the button under the bar, every share opening
+  2. ✅ **Save for later** (the section above): the button under the bar, every share opening
      Search (Home loses its capture form), *To look up* as plain rows with *Look it up*
-     filling the bar, and the launcher shortcut. Small; can come before or after 3.
+     filling the bar, and the launcher shortcut. Small; can come before or after 3. Decided in
+     place: the button posts the bar's own fields (`save=1`), and `search.saved_text` makes
+     the line: "title by artist" with the artist box open, and "(song)" or "(artist)" at the
+     end for those chips (albums need none); `search.from_saved` reads it back for *Look it
+     up*, which opens the bar filled in but not searched. With HTMX a note under the button
+     says what was saved; without, the post comes back to `/search?saved=<id>` saying the
+     same. The button isn't there while looking up something already saved. Home's
+     *To look up · N* shows only with something waiting. A shared text keeps the bar's 200
+     characters.
   3. **Local matches as you type:** a query over the library (albums and album artists) and the
      wishlist, outside `web/`; *In your library* and *On your wishlist* groups after a 300 ms
      pause, no requests. On desktop, the bar at the top of every page, opening Search as you
