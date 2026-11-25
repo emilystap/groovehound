@@ -3,7 +3,7 @@
 #   docker run -p 8080:8080 -v groovehound-data:/data -e GROOVEHOUND_CONTACT=you@example.com groovehound
 
 # Base images are pinned by digest; Dependabot keeps the digests current (.github/dependabot.yml).
-FROM ghcr.io/astral-sh/uv:0.13@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85 AS uv
+FROM ghcr.io/astral-sh/uv:0.13@sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f AS uv
 
 # --- Build: install the locked dependencies and the app into /app/.venv -----------------
 FROM python:3.13-slim@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS build
